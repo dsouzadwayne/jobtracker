@@ -1,4 +1,4 @@
-# JobTracker Privacy Policy
+# Privacy Policy
 
 **Last Updated:** January 12, 2026
 
