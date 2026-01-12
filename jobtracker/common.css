@@ -284,6 +284,11 @@ button:disabled {
   cursor: not-allowed;
 }
 
+button svg, .btn svg {
+  display: block;
+  flex-shrink: 0;
+}
+
 .btn-primary {
   background: var(--color-primary);
   color: white;

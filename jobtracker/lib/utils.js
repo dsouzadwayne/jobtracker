@@ -69,6 +69,7 @@ const JobTrackerUtils = {
   // Truncate text with ellipsis
   truncate(text, maxLength = 50) {
     if (!text || text.length <= maxLength) return text;
+    if (maxLength < 4) return text.substring(0, maxLength);
     return text.substring(0, maxLength - 3) + '...';
   },
 
@@ -173,7 +174,7 @@ const JobTrackerUtils = {
       'indeed': /indeed\.com/i,
       'glassdoor': /glassdoor\.(com|co\.uk)/i,
       'greenhouse': /greenhouse\.io/i,
-      'lever': /lever\.co/i,
+      'lever': /lever\.(co|com)/i,
       'workday': /(myworkdayjobs|workday)\.com/i,
       'icims': /icims\.com/i,
       'smartrecruiters': /smartrecruiters\.com/i
@@ -300,9 +301,11 @@ const JobTrackerUtils = {
         return;
       }
 
+      let timeoutId;
       const observer = new MutationObserver((mutations, obs) => {
         const element = document.querySelector(selector);
         if (element) {
+          clearTimeout(timeoutId);
           obs.disconnect();
           resolve(element);
         }
@@ -313,7 +316,7 @@ const JobTrackerUtils = {
         subtree: true
       });
 
-      setTimeout(() => {
+      timeoutId = setTimeout(() => {
         observer.disconnect();
         reject(new Error(`Timeout waiting for element: ${selector}`));
       }, timeout);

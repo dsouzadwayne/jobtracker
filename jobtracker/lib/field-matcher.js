@@ -205,10 +205,15 @@ const JobTrackerFieldMatcher = {
     if (arrayMatch) {
       const [, arrayName, index, subPath] = arrayMatch;
       const array = profile[arrayName];
-      if (Array.isArray(array) && array[index]) {
-        return this.getValueFromProfile(subPath, array[index]);
+      if (!Array.isArray(array)) {
+        console.warn(`JobTracker: Profile path "${arrayName}" is not an array`);
+        return '';
       }
-      return '';
+      if (!array[index]) {
+        console.warn(`JobTracker: Profile array "${arrayName}" has no item at index ${index}`);
+        return '';
+      }
+      return this.getValueFromProfile(subPath, array[index]);
     }
 
     // Handle simple dot notation

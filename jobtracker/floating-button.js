@@ -12,7 +12,9 @@
 
   // State
   let floatingButton = null;
+  let quickAddModal = null;
   let isFormDetected = false;
+  let hasApplied = false;
   let settings = null;
 
   // Form detection indicators
@@ -24,7 +26,7 @@
       /\/application/i,
       /\/hiring/i,
       /greenhouse\.io/,
-      /lever\.co/,
+      /lever\.(co|com)/,
       /workday\.com/,
       /myworkdayjobs\.com/,
       /icims\.com/,
@@ -136,13 +138,27 @@
     floatingButton.id = 'jobtracker-floating-btn';
     floatingButton.className = 'jobtracker-floating-btn';
     floatingButton.innerHTML = `
-      <button class="jobtracker-btn-main" title="JobTracker - Autofill Application">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-        </svg>
-        <span>Autofill</span>
-      </button>
+      <div class="jobtracker-btn-group">
+        <button class="jobtracker-btn-applied" title="Mark as Applied">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          <span>I Applied</span>
+        </button>
+        <button class="jobtracker-btn-main" title="Autofill Form">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+          </svg>
+        </button>
+        <button class="jobtracker-btn-menu-toggle" title="More options">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="1"></circle>
+            <circle cx="12" cy="5" r="1"></circle>
+            <circle cx="12" cy="19" r="1"></circle>
+          </svg>
+        </button>
+      </div>
       <div class="jobtracker-btn-menu hidden">
         <button class="jobtracker-menu-item" data-action="autofill">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -151,12 +167,11 @@
           </svg>
           Autofill Form
         </button>
-        <button class="jobtracker-menu-item" data-action="track">
+        <button class="jobtracker-menu-item" data-action="save">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <line x1="5" y1="12" x2="19" y2="12"></line>
+            <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path>
           </svg>
-          Track Application
+          Save for Later
         </button>
         <button class="jobtracker-menu-item" data-action="hide">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -171,18 +186,25 @@
     document.body.appendChild(floatingButton);
 
     // Event listeners
+    const appliedBtn = floatingButton.querySelector('.jobtracker-btn-applied');
     const mainBtn = floatingButton.querySelector('.jobtracker-btn-main');
+    const menuToggle = floatingButton.querySelector('.jobtracker-btn-menu-toggle');
     const menu = floatingButton.querySelector('.jobtracker-btn-menu');
 
-    // Click main button to autofill
+    // Click "I Applied" button
+    appliedBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      handleIApplied();
+    });
+
+    // Click autofill button
     mainBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       triggerAutofill();
     });
 
-    // Right-click to show menu
-    mainBtn.addEventListener('contextmenu', (e) => {
-      e.preventDefault();
+    // Click menu toggle
+    menuToggle.addEventListener('click', (e) => {
       e.stopPropagation();
       menu.classList.toggle('hidden');
     });
@@ -212,13 +234,162 @@
       case 'autofill':
         triggerAutofill();
         break;
-      case 'track':
-        trackCurrentApplication();
+      case 'save':
+        trackCurrentApplication('saved');
         break;
       case 'hide':
         hideButton();
         break;
     }
+  }
+
+  // Handle "I Applied" button click
+  async function handleIApplied() {
+    if (hasApplied) return;
+
+    const jobInfo = extractJobInfo();
+
+    // If extraction failed, show quick add modal
+    if (!jobInfo.company && !jobInfo.position) {
+      const result = await showQuickAddModal(jobInfo);
+      if (!result) return; // User cancelled
+      Object.assign(jobInfo, result);
+    }
+
+    try {
+      await chrome.runtime.sendMessage({
+        type: 'ADD_APPLICATION',
+        payload: {
+          ...jobInfo,
+          status: 'applied',
+          dateApplied: new Date().toISOString(),
+          source: 'manual-button'
+        }
+      });
+
+      // Update button to show applied state
+      setAppliedState();
+
+      if (window.JobTrackerContent) {
+        window.JobTrackerContent.showNotification('Application tracked!', 'success');
+      }
+    } catch (error) {
+      console.error('JobTracker: Error tracking application:', error);
+      if (window.JobTrackerContent) {
+        window.JobTrackerContent.showNotification('Failed to save application', 'error');
+      }
+    }
+  }
+
+  // Set button to applied state
+  function setAppliedState() {
+    hasApplied = true;
+    const appliedBtn = floatingButton?.querySelector('.jobtracker-btn-applied');
+    if (appliedBtn) {
+      appliedBtn.classList.add('applied');
+      appliedBtn.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        <span>Applied</span>
+      `;
+    }
+  }
+
+  // Show quick add modal for manual entry
+  function showQuickAddModal(prefill = {}) {
+    return new Promise((resolve) => {
+      // Remove existing modal if any
+      if (quickAddModal) {
+        quickAddModal.remove();
+      }
+
+      quickAddModal = document.createElement('div');
+      quickAddModal.className = 'jobtracker-quick-add-overlay';
+      quickAddModal.innerHTML = `
+        <div class="jobtracker-quick-add-modal">
+          <div class="jobtracker-quick-add-header">
+            <h3>Track Application</h3>
+            <button class="jobtracker-quick-add-close">&times;</button>
+          </div>
+          <div class="jobtracker-quick-add-body">
+            <div class="jobtracker-quick-add-field">
+              <label for="jt-company">Company</label>
+              <input type="text" id="jt-company" placeholder="e.g., Google" value="${escapeHtml(prefill.company || '')}">
+            </div>
+            <div class="jobtracker-quick-add-field">
+              <label for="jt-position">Position</label>
+              <input type="text" id="jt-position" placeholder="e.g., Software Engineer" value="${escapeHtml(prefill.position || '')}">
+            </div>
+          </div>
+          <div class="jobtracker-quick-add-footer">
+            <button class="jobtracker-quick-add-cancel">Cancel</button>
+            <button class="jobtracker-quick-add-save">Save Application</button>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(quickAddModal);
+
+      // Focus first empty field
+      const companyInput = quickAddModal.querySelector('#jt-company');
+      const positionInput = quickAddModal.querySelector('#jt-position');
+      if (!companyInput.value) {
+        companyInput.focus();
+      } else if (!positionInput.value) {
+        positionInput.focus();
+      } else {
+        companyInput.focus();
+      }
+
+      // Event handlers
+      const closeModal = () => {
+        quickAddModal.remove();
+        quickAddModal = null;
+        resolve(null);
+      };
+
+      const saveData = () => {
+        const company = companyInput.value.trim();
+        const position = positionInput.value.trim();
+
+        if (!company && !position) {
+          companyInput.focus();
+          return;
+        }
+
+        quickAddModal.remove();
+        quickAddModal = null;
+        resolve({ company, position });
+      };
+
+      quickAddModal.querySelector('.jobtracker-quick-add-close').addEventListener('click', closeModal);
+      quickAddModal.querySelector('.jobtracker-quick-add-cancel').addEventListener('click', closeModal);
+      quickAddModal.querySelector('.jobtracker-quick-add-save').addEventListener('click', saveData);
+
+      // Close on overlay click
+      quickAddModal.addEventListener('click', (e) => {
+        if (e.target === quickAddModal) closeModal();
+      });
+
+      // Handle Enter key
+      quickAddModal.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          saveData();
+        } else if (e.key === 'Escape') {
+          closeModal();
+        }
+      });
+    });
+  }
+
+  // Escape HTML helper
+  function escapeHtml(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
   }
 
   // Trigger autofill
@@ -228,14 +399,13 @@
   }
 
   // Track current application
-  async function trackCurrentApplication() {
-    const jobInfo = extractJobInfo();
+  async function trackCurrentApplication(status = 'saved') {
+    let jobInfo = extractJobInfo();
 
     if (!jobInfo.company && !jobInfo.position) {
-      if (window.JobTrackerContent) {
-        window.JobTrackerContent.showNotification('Could not extract job info from this page', 'warning');
-      }
-      return;
+      const result = await showQuickAddModal(jobInfo);
+      if (!result) return;
+      Object.assign(jobInfo, result);
     }
 
     try {
@@ -243,7 +413,7 @@
         type: 'ADD_APPLICATION',
         payload: {
           ...jobInfo,
-          status: 'saved',
+          status: status,
           dateApplied: new Date().toISOString()
         }
       });
@@ -312,14 +482,18 @@
     };
   }
 
-  // Detect platform from URL
+  // Detect platform from URL - use shared utility if available
   function detectPlatform(url) {
+    if (typeof JobTrackerUtils !== 'undefined' && JobTrackerUtils.detectPlatform) {
+      return JobTrackerUtils.detectPlatform(url);
+    }
+    // Fallback if utility not available
     const platforms = {
       'linkedin': /linkedin\.com/i,
       'indeed': /indeed\.com/i,
       'glassdoor': /glassdoor\.(com|co\.uk)/i,
       'greenhouse': /greenhouse\.io/i,
-      'lever': /lever\.co/i,
+      'lever': /lever\.(co|com)/i,
       'workday': /(myworkdayjobs|workday)\.com/i,
       'icims': /icims\.com/i,
       'smartrecruiters': /smartrecruiters\.com/i
@@ -391,6 +565,7 @@
       if (!isFormDetected && shouldShowButton()) {
         createFloatingButton();
         isFormDetected = true;
+        observer.disconnect();
       }
     });
 

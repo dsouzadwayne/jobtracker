@@ -95,7 +95,31 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadApplications();
   setupEventListeners();
   checkUrlParams();
+  setupBackNavigation();
 });
+
+// Setup context-aware back navigation
+function setupBackNavigation() {
+  const backBtn = document.getElementById('back-btn');
+  const urlParams = new URLSearchParams(window.location.search);
+  const from = urlParams.get('from');
+
+  if (from === 'dashboard') {
+    backBtn.href = 'dashboard.html';
+  } else {
+    // From popup context or direct navigation
+    backBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      // Try to use browser history if available
+      if (window.history.length > 1) {
+        window.history.back();
+      } else {
+        // Fallback to popup
+        window.location.href = 'popup.html';
+      }
+    });
+  }
+}
 
 // Load applications
 async function loadApplications() {
@@ -135,7 +159,9 @@ function applyFilters() {
         return (a.company || '').localeCompare(b.company || '');
       case 'status':
         const statusOrder = ['offer', 'interview', 'screening', 'applied', 'saved', 'rejected', 'withdrawn'];
-        return statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status);
+        const aIdx = statusOrder.indexOf(a.status);
+        const bIdx = statusOrder.indexOf(b.status);
+        return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx);
       default:
         return 0;
     }

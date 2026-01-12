@@ -42,7 +42,7 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["lib/storage.js", "lib/utils.js", "content.js", "floating-button.js"],
+      "js": ["lib/storage.js", "lib/utils.js", "content.js", "floating-button.js", "generic-detect.js"],
       "css": ["floating-button.css"],
       "run_at": "document_end"
     },
@@ -67,7 +67,7 @@
       "run_at": "document_end"
     },
     {
-      "matches": ["*://jobs.lever.co/*", "*://*.lever.co/*"],
+      "matches": ["*://jobs.lever.co/*", "*://*.lever.co/*", "*://*.lever.com/*"],
       "js": ["lib/field-matcher.js", "lib/form-utils.js", "lever-autofill.js", "lever-detect.js"],
       "run_at": "document_end"
     },
@@ -102,7 +102,10 @@
       "resources": [
         "lib/*.js",
         "icons/*",
-        "common.css"
+        "common.css",
+        "dashboard.html",
+        "dashboard.js",
+        "dashboard.css"
       ],
       "matches": ["<all_urls>"]
     }

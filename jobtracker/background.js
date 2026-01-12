@@ -1,7 +1,11 @@
 /**
  * JobTracker Background Service Worker
  * Handles message passing, keyboard shortcuts, and background operations
+ * Uses IndexedDB for data storage
  */
+
+// Import the database module (ES module)
+import { JobTrackerDB } from './lib/database.js';
 
 // Message types
 const MessageTypes = {
@@ -33,78 +37,40 @@ const MessageTypes = {
   IMPORT_DATA: 'IMPORT_DATA'
 };
 
-// Storage helper (inline since we can't import in service worker without bundling)
-const Storage = {
-  KEYS: {
-    PROFILE: 'jobtracker_profile',
-    APPLICATIONS: 'jobtracker_applications',
-    SETTINGS: 'jobtracker_settings'
-  },
-
-  generateId() {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-      const r = Math.random() * 16 | 0;
-      const v = c === 'x' ? r : (r & 0x3 | 0x8);
-      return v.toString(16);
-    });
-  },
-
-  getDefaultProfile() {
-    return {
-      personal: {
-        firstName: '', lastName: '', email: '', phone: '',
-        address: { street: '', city: '', state: '', zipCode: '', country: '' },
-        linkedIn: '', github: '', portfolio: '', website: ''
-      },
-      workHistory: [],
-      education: [],
-      skills: { languages: [], frameworks: [], tools: [], soft: [], other: [] },
-      certifications: [],
-      links: [],
-      customQA: [],
-      meta: { createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), version: 1 }
-    };
-  },
-
-  getDefaultSettings() {
-    return {
-      autofill: { enabled: true, showFloatingButton: true, autoDetectForms: true, confirmBeforeFill: false },
-      detection: {
-        autoTrackSubmissions: true, notifyOnDetection: true,
-        enabledPlatforms: ['linkedin', 'indeed', 'glassdoor', 'workday', 'greenhouse', 'lever', 'icims', 'smartrecruiters']
-      },
-      ui: { theme: 'system', floatingButtonPosition: 'bottom-right' },
-      data: { autoBackup: false, backupInterval: 7 }
-    };
-  },
-
-  async get(key) {
-    const result = await chrome.storage.local.get(key);
-    return result[key];
-  },
-
-  async set(key, value) {
-    await chrome.storage.local.set({ [key]: value });
-  }
-};
-
 // Handle installation
 chrome.runtime.onInstalled.addListener(async (details) => {
   if (details.reason === 'install') {
     console.log('JobTracker: Extension installed');
-    // Initialize default data
-    const profile = await Storage.get(Storage.KEYS.PROFILE);
-    if (!profile) {
-      await Storage.set(Storage.KEYS.PROFILE, Storage.getDefaultProfile());
+    // Initialize database and set defaults
+    await JobTrackerDB.init();
+    const profile = await JobTrackerDB.getProfile();
+    if (!profile || !profile.personal) {
+      await JobTrackerDB.saveProfile(JobTrackerDB.getDefaultProfile());
     }
-    const settings = await Storage.get(Storage.KEYS.SETTINGS);
-    if (!settings) {
-      await Storage.set(Storage.KEYS.SETTINGS, Storage.getDefaultSettings());
+    const settings = await JobTrackerDB.getSettings();
+    if (!settings.id) {
+      await JobTrackerDB.saveSettings(JobTrackerDB.getDefaultSettings());
     }
   } else if (details.reason === 'update') {
     console.log('JobTracker: Extension updated to version', chrome.runtime.getManifest().version);
+    // Run migration from Chrome storage to IndexedDB
+    try {
+      await JobTrackerDB.migrateFromChromeStorage();
+    } catch (error) {
+      console.error('JobTracker: Migration error', error);
+    }
   }
 });
+
+// Run migration check on startup
+(async () => {
+  try {
+    await JobTrackerDB.init();
+    await JobTrackerDB.migrateFromChromeStorage();
+  } catch (error) {
+    console.error('JobTracker: Startup migration check failed', error);
+  }
+})();
 
 // Handle keyboard shortcuts
 chrome.commands.onCommand.addListener(async (command) => {
@@ -128,138 +94,57 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       switch (type) {
         // Profile operations
         case MessageTypes.GET_PROFILE: {
-          const profile = await Storage.get(Storage.KEYS.PROFILE);
-          response = profile || Storage.getDefaultProfile();
+          response = await JobTrackerDB.getProfile();
           break;
         }
 
         case MessageTypes.SAVE_PROFILE: {
-          payload.meta = payload.meta || {};
-          payload.meta.updatedAt = new Date().toISOString();
-          await Storage.set(Storage.KEYS.PROFILE, payload);
+          await JobTrackerDB.saveProfile(payload);
           response = { success: true };
           break;
         }
 
         case MessageTypes.GET_PROFILE_FOR_FILL: {
-          const profile = await Storage.get(Storage.KEYS.PROFILE);
-          response = profile || Storage.getDefaultProfile();
+          response = await JobTrackerDB.getProfile();
           break;
         }
 
         // Application operations
         case MessageTypes.GET_APPLICATIONS: {
-          const applications = await Storage.get(Storage.KEYS.APPLICATIONS);
-          response = applications || [];
+          response = await JobTrackerDB.getAllApplications();
           break;
         }
 
         case MessageTypes.ADD_APPLICATION: {
-          const applications = await Storage.get(Storage.KEYS.APPLICATIONS) || [];
-          const newApp = {
-            ...payload,
-            id: payload.id || Storage.generateId(),
-            meta: {
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              version: 1
-            },
-            statusHistory: payload.statusHistory || [{
-              status: payload.status || 'applied',
-              date: new Date().toISOString(),
-              notes: ''
-            }]
-          };
-          applications.unshift(newApp);
-          await Storage.set(Storage.KEYS.APPLICATIONS, applications);
-          response = newApp;
+          response = await JobTrackerDB.addApplication(payload);
           break;
         }
 
         case MessageTypes.UPDATE_APPLICATION: {
-          const applications = await Storage.get(Storage.KEYS.APPLICATIONS) || [];
-          const index = applications.findIndex(a => a.id === payload.id);
-          if (index !== -1) {
-            const oldStatus = applications[index].status;
-            applications[index] = {
-              ...applications[index],
-              ...payload,
-              meta: {
-                ...applications[index].meta,
-                updatedAt: new Date().toISOString()
-              }
-            };
-            // Track status change
-            if (payload.status && payload.status !== oldStatus) {
-              applications[index].statusHistory = applications[index].statusHistory || [];
-              applications[index].statusHistory.push({
-                status: payload.status,
-                date: new Date().toISOString(),
-                notes: payload.statusNote || ''
-              });
-            }
-            await Storage.set(Storage.KEYS.APPLICATIONS, applications);
-            response = { success: true, application: applications[index] };
-          } else {
-            response = { success: false, error: 'Application not found' };
-          }
+          response = await JobTrackerDB.updateApplication(payload);
           break;
         }
 
         case MessageTypes.DELETE_APPLICATION: {
-          const applications = await Storage.get(Storage.KEYS.APPLICATIONS) || [];
-          const filtered = applications.filter(a => a.id !== payload.id);
-          await Storage.set(Storage.KEYS.APPLICATIONS, filtered);
-          response = { success: true };
+          response = await JobTrackerDB.deleteApplication(payload.id);
           break;
         }
 
         case MessageTypes.GET_APPLICATION_STATS: {
-          const applications = await Storage.get(Storage.KEYS.APPLICATIONS) || [];
-          const stats = {
-            total: applications.length,
-            byStatus: {},
-            thisWeek: 0,
-            thisMonth: 0
-          };
-          const now = new Date();
-          const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
-          const monthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
-
-          applications.forEach(app => {
-            stats.byStatus[app.status] = (stats.byStatus[app.status] || 0) + 1;
-            const appliedDate = new Date(app.dateApplied || app.meta?.createdAt);
-            if (appliedDate >= weekAgo) stats.thisWeek++;
-            if (appliedDate >= monthAgo) stats.thisMonth++;
-          });
-          response = stats;
+          response = await JobTrackerDB.getApplicationStats();
           break;
         }
 
         // Detection - application submitted
         case MessageTypes.SUBMISSION_DETECTED: {
-          const settings = await Storage.get(Storage.KEYS.SETTINGS) || Storage.getDefaultSettings();
+          const settings = await JobTrackerDB.getSettings();
           if (settings.detection.autoTrackSubmissions) {
-            const applications = await Storage.get(Storage.KEYS.APPLICATIONS) || [];
-            const newApp = {
+            const newApp = await JobTrackerDB.addApplication({
               ...payload,
-              id: Storage.generateId(),
               status: 'applied',
               autoDetected: true,
-              dateApplied: new Date().toISOString(),
-              meta: {
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-                version: 1
-              },
-              statusHistory: [{
-                status: 'applied',
-                date: new Date().toISOString(),
-                notes: 'Auto-detected submission'
-              }]
-            };
-            applications.unshift(newApp);
-            await Storage.set(Storage.KEYS.APPLICATIONS, applications);
+              dateApplied: new Date().toISOString()
+            });
             response = { success: true, application: newApp };
 
             // Notify user if enabled
@@ -274,56 +159,37 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         // Settings operations
         case MessageTypes.GET_SETTINGS: {
-          const settings = await Storage.get(Storage.KEYS.SETTINGS);
-          response = { ...Storage.getDefaultSettings(), ...settings };
+          response = await JobTrackerDB.getSettings();
           break;
         }
 
         case MessageTypes.SAVE_SETTINGS: {
-          await Storage.set(Storage.KEYS.SETTINGS, payload);
+          await JobTrackerDB.saveSettings(payload);
           response = { success: true };
           break;
         }
 
         // Export/Import
         case MessageTypes.EXPORT_DATA: {
-          const [profile, applications, settings] = await Promise.all([
-            Storage.get(Storage.KEYS.PROFILE),
-            Storage.get(Storage.KEYS.APPLICATIONS),
-            Storage.get(Storage.KEYS.SETTINGS)
-          ]);
-          response = {
-            version: 1,
-            exportedAt: new Date().toISOString(),
-            profile: profile || Storage.getDefaultProfile(),
-            applications: applications || [],
-            settings: settings || Storage.getDefaultSettings()
-          };
+          response = await JobTrackerDB.exportAllData();
           break;
         }
 
         case MessageTypes.IMPORT_DATA: {
           const { data, merge } = payload;
-          if (merge) {
-            // Merge logic
-            const existingApps = await Storage.get(Storage.KEYS.APPLICATIONS) || [];
-            const existingProfile = await Storage.get(Storage.KEYS.PROFILE) || Storage.getDefaultProfile();
+          response = await JobTrackerDB.importData(data, merge);
+          break;
+        }
 
-            if (data.applications) {
-              const existingIds = new Set(existingApps.map(a => a.id));
-              const newApps = data.applications.filter(a => !existingIds.has(a.id));
-              await Storage.set(Storage.KEYS.APPLICATIONS, [...existingApps, ...newApps]);
-            }
-            if (data.profile) {
-              await Storage.set(Storage.KEYS.PROFILE, { ...existingProfile, ...data.profile });
-            }
+        // Autofill - forward to active tab
+        case MessageTypes.TRIGGER_AUTOFILL: {
+          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+          if (tab?.id) {
+            chrome.tabs.sendMessage(tab.id, { type: MessageTypes.TRIGGER_AUTOFILL });
+            response = { success: true };
           } else {
-            // Replace
-            if (data.profile) await Storage.set(Storage.KEYS.PROFILE, data.profile);
-            if (data.applications) await Storage.set(Storage.KEYS.APPLICATIONS, data.applications);
-            if (data.settings) await Storage.set(Storage.KEYS.SETTINGS, data.settings);
+            response = { error: 'No active tab found' };
           }
-          response = { success: true };
           break;
         }
 

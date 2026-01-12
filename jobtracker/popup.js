@@ -102,7 +102,8 @@ const elements = {
   addModal: document.getElementById('add-modal'),
   closeModal: document.getElementById('close-modal'),
   cancelAdd: document.getElementById('cancel-add'),
-  addAppForm: document.getElementById('add-app-form')
+  addAppForm: document.getElementById('add-app-form'),
+  openDashboardBtn: document.getElementById('open-dashboard-btn')
 };
 
 // Initialize popup
@@ -223,6 +224,11 @@ function setupEventListeners() {
     chrome.tabs.create({ url: 'profile.html#settings' });
   });
 
+  // Open Dashboard
+  elements.openDashboardBtn.addEventListener('click', () => {
+    chrome.tabs.create({ url: chrome.runtime.getURL('dashboard.html') });
+  });
+
   // Keyboard shortcuts
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !elements.addModal.classList.contains('hidden')) {
@@ -285,7 +291,7 @@ function detectPlatformFromUrl(url) {
     'indeed': /indeed\.com/i,
     'glassdoor': /glassdoor\.(com|co\.uk)/i,
     'greenhouse': /greenhouse\.io/i,
-    'lever': /lever\.co/i,
+    'lever': /lever\.(co|com)/i,
     'workday': /(myworkdayjobs|workday)\.com/i,
     'icims': /icims\.com/i,
     'smartrecruiters': /smartrecruiters\.com/i
