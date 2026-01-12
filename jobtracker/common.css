@@ -1,0 +1,670 @@
+/**
+ * JobTracker Common Styles
+ * Japanese Minimalist Design (Ma)
+ */
+
+/* ========================================
+   Light Theme (Default) - Japanese Minimalist
+   ======================================== */
+:root,
+[data-theme="light"] {
+  /* Base Colors - Muted, natural Japanese palette */
+  --color-primary: #5B7C99;
+  --color-primary-hover: #4A6B88;
+  --color-primary-light: #E8EEF3;
+
+  --color-success: #6B9080;
+  --color-success-light: #E5EDEA;
+
+  --color-warning: #C9A962;
+  --color-warning-light: #F5F0E3;
+
+  --color-danger: #B87B7B;
+  --color-danger-light: #F3E8E8;
+
+  --color-info: #8B8BB8;
+  --color-info-light: #EDEDF5;
+
+  /* Grays - Warmer, softer tones */
+  --color-gray-50: #FAFAF9;
+  --color-gray-100: #F5F4F2;
+  --color-gray-200: #E8E6E3;
+  --color-gray-300: #D4D2CF;
+  --color-gray-400: #A8A5A0;
+  --color-gray-500: #7A7773;
+  --color-gray-600: #5C5955;
+  --color-gray-700: #3D3B38;
+  --color-gray-800: #2A2826;
+  --color-gray-900: #1A1917;
+
+  /* Background & Text */
+  --bg-primary: #FDFCFB;
+  --bg-secondary: #F7F6F4;
+  --bg-tertiary: #F0EFED;
+  --text-primary: #2A2826;
+  --text-secondary: #5C5955;
+  --text-muted: #A8A5A0;
+
+  /* Borders */
+  --border-color: #E8E6E3;
+  --border-color-light: #F0EFED;
+
+  /* Shadows - Softer, more diffuse */
+  --shadow-sm: 0 1px 3px rgba(26, 25, 23, 0.04);
+  --shadow: 0 2px 8px rgba(26, 25, 23, 0.06);
+  --shadow-md: 0 4px 16px rgba(26, 25, 23, 0.08);
+  --shadow-lg: 0 8px 32px rgba(26, 25, 23, 0.10);
+
+  /* Status Colors - Muted, harmonious */
+  --status-saved: #A8A5A0;
+  --status-applied: #5B7C99;
+  --status-screening: #9B89B8;
+  --status-interview: #C9A962;
+  --status-offer: #6B9080;
+  --status-rejected: #B87B7B;
+  --status-withdrawn: #A8A5A0;
+}
+
+/* ========================================
+   Dark Theme - Japanese Minimalist
+   ======================================== */
+[data-theme="dark"] {
+  /* Base Colors */
+  --color-primary: #7B9CB8;
+  --color-primary-hover: #8DABC5;
+  --color-primary-light: #2A3540;
+
+  --color-success: #8BB0A0;
+  --color-success-light: #243530;
+
+  --color-warning: #D9C982;
+  --color-warning-light: #3A3528;
+
+  --color-danger: #C89B9B;
+  --color-danger-light: #3A2828;
+
+  --color-info: #A8A8D0;
+  --color-info-light: #2A2A3A;
+
+  /* Grays - Inverted for dark mode */
+  --color-gray-50: #1A1917;
+  --color-gray-100: #242321;
+  --color-gray-200: #2E2D2A;
+  --color-gray-300: #3D3B38;
+  --color-gray-400: #5C5955;
+  --color-gray-500: #7A7773;
+  --color-gray-600: #A8A5A0;
+  --color-gray-700: #D4D2CF;
+  --color-gray-800: #E8E6E3;
+  --color-gray-900: #F5F4F2;
+
+  /* Background & Text */
+  --bg-primary: #1A1917;
+  --bg-secondary: #242321;
+  --bg-tertiary: #2E2D2A;
+  --text-primary: #F5F4F2;
+  --text-secondary: #D4D2CF;
+  --text-muted: #7A7773;
+
+  /* Borders */
+  --border-color: #3D3B38;
+  --border-color-light: #2E2D2A;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.2);
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.35);
+
+  /* Status Colors - Lighter for dark mode */
+  --status-saved: #7A7773;
+  --status-applied: #7B9CB8;
+  --status-screening: #B8A8D0;
+  --status-interview: #D9C982;
+  --status-offer: #8BB0A0;
+  --status-rejected: #C89B9B;
+  --status-withdrawn: #7A7773;
+}
+
+/* System preference fallback when no data-theme is set */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --color-primary: #7B9CB8;
+    --color-primary-hover: #8DABC5;
+    --color-primary-light: #2A3540;
+    --color-success: #8BB0A0;
+    --color-success-light: #243530;
+    --color-warning: #D9C982;
+    --color-warning-light: #3A3528;
+    --color-danger: #C89B9B;
+    --color-danger-light: #3A2828;
+    --color-info: #A8A8D0;
+    --color-info-light: #2A2A3A;
+    --color-gray-50: #1A1917;
+    --color-gray-100: #242321;
+    --color-gray-200: #2E2D2A;
+    --color-gray-300: #3D3B38;
+    --color-gray-400: #5C5955;
+    --color-gray-500: #7A7773;
+    --color-gray-600: #A8A5A0;
+    --color-gray-700: #D4D2CF;
+    --color-gray-800: #E8E6E3;
+    --color-gray-900: #F5F4F2;
+    --bg-primary: #1A1917;
+    --bg-secondary: #242321;
+    --bg-tertiary: #2E2D2A;
+    --text-primary: #F5F4F2;
+    --text-secondary: #D4D2CF;
+    --text-muted: #7A7773;
+    --border-color: #3D3B38;
+    --border-color-light: #2E2D2A;
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.2);
+    --shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.35);
+    --status-saved: #7A7773;
+    --status-applied: #7B9CB8;
+    --status-screening: #B8A8D0;
+    --status-interview: #D9C982;
+    --status-offer: #8BB0A0;
+    --status-rejected: #C89B9B;
+    --status-withdrawn: #7A7773;
+  }
+}
+
+/* ========================================
+   Design Tokens - Ma (Spacing & Typography)
+   ======================================== */
+:root {
+  /* Typography - Refined, breathable */
+  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans',
+                 'Noto Sans JP', Roboto, Oxygen, Ubuntu, sans-serif;
+  --font-size-xs: 11px;
+  --font-size-sm: 13px;
+  --font-size-base: 15px;
+  --font-size-lg: 17px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 26px;
+  --line-height-tight: 1.3;
+  --line-height-base: 1.6;
+  --line-height-relaxed: 1.8;
+  --letter-spacing-tight: -0.01em;
+  --letter-spacing-normal: 0.01em;
+  --letter-spacing-wide: 0.03em;
+
+  /* Spacing - Ma (Negative Space) */
+  --space-xs: 6px;
+  --space-sm: 12px;
+  --space-md: 20px;
+  --space-lg: 32px;
+  --space-xl: 48px;
+  --space-2xl: 64px;
+
+  /* Border Radius - Softer, more organic */
+  --border-radius: 10px;
+  --border-radius-sm: 6px;
+  --border-radius-lg: 14px;
+  --border-radius-xl: 20px;
+
+  /* Transitions - Slower, more deliberate */
+  --transition-fast: 0.15s ease;
+  --transition-base: 0.25s ease;
+  --transition-slow: 0.4s ease;
+}
+
+/* ========================================
+   Reset
+   ======================================== */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ========================================
+   Base Styles
+   ======================================== */
+body {
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  line-height: var(--line-height-base);
+  letter-spacing: var(--letter-spacing-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 500;
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--letter-spacing-tight);
+}
+
+h1 {
+  font-size: var(--font-size-xl);
+  font-weight: 400;
+}
+h2 { font-size: var(--font-size-lg); }
+h3 { font-size: var(--font-size-base); }
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+  transition: color var(--transition-base);
+}
+
+a:hover {
+  color: var(--color-primary-hover);
+  text-decoration: underline;
+}
+
+/* ========================================
+   Buttons
+   ======================================== */
+button, .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  letter-spacing: var(--letter-spacing-wide);
+  border-radius: var(--border-radius);
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  color: white;
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+  box-shadow: var(--shadow);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--bg-secondary);
+  border-color: var(--color-gray-300);
+}
+
+.btn-cancel {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.btn-cancel:hover {
+  background: var(--bg-secondary);
+}
+
+.btn-danger {
+  background: var(--color-danger);
+  color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: var(--color-danger-light);
+  color: var(--color-danger);
+}
+
+.icon-btn {
+  padding: var(--space-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: var(--border-radius-sm);
+}
+
+.icon-btn:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.link-btn {
+  background: none;
+  color: var(--color-primary);
+  padding: 0;
+  font-size: var(--font-size-sm);
+}
+
+.link-btn:hover {
+  text-decoration: underline;
+}
+
+/* ========================================
+   Form Elements
+   ======================================== */
+input, select, textarea {
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  transition: all var(--transition-base);
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 4px var(--color-primary-light);
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--text-muted);
+}
+
+label {
+  display: block;
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-xs);
+  letter-spacing: var(--letter-spacing-wide);
+  text-transform: uppercase;
+}
+
+.form-group {
+  margin-bottom: var(--space-lg);
+}
+
+.form-row {
+  display: flex;
+  gap: var(--space-md);
+}
+
+.form-row .form-group {
+  flex: 1;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  margin-top: var(--space-lg);
+}
+
+/* ========================================
+   Cards
+   ======================================== */
+.card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color-light);
+  border-radius: var(--border-radius-lg);
+  padding: var(--space-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ========================================
+   Status Badges
+   ======================================== */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  letter-spacing: var(--letter-spacing-wide);
+  border-radius: var(--border-radius);
+  text-transform: uppercase;
+}
+
+.status-saved {
+  background: var(--color-gray-100);
+  color: var(--status-saved);
+}
+
+.status-applied {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.status-screening {
+  background: var(--color-info-light);
+  color: var(--status-screening);
+}
+
+.status-interview {
+  background: var(--color-warning-light);
+  color: var(--status-interview);
+}
+
+.status-offer {
+  background: var(--color-success-light);
+  color: var(--status-offer);
+}
+
+.status-rejected {
+  background: var(--color-danger-light);
+  color: var(--status-rejected);
+}
+
+.status-withdrawn {
+  background: var(--color-gray-100);
+  color: var(--status-withdrawn);
+}
+
+/* ========================================
+   Modal
+   ======================================== */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(26, 25, 23, 0.4);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-content {
+  background: var(--bg-primary);
+  border-radius: var(--border-radius-xl);
+  width: 90%;
+  max-width: 440px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-lg);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-lg);
+  border-bottom: 1px solid var(--border-color-light);
+}
+
+.modal-header h3 {
+  font-size: var(--font-size-lg);
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: color var(--transition-base);
+}
+
+.close-btn:hover {
+  color: var(--text-primary);
+}
+
+.modal-content form {
+  padding: var(--space-lg);
+}
+
+/* ========================================
+   Empty State
+   ======================================== */
+.empty-state {
+  text-align: center;
+  padding: var(--space-xl);
+  color: var(--text-muted);
+}
+
+.empty-state p:first-child {
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.empty-state .hint {
+  font-size: var(--font-size-sm);
+  margin-top: var(--space-xs);
+}
+
+/* ========================================
+   Theme Toggle
+   ======================================== */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+#theme-toggle-btn {
+  position: relative;
+}
+
+#theme-toggle-btn .theme-icon-light,
+#theme-toggle-btn .theme-icon-dark {
+  transition: opacity var(--transition-base), transform var(--transition-base);
+}
+
+/* Show sun in dark mode, moon in light mode */
+[data-theme="light"] #theme-toggle-btn .theme-icon-light,
+:root:not([data-theme]) #theme-toggle-btn .theme-icon-light {
+  display: none;
+}
+
+[data-theme="dark"] #theme-toggle-btn .theme-icon-dark {
+  display: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) #theme-toggle-btn .theme-icon-dark {
+    display: none;
+  }
+  :root:not([data-theme]) #theme-toggle-btn .theme-icon-light {
+    display: block;
+  }
+}
+
+/* Theme Selector (Settings Page) */
+.theme-selector {
+  display: flex;
+  gap: var(--space-xs);
+  background: var(--bg-secondary);
+  padding: 4px;
+  border-radius: var(--border-radius);
+}
+
+.theme-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: var(--space-sm) var(--space-md);
+  background: transparent;
+  border: none;
+  border-radius: var(--border-radius-sm);
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.theme-option:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+.theme-option.active {
+  background: var(--bg-primary);
+  color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ========================================
+   Utilities
+   ======================================== */
+.hidden {
+  display: none !important;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+.text-sm {
+  font-size: var(--font-size-sm);
+}
+
+.text-xs {
+  font-size: var(--font-size-xs);
+}
+
+.mt-sm { margin-top: var(--space-sm); }
+.mt-md { margin-top: var(--space-md); }
+.mt-lg { margin-top: var(--space-lg); }
+
+.mb-sm { margin-bottom: var(--space-sm); }
+.mb-md { margin-bottom: var(--space-md); }
+.mb-lg { margin-bottom: var(--space-lg); }
+
+/* ========================================
+   Scrollbar
+   ======================================== */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-gray-300);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-gray-400);
+}
