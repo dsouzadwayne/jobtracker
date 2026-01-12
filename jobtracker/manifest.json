@@ -1,0 +1,110 @@
+{
+  "manifest_version": 3,
+  "name": "JobTracker - Application Tracker & Autofill",
+  "version": "0.001",
+  "description": "Track job applications and autofill forms. 100% local, privacy-first, open source.",
+  "author": "JobTracker Contributors",
+  "homepage_url": "https://github.com/yourusername/jobtracker",
+
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+
+  "host_permissions": [
+    "*://*/*"
+  ],
+
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    },
+    "default_title": "JobTracker"
+  },
+
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["lib/storage.js", "lib/utils.js", "content.js", "floating-button.js"],
+      "css": ["floating-button.css"],
+      "run_at": "document_end"
+    },
+    {
+      "matches": ["*://www.linkedin.com/jobs/*", "*://www.linkedin.com/job/*"],
+      "js": ["lib/field-matcher.js", "lib/form-utils.js", "linkedin-autofill.js", "linkedin-detect.js"],
+      "run_at": "document_end"
+    },
+    {
+      "matches": ["*://www.indeed.com/*", "*://*.indeed.com/*"],
+      "js": ["lib/field-matcher.js", "lib/form-utils.js", "indeed-autofill.js", "indeed-detect.js"],
+      "run_at": "document_end"
+    },
+    {
+      "matches": ["*://www.glassdoor.com/*", "*://www.glassdoor.co.uk/*"],
+      "js": ["lib/field-matcher.js", "lib/form-utils.js", "glassdoor-autofill.js", "glassdoor-detect.js"],
+      "run_at": "document_end"
+    },
+    {
+      "matches": ["*://boards.greenhouse.io/*", "*://*.greenhouse.io/*"],
+      "js": ["lib/field-matcher.js", "lib/form-utils.js", "greenhouse-autofill.js", "greenhouse-detect.js"],
+      "run_at": "document_end"
+    },
+    {
+      "matches": ["*://jobs.lever.co/*", "*://*.lever.co/*"],
+      "js": ["lib/field-matcher.js", "lib/form-utils.js", "lever-autofill.js", "lever-detect.js"],
+      "run_at": "document_end"
+    },
+    {
+      "matches": ["*://*.myworkdayjobs.com/*", "*://*.workday.com/*"],
+      "js": ["lib/field-matcher.js", "lib/form-utils.js", "workday-autofill.js", "workday-detect.js"],
+      "run_at": "document_end"
+    },
+    {
+      "matches": ["*://*.icims.com/*"],
+      "js": ["lib/field-matcher.js", "lib/form-utils.js", "icims-autofill.js", "icims-detect.js"],
+      "run_at": "document_end"
+    },
+    {
+      "matches": ["*://*.smartrecruiters.com/*"],
+      "js": ["lib/field-matcher.js", "lib/form-utils.js", "smartrecruiters-autofill.js", "smartrecruiters-detect.js"],
+      "run_at": "document_end"
+    }
+  ],
+
+  "commands": {
+    "trigger-autofill": {
+      "suggested_key": {
+        "default": "Alt+Shift+F"
+      },
+      "description": "Trigger autofill on current page"
+    }
+  },
+
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "lib/*.js",
+        "icons/*",
+        "common.css"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
