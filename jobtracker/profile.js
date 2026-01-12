@@ -102,7 +102,31 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupTabs();
   setupEventListeners();
   checkHashNavigation();
+  setupBackNavigation();
 });
+
+// Setup context-aware back navigation
+function setupBackNavigation() {
+  const backBtn = document.getElementById('back-btn');
+  const urlParams = new URLSearchParams(window.location.search);
+  const from = urlParams.get('from');
+
+  if (from === 'dashboard') {
+    backBtn.href = 'dashboard.html';
+  } else {
+    // From popup context or direct navigation
+    backBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      // Try to use browser history if available
+      if (window.history.length > 1) {
+        window.history.back();
+      } else {
+        // Fallback to popup
+        window.location.href = 'popup.html';
+      }
+    });
+  }
+}
 
 // Load profile data
 async function loadProfile() {

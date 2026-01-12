@@ -67,17 +67,27 @@
         return;
       }
 
+      // Reset handled flag
+      window.__jobTrackerAutofillHandled = false;
+
+      // Listen for platform handler completion
+      const autofillCompleteHandler = () => {
+        window.__jobTrackerAutofillHandled = true;
+      };
+      window.addEventListener('jobtracker:autofill-complete', autofillCompleteHandler, { once: true });
+
       // Dispatch event for platform-specific handlers to listen
       window.dispatchEvent(new CustomEvent('jobtracker:autofill', {
         detail: { profile }
       }));
 
-      // If no platform handler picks it up, use generic autofill
+      // If no platform handler picks it up within 500ms, use generic autofill
       setTimeout(() => {
+        window.removeEventListener('jobtracker:autofill-complete', autofillCompleteHandler);
         if (!window.__jobTrackerAutofillHandled) {
           genericAutofill(profile);
         }
-      }, 100);
+      }, 500);
 
     } catch (error) {
       console.error('JobTracker: Error during autofill:', error);
@@ -203,10 +213,16 @@
     const notification = document.createElement('div');
     notification.id = 'jobtracker-notification';
     notification.className = `jobtracker-notification jobtracker-notification-${type}`;
-    notification.innerHTML = `
-      <span class="jobtracker-notification-icon">${getNotificationIcon(type)}</span>
-      <span class="jobtracker-notification-message">${message}</span>
-    `;
+    const iconSpan = document.createElement('span');
+    iconSpan.className = 'jobtracker-notification-icon';
+    iconSpan.innerHTML = getNotificationIcon(type);
+
+    const messageSpan = document.createElement('span');
+    messageSpan.className = 'jobtracker-notification-message';
+    messageSpan.textContent = message;
+
+    notification.appendChild(iconSpan);
+    notification.appendChild(messageSpan);
 
     document.body.appendChild(notification);
 

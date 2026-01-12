@@ -65,18 +65,18 @@ const JobTrackerFormUtils = {
       const options = Array.from(select.options);
       const valueStr = String(value).toLowerCase();
 
-      // Find matching option
+      // Find matching option - prefer exact matches
       let matchedOption = options.find(opt =>
         opt.value.toLowerCase() === valueStr ||
-        opt.textContent.toLowerCase() === valueStr ||
-        opt.textContent.toLowerCase().includes(valueStr)
+        opt.textContent.toLowerCase().trim() === valueStr
       );
 
       if (!matchedOption) {
-        // Try partial match
+        // Try word-boundary match (value must be a complete word in the option text)
+        const valueRegex = new RegExp(`\\b${valueStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
         matchedOption = options.find(opt =>
-          valueStr.includes(opt.value.toLowerCase()) ||
-          valueStr.includes(opt.textContent.toLowerCase().trim())
+          valueRegex.test(opt.textContent.toLowerCase()) ||
+          valueRegex.test(opt.value.toLowerCase())
         );
       }
 
@@ -260,9 +260,11 @@ const JobTrackerFormUtils = {
         return;
       }
 
+      let timeoutId;
       const observer = new MutationObserver((mutations, obs) => {
         const element = document.querySelector(selector);
         if (element) {
+          clearTimeout(timeoutId);
           obs.disconnect();
           resolve(element);
         }
@@ -273,7 +275,7 @@ const JobTrackerFormUtils = {
         subtree: true
       });
 
-      setTimeout(() => {
+      timeoutId = setTimeout(() => {
         observer.disconnect();
         reject(new Error(`Timeout waiting for element: ${selector}`));
       }, timeout);
