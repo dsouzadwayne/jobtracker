@@ -1,4 +1,4 @@
-# JobTracker - Job Application Tracker & Autofill
+# JobTracker
 
 A privacy-first Chrome extension for tracking job applications and autofilling job application forms. 100% local storage, no external servers, fully open source.
 
