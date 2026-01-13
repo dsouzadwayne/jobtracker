@@ -15,7 +15,8 @@
   const SELECTORS = {
     jobTitle: '.job-details-jobs-unified-top-card__job-title, .jobs-unified-top-card__job-title, h1.t-24',
     company: '.job-details-jobs-unified-top-card__company-name, .jobs-unified-top-card__company-name, .jobs-details-top-card__company-url',
-    location: '.job-details-jobs-unified-top-card__bullet, .jobs-unified-top-card__bullet'
+    location: '.job-details-jobs-unified-top-card__bullet, .jobs-unified-top-card__bullet',
+    jobDescription: '.jobs-description__content, .jobs-description, .jobs-box__html-content, [class*="jobs-description"]'
   };
 
   // Valid LinkedIn job page patterns
@@ -46,7 +47,8 @@
       position: '',
       location: '',
       jobUrl: window.location.href,
-      platform: 'linkedin'
+      platform: 'linkedin',
+      jobDescription: ''
     };
 
     // Extract job title
@@ -67,6 +69,16 @@
     const locationEl = document.querySelector(SELECTORS.location);
     if (locationEl) {
       info.location = locationEl.textContent?.trim() || '';
+    }
+
+    // Extract job description
+    const descSelectors = SELECTORS.jobDescription.split(', ');
+    for (const selector of descSelectors) {
+      const descEl = document.querySelector(selector);
+      if (descEl && descEl.innerText?.trim()) {
+        info.jobDescription = descEl.innerText.trim();
+        break;
+      }
     }
 
     // Try to get job ID from URL

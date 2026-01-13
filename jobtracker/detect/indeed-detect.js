@@ -13,7 +13,8 @@
   const SELECTORS = {
     jobTitle: '.jobsearch-JobInfoHeader-title, [data-job-title], h1.icl-u-xs-mb--xs',
     company: '[data-company-name], .jobsearch-CompanyInfoWithoutHeaderImage, .icl-u-lg-mr--sm',
-    location: '.jobsearch-JobInfoHeader-subtitle, [data-job-location]'
+    location: '.jobsearch-JobInfoHeader-subtitle, [data-job-location]',
+    jobDescription: '#jobDescriptionText, .jobsearch-jobDescriptionText, [data-testid="jobDescriptionText"]'
   };
 
   // Check if we're on an Indeed job page
@@ -31,13 +32,25 @@
     console.log('JobTracker: Indeed detection module loaded (manual mode)');
   }
 
+  function extractJobDescription() {
+    const selectors = SELECTORS.jobDescription.split(', ');
+    for (const selector of selectors) {
+      const el = document.querySelector(selector);
+      if (el && el.innerText?.trim()) {
+        return el.innerText.trim();
+      }
+    }
+    return '';
+  }
+
   function extractJobInfo() {
     return {
       position: document.querySelector(SELECTORS.jobTitle)?.textContent?.trim() || '',
       company: document.querySelector(SELECTORS.company)?.textContent?.trim() || '',
       location: document.querySelector(SELECTORS.location)?.textContent?.trim() || '',
       jobUrl: window.location.href,
-      platform: 'indeed'
+      platform: 'indeed',
+      jobDescription: extractJobDescription()
     };
   }
 

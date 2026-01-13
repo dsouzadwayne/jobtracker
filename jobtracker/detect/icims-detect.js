@@ -25,12 +25,24 @@
     console.log('JobTracker: iCIMS detection module loaded (manual mode)');
   }
 
+  function extractJobDescription() {
+    const selectors = ['.iCIMS_JobContent', '.job-description', '#iCIMS_Content', '[class*="job-description"]'];
+    for (const selector of selectors) {
+      const el = document.querySelector(selector);
+      if (el && el.innerText?.trim()) {
+        return el.innerText.trim();
+      }
+    }
+    return '';
+  }
+
   function extractJobInfo() {
     return {
       position: document.querySelector('.iCIMS_Header h1, .job-title')?.textContent?.trim() || '',
       company: document.querySelector('.iCIMS_Company')?.textContent?.trim() || '',
       jobUrl: window.location.href,
-      platform: 'icims'
+      platform: 'icims',
+      jobDescription: extractJobDescription()
     };
   }
 

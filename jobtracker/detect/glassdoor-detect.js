@@ -13,7 +13,8 @@
   const SELECTORS = {
     jobTitle: '[data-test="job-title"], h1',
     company: '[data-test="employer-name"]',
-    location: '[data-test="location"]'
+    location: '[data-test="location"]',
+    jobDescription: '[data-test="description"], .JobDetails, .desc, [class*="JobDescription"]'
   };
 
   // Check if we're on a Glassdoor job page
@@ -31,13 +32,25 @@
     console.log('JobTracker: Glassdoor detection module loaded (manual mode)');
   }
 
+  function extractJobDescription() {
+    const selectors = SELECTORS.jobDescription.split(', ');
+    for (const selector of selectors) {
+      const el = document.querySelector(selector);
+      if (el && el.innerText?.trim()) {
+        return el.innerText.trim();
+      }
+    }
+    return '';
+  }
+
   function extractJobInfo() {
     return {
       position: document.querySelector(SELECTORS.jobTitle)?.textContent?.trim() || '',
       company: document.querySelector(SELECTORS.company)?.textContent?.trim() || '',
       location: document.querySelector(SELECTORS.location)?.textContent?.trim() || '',
       jobUrl: window.location.href,
-      platform: 'glassdoor'
+      platform: 'glassdoor',
+      jobDescription: extractJobDescription()
     };
   }
 

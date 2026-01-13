@@ -54,7 +54,8 @@
       workMode: '',
       skills: [],
       jobUrl: window.location.href,
-      platform: 'naukri'
+      platform: 'naukri',
+      jobDescription: ''
     };
 
     // Strategy 1: JSON-LD structured data (most reliable)
@@ -97,6 +98,11 @@
           // Extract employment type
           if (data.employmentType) {
             info.employmentType = data.employmentType;
+          }
+
+          // Extract job description from JSON-LD
+          if (data.description) {
+            info.jobDescription = data.description;
           }
 
           break;
@@ -158,6 +164,14 @@
         info.skills = Array.from(skillEls)
           .map(el => el.textContent?.trim())
           .filter(Boolean);
+      }
+    }
+
+    // Extract job description from DOM if not already found
+    if (!info.jobDescription) {
+      const descEl = document.querySelector(SELECTORS.jobDescription);
+      if (descEl) {
+        info.jobDescription = descEl.innerText?.trim() || '';
       }
     }
 

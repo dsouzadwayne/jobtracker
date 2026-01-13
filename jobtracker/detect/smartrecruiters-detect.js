@@ -25,12 +25,24 @@
     console.log('JobTracker: SmartRecruiters detection module loaded (manual mode)');
   }
 
+  function extractJobDescription() {
+    const selectors = ['.job-description', '.description', '[class*="JobDescription"]', '[class*="job-description"]'];
+    for (const selector of selectors) {
+      const el = document.querySelector(selector);
+      if (el && el.innerText?.trim()) {
+        return el.innerText.trim();
+      }
+    }
+    return '';
+  }
+
   function extractJobInfo() {
     return {
       position: document.querySelector('.job-title, h1')?.textContent?.trim() || '',
       company: document.querySelector('.company-name')?.textContent?.trim() || '',
       jobUrl: window.location.href,
-      platform: 'smartrecruiters'
+      platform: 'smartrecruiters',
+      jobDescription: extractJobDescription()
     };
   }
 
