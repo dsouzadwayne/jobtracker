@@ -34,8 +34,19 @@ const MessageTypes = {
 
   // Data
   EXPORT_DATA: 'EXPORT_DATA',
-  IMPORT_DATA: 'IMPORT_DATA'
+  IMPORT_DATA: 'IMPORT_DATA',
+  CLEAR_ALL_DATA: 'CLEAR_ALL_DATA'
 };
+
+// Alarm name for badge clear
+const BADGE_CLEAR_ALARM = 'jobtracker-clear-badge';
+
+// Handle alarm events
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === BADGE_CLEAR_ALARM) {
+    chrome.action.setBadgeText({ text: '' });
+  }
+});
 
 // Handle installation
 chrome.runtime.onInstalled.addListener(async (details) => {
@@ -57,7 +68,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     try {
       await JobTrackerDB.migrateFromChromeStorage();
     } catch (error) {
-      console.error('JobTracker: Migration error', error);
+      console.log('JobTracker: Migration error', error);
     }
   }
 });
@@ -68,7 +79,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     await JobTrackerDB.init();
     await JobTrackerDB.migrateFromChromeStorage();
   } catch (error) {
-    console.error('JobTracker: Startup migration check failed', error);
+    console.log('JobTracker: Startup migration check failed', error);
   }
 })();
 
@@ -151,7 +162,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             if (settings.detection.notifyOnDetection) {
               chrome.action.setBadgeText({ text: '!' });
               chrome.action.setBadgeBackgroundColor({ color: '#10B981' });
-              setTimeout(() => chrome.action.setBadgeText({ text: '' }), 5000);
+              // Use chrome.alarms instead of setTimeout for service worker compatibility
+              chrome.alarms.create(BADGE_CLEAR_ALARM, { delayInMinutes: 5 / 60 }); // 5 seconds
             }
           }
           break;
@@ -181,6 +193,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         }
 
+        case MessageTypes.CLEAR_ALL_DATA: {
+          await JobTrackerDB.clearAllData();
+          response = { success: true };
+          break;
+        }
+
         // Autofill - forward to active tab
         case MessageTypes.TRIGGER_AUTOFILL: {
           const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -199,7 +217,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       sendResponse(response);
     } catch (error) {
-      console.error('JobTracker: Error handling message:', error);
+      console.log('JobTracker: Error handling message:', error);
       sendResponse({ error: error.message });
     }
   })();

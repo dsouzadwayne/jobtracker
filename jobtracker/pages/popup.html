@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JobTracker</title>
+  <link rel="stylesheet" href="../common.css">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <!-- Header -->
+    <header class="popup-header">
+      <div class="logo">
+        <img src="../icons/icon-32.png" alt="JobTracker" width="24" height="24">
+        <h1>JobTracker</h1>
+      </div>
+      <div class="header-actions">
+        <button id="theme-toggle-btn" class="icon-btn" title="Toggle theme">
+          <svg class="theme-icon-light" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <svg class="theme-icon-dark" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
+        <button id="settings-btn" class="icon-btn" title="Settings">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Stats Dashboard -->
+    <section class="stats-section">
+      <div class="stat-card total">
+        <span class="stat-number" id="stat-total">0</span>
+        <span class="stat-label">Total Applications</span>
+      </div>
+      <div class="stat-grid">
+        <div class="stat-item">
+          <span class="stat-number" id="stat-week">0</span>
+          <span class="stat-label">This Week</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-number" id="stat-interview">0</span>
+          <span class="stat-label">Interviews</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-number" id="stat-offer">0</span>
+          <span class="stat-label">Offers</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Quick Actions -->
+    <section class="actions-section">
+      <button id="autofill-btn" class="action-btn primary">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+        </svg>
+        Autofill This Page
+      </button>
+      <button id="add-app-btn" class="action-btn secondary">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        Add Application
+      </button>
+    </section>
+
+    <!-- Recent Applications -->
+    <section class="recent-section">
+      <div class="section-header">
+        <h2>Recent Applications</h2>
+        <button id="view-all-btn" class="link-btn">View All</button>
+      </div>
+      <div id="recent-list" class="recent-list">
+        <!-- Applications will be loaded here -->
+        <div class="empty-state" id="empty-state">
+          <p>No applications yet</p>
+          <p class="hint">Start tracking your job search!</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Navigation -->
+    <nav class="popup-nav">
+      <a href="profile.html" class="nav-item" title="Profile">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+          <circle cx="12" cy="7" r="4"></circle>
+        </svg>
+        <span>Profile</span>
+      </a>
+      <a href="applications.html" class="nav-item" title="Applications">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="16" y1="13" x2="8" y2="13"></line>
+          <line x1="16" y1="17" x2="8" y2="17"></line>
+          <polyline points="10 9 9 9 8 9"></polyline>
+        </svg>
+        <span>Applications</span>
+      </a>
+      <button id="open-dashboard-btn" class="nav-item" title="Open Dashboard">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="7" height="7"></rect>
+          <rect x="14" y="3" width="7" height="7"></rect>
+          <rect x="14" y="14" width="7" height="7"></rect>
+          <rect x="3" y="14" width="7" height="7"></rect>
+        </svg>
+        <span>Dashboard</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- Add Application Modal -->
+  <div id="add-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Add Application</h3>
+        <button class="close-btn" id="close-modal">&times;</button>
+      </div>
+      <form id="add-app-form">
+        <div class="form-group">
+          <label for="app-company">Company *</label>
+          <input type="text" id="app-company" required placeholder="e.g., Google">
+        </div>
+        <div class="form-group">
+          <label for="app-position">Position *</label>
+          <input type="text" id="app-position" required placeholder="e.g., Software Engineer">
+        </div>
+        <div class="form-group">
+          <label for="app-url">Job URL</label>
+          <input type="url" id="app-url" placeholder="https://...">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="app-status">Status</label>
+            <select id="app-status">
+              <option value="saved">Saved</option>
+              <option value="applied" selected>Applied</option>
+              <option value="screening">Screening</option>
+              <option value="interview">Interview</option>
+              <option value="offer">Offer</option>
+              <option value="rejected">Rejected</option>
+              <option value="withdrawn">Withdrawn</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="app-date">Date Applied</label>
+            <input type="date" id="app-date">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="app-notes">Notes</label>
+          <textarea id="app-notes" rows="2" placeholder="Any notes..."></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn-cancel" id="cancel-add">Cancel</button>
+          <button type="submit" class="btn-primary">Add Application</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
