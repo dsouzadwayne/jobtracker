@@ -329,6 +329,27 @@ function createExpandedDetails(app) {
           <div class="app-detail-value">Auto-detected</div>
         </div>` : ''}
       </div>
+      ${app.jobUrl ? `<div class="app-job-url">
+        <a href="${escapeHtml(app.jobUrl)}" target="_blank" rel="noopener noreferrer" class="job-url-link">
+          <span>View Job Posting</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+            <polyline points="15 3 21 3 21 9"></polyline>
+            <line x1="10" y1="14" x2="21" y2="3"></line>
+          </svg>
+        </a>
+      </div>` : ''}
+      ${app.jobDescription ? `<div class="app-description">
+        <div class="app-description-header">
+          <div class="app-description-label">Job Description</div>
+          <button class="description-toggle" onclick="toggleDescription(this)" title="Toggle description">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+        </div>
+        <div class="app-description-content" data-expanded="false">${formatJobDescription(app.jobDescription)}</div>
+      </div>` : ''}
       ${app.notes ? `<div class="app-notes">
         <div class="app-notes-label">Notes</div>
         ${escapeHtml(app.notes)}
@@ -429,6 +450,7 @@ function openModal(app = null) {
     document.getElementById('app-salary').value = app.salary || '';
     document.getElementById('app-type').value = app.jobType || '';
     document.getElementById('app-remote').value = app.remote || '';
+    document.getElementById('app-description').value = app.jobDescription || '';
     document.getElementById('app-notes').value = app.notes || '';
   } else {
     document.getElementById('app-id').value = '';
@@ -461,6 +483,7 @@ async function handleSubmit(e) {
     salary: document.getElementById('app-salary').value.trim(),
     jobType: document.getElementById('app-type').value,
     remote: document.getElementById('app-remote').value,
+    jobDescription: document.getElementById('app-description').value.trim(),
     notes: document.getElementById('app-notes').value.trim(),
     platform: detectPlatform(document.getElementById('app-url').value)
   };
@@ -614,4 +637,48 @@ function debounce(func, wait) {
     clearTimeout(timeout);
     timeout = setTimeout(() => func.apply(this, args), wait);
   };
+}
+
+// Toggle job description expand/collapse
+function toggleDescription(btn) {
+  const content = btn.closest('.app-description').querySelector('.app-description-content');
+  const isExpanded = content.dataset.expanded === 'true';
+  content.dataset.expanded = !isExpanded;
+  btn.classList.toggle('expanded', !isExpanded);
+}
+
+// Format job description with bullet points and structure
+function formatJobDescription(text) {
+  if (!text) return '';
+
+  // Escape HTML first
+  let formatted = escapeHtml(text);
+
+  // Convert lines starting with bullet-like characters to proper bullets
+  formatted = formatted
+    // Handle lines starting with •, -, *, or similar
+    .replace(/^[\s]*[•\-\*\●\○\■\□\►\▸]\s*/gm, '<li>')
+    // Handle numbered lists (1. 2. etc)
+    .replace(/^[\s]*\d+[\.\)]\s+/gm, '<li>')
+    // Wrap consecutive <li> items in <ul>
+    .replace(/(<li>.*?)(?=(?:<li>|$))/gs, '$1</li>');
+
+  // Wrap sequences of list items in ul tags
+  formatted = formatted.replace(/((?:<li>.*?<\/li>\s*)+)/gs, '<ul class="job-desc-list">$1</ul>');
+
+  // Convert double line breaks to paragraph breaks
+  formatted = formatted.replace(/\n\n+/g, '</p><p>');
+
+  // Convert remaining single line breaks
+  formatted = formatted.replace(/\n/g, '<br>');
+
+  // Wrap in paragraph if not empty
+  if (formatted.trim()) {
+    formatted = '<p>' + formatted + '</p>';
+  }
+
+  // Clean up empty paragraphs
+  formatted = formatted.replace(/<p>\s*<\/p>/g, '');
+
+  return formatted;
 }

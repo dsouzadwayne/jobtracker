@@ -25,6 +25,17 @@
     console.log('JobTracker: Greenhouse detection module loaded (manual mode)');
   }
 
+  function extractJobDescription() {
+    const selectors = ['#content', '.job-post-content', '.content-wrapper', '[class*="job-description"]'];
+    for (const selector of selectors) {
+      const el = document.querySelector(selector);
+      if (el && el.innerText?.trim()) {
+        return el.innerText.trim();
+      }
+    }
+    return '';
+  }
+
   function extractJobInfo() {
     // Try to get from page elements first, fallback to document title
     let position = document.querySelector('.app-title, h1')?.textContent?.trim() || '';
@@ -43,7 +54,8 @@
       position,
       company,
       jobUrl: window.location.href,
-      platform: 'greenhouse'
+      platform: 'greenhouse',
+      jobDescription: extractJobDescription()
     };
   }
 

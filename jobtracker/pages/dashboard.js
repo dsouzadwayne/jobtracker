@@ -161,7 +161,26 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupKeyboardShortcuts();
   initViewToggle();
   setupNavigation();
+  checkUrlParams();
 });
+
+// Check URL params to auto-select application
+function checkUrlParams() {
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get('id');
+  if (id) {
+    const app = applications.find(a => a.id === id);
+    if (app) {
+      // Small delay to ensure DOM is ready
+      setTimeout(() => {
+        selectApp(id);
+        // Scroll to card
+        const card = document.querySelector(`[data-id="${id}"]`);
+        if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+    }
+  }
+}
 
 // Load settings from IndexedDB
 async function loadSettings() {
@@ -364,16 +383,19 @@ function selectApp(id) {
     card.classList.toggle('selected', card.dataset.id === id);
   });
 
-  // Show details panel on larger screens
-  if (app && window.innerWidth >= 1200) {
+  // Always show details panel (view mode)
+  if (app) {
     showDetailsPanel(app);
-  } else if (app) {
-    openModal(app);
   }
 }
 
 // Show details panel
 function showDetailsPanel(app) {
+  // Show overlay on smaller screens
+  if (window.innerWidth < 1200) {
+    showDetailsOverlay();
+  }
+
   elements.detailsPosition.textContent = app.position || 'Unknown Position';
 
   const detailsInitial = escapeHtml((app.company || 'U')[0].toUpperCase());
@@ -397,7 +419,29 @@ function showDetailsPanel(app) {
     ${app.salary ? `<div class="details-field"><strong>Salary:</strong> ${escapeHtml(app.salary)}</div>` : ''}
     ${app.jobType ? `<div class="details-field"><strong>Type:</strong> ${escapeHtml(capitalizeStatus(app.jobType))}</div>` : ''}
     ${app.remote ? `<div class="details-field"><strong>Remote:</strong> ${escapeHtml(capitalizeStatus(app.remote))}</div>` : ''}
-    ${app.jobUrl ? `<div class="details-field"><a href="${escapeHtml(app.jobUrl)}" target="_blank" class="job-link">View Job Posting</a></div>` : ''}
+    ${app.jobUrl ? `<div class="details-field">
+      <a href="${escapeHtml(app.jobUrl)}" target="_blank" rel="noopener noreferrer" class="job-link">
+        <span>View Job Posting</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+          <polyline points="15 3 21 3 21 9"></polyline>
+          <line x1="10" y1="14" x2="21" y2="3"></line>
+        </svg>
+      </a>
+    </div>` : ''}
+    ${app.jobDescription ? `
+      <div class="details-description">
+        <div class="details-description-header">
+          <strong>Job Description</strong>
+          <button class="description-toggle-btn" onclick="toggleDetailsDescription(this)" title="Toggle description">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+        </div>
+        <div class="details-description-content" data-expanded="false">${formatJobDescription(app.jobDescription)}</div>
+      </div>
+    ` : ''}
     ${app.notes ? `<div class="details-notes"><strong>Notes:</strong><p>${escapeHtml(app.notes)}</p></div>` : ''}
 
     <div class="details-actions">
@@ -448,20 +492,13 @@ function setupEventListeners() {
   });
 
   // Details panel
-  elements.closeDetails?.addEventListener('click', () => {
-    elements.detailsPanel?.classList.add('hidden');
-    selectedAppId = null;
-    document.querySelectorAll('.app-card').forEach(card => card.classList.remove('selected'));
-  });
+  elements.closeDetails?.addEventListener('click', closeDetailsPanel);
 
   // Keyboard
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       if (!elements.modal.classList.contains('hidden')) closeModal();
-      if (!elements.detailsPanel.classList.contains('hidden')) {
-        elements.detailsPanel.classList.add('hidden');
-        selectedAppId = null;
-      }
+      if (!elements.detailsPanel.classList.contains('hidden')) closeDetailsPanel();
     }
   });
 }
@@ -664,6 +701,7 @@ function openModal(app = null) {
     document.getElementById('app-salary').value = app.salary || '';
     document.getElementById('app-type').value = app.jobType || '';
     document.getElementById('app-remote').value = app.remote || '';
+    document.getElementById('app-description').value = app.jobDescription || '';
     document.getElementById('app-notes').value = app.notes || '';
   } else {
     document.getElementById('app-id').value = '';
@@ -711,6 +749,7 @@ async function handleSubmit(e) {
     salary: document.getElementById('app-salary').value.trim(),
     jobType: document.getElementById('app-type').value,
     remote: document.getElementById('app-remote').value,
+    jobDescription: document.getElementById('app-description').value.trim(),
     notes: document.getElementById('app-notes').value.trim(),
     platform: detectPlatform(document.getElementById('app-url').value)
   };
@@ -823,6 +862,42 @@ function debounce(func, wait) {
     clearTimeout(timeout);
     timeout = setTimeout(() => func.apply(this, args), wait);
   };
+}
+
+// Format job description with bullet points and structure
+function formatJobDescription(text) {
+  if (!text) return '';
+
+  // Escape HTML first
+  let formatted = escapeHtml(text);
+
+  // Convert lines starting with bullet-like characters to proper bullets
+  formatted = formatted
+    // Handle lines starting with •, -, *, or similar
+    .replace(/^[\s]*[•\-\*\●\○\■\□\►\▸]\s*/gm, '<li>')
+    // Handle numbered lists (1. 2. etc)
+    .replace(/^[\s]*\d+[\.\)]\s+/gm, '<li>')
+    // Wrap consecutive <li> items in <ul>
+    .replace(/(<li>.*?)(?=(?:<li>|$))/gs, '$1</li>');
+
+  // Wrap sequences of list items in ul tags
+  formatted = formatted.replace(/((?:<li>.*?<\/li>\s*)+)/gs, '<ul class="job-desc-list">$1</ul>');
+
+  // Convert double line breaks to paragraph breaks
+  formatted = formatted.replace(/\n\n+/g, '</p><p>');
+
+  // Convert remaining single line breaks
+  formatted = formatted.replace(/\n/g, '<br>');
+
+  // Wrap in paragraph if not empty
+  if (formatted.trim()) {
+    formatted = '<p>' + formatted + '</p>';
+  }
+
+  // Clean up empty paragraphs
+  formatted = formatted.replace(/<p>\s*<\/p>/g, '');
+
+  return formatted;
 }
 
 // ==================== VIEW TOGGLE ====================
@@ -946,7 +1021,7 @@ function renderTable() {
 function exportToCSV() {
   const headers = [
     'Company', 'Position', 'Status', 'Date Applied',
-    'Location', 'Salary', 'Job Type', 'Remote', 'URL', 'Notes', 'Platform'
+    'Location', 'Salary', 'Job Type', 'Remote', 'URL', 'Job Description', 'Notes', 'Platform'
   ];
 
   const rows = filteredApplications.map(app => [
@@ -959,6 +1034,7 @@ function exportToCSV() {
     app.jobType || '',
     app.remote || '',
     app.jobUrl || '',
+    (app.jobDescription || '').replace(/[\n\r]+/g, ' '),
     (app.notes || '').replace(/[\n\r]+/g, ' '),
     app.platform || ''
   ]);
@@ -1041,9 +1117,47 @@ function switchPage(page) {
   }
 }
 
+// Toggle job description expand/collapse in details panel
+function toggleDetailsDescription(btn) {
+  const content = btn.closest('.details-description').querySelector('.details-description-content');
+  const isExpanded = content.dataset.expanded === 'true';
+  content.dataset.expanded = !isExpanded;
+  btn.classList.toggle('expanded', !isExpanded);
+}
+
+// Show overlay for details panel on mobile
+function showDetailsOverlay() {
+  let overlay = document.getElementById('details-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'details-overlay';
+    overlay.className = 'details-overlay';
+    overlay.addEventListener('click', closeDetailsPanel);
+    document.body.appendChild(overlay);
+  }
+  overlay.classList.remove('hidden');
+}
+
+// Hide overlay for details panel
+function hideDetailsOverlay() {
+  const overlay = document.getElementById('details-overlay');
+  if (overlay) {
+    overlay.classList.add('hidden');
+  }
+}
+
+// Close details panel
+function closeDetailsPanel() {
+  elements.detailsPanel?.classList.add('hidden');
+  selectedAppId = null;
+  document.querySelectorAll('.app-card').forEach(card => card.classList.remove('selected'));
+  hideDetailsOverlay();
+}
+
 // Make functions available globally for inline onclick handlers
 window.openModal = openModal;
 window.deleteApplication = deleteApplication;
+window.toggleDetailsDescription = toggleDetailsDescription;
 // Use getter so it always returns the current applications array
 Object.defineProperty(window, 'applications', {
   get: function() { return applications; }

@@ -43,7 +43,8 @@
       position: '',
       location: '',
       jobUrl: window.location.href,
-      platform: 'other'
+      platform: 'other',
+      jobDescription: ''
     };
 
     // Strategy 1: JSON-LD structured data
@@ -56,6 +57,7 @@
           info.position = jobPosting.title || info.position;
           info.company = jobPosting.hiringOrganization?.name || info.company;
           info.location = extractLocationFromJobPosting(jobPosting) || info.location;
+          info.jobDescription = jobPosting.description || info.jobDescription;
           if (info.position && info.company) break;
         }
       }
@@ -149,6 +151,31 @@
       if (titleParts.length >= 2) {
         if (!info.position) info.position = titleParts[0].trim();
         if (!info.company) info.company = titleParts[1].trim();
+      }
+    }
+
+    // Strategy 5: Job description extraction
+    if (!info.jobDescription) {
+      const descriptionSelectors = [
+        '[class*="job-description"]',
+        '[class*="jobDescription"]',
+        '[class*="description"]',
+        '[data-automation*="description"]',
+        '[data-testid*="description"]',
+        '.job-description',
+        '#job-description',
+        'article',
+        '[role="main"] section'
+      ];
+
+      for (const selector of descriptionSelectors) {
+        try {
+          const el = document.querySelector(selector);
+          if (el && el.innerText?.trim()) {
+            info.jobDescription = el.innerText.trim();
+            break;
+          }
+        } catch (e) {}
       }
     }
 

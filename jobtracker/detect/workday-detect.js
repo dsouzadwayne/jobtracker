@@ -25,12 +25,29 @@
     console.log('JobTracker: Workday detection module loaded (manual mode)');
   }
 
+  function extractJobDescription() {
+    const selectors = [
+      '[data-automation-id="jobPostingDescription"]',
+      '[data-automation-id="job-posting-details"]',
+      '.job-description',
+      '[class*="job-description"]'
+    ];
+    for (const selector of selectors) {
+      const el = document.querySelector(selector);
+      if (el && el.innerText?.trim()) {
+        return el.innerText.trim();
+      }
+    }
+    return '';
+  }
+
   function extractJobInfo() {
     return {
       position: document.querySelector('[data-automation-id="jobPostingHeader"], h1')?.textContent?.trim() || '',
       company: document.querySelector('[data-automation-id="companyName"]')?.textContent?.trim() || '',
       jobUrl: window.location.href,
-      platform: 'workday'
+      platform: 'workday',
+      jobDescription: extractJobDescription()
     };
   }
 

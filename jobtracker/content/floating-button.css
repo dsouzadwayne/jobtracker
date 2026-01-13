@@ -365,6 +365,39 @@
   color: #A8A5A0;
 }
 
+.jobtracker-quick-add-field textarea {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: #FDFCFB;
+  border: 1px solid #D9D7D4;
+  border-radius: 0.625rem;
+  font-size: 0.875rem;
+  font-family: inherit;
+  color: #2A2826;
+  resize: vertical;
+  min-height: 80px;
+  max-height: 200px;
+  line-height: 1.5;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  box-sizing: border-box;
+}
+
+.jobtracker-quick-add-field textarea:focus {
+  outline: none;
+  border-color: #6B9080;
+  box-shadow: 0 0 0 3px rgba(107, 144, 128, 0.15);
+}
+
+.jobtracker-quick-add-field textarea::placeholder {
+  color: #A8A5A0;
+}
+
+.jobtracker-optional-label {
+  font-weight: 400;
+  color: #A8A5A0;
+  font-size: 0.75rem;
+}
+
 .jobtracker-quick-add-footer {
   display: flex;
   gap: 0.75rem;
@@ -533,6 +566,25 @@
   }
 
   .jobtracker-quick-add-field input::placeholder {
+    color: #6B6863;
+  }
+
+  .jobtracker-quick-add-field textarea {
+    background: #242321;
+    border-color: #3D3B38;
+    color: #F5F4F2;
+  }
+
+  .jobtracker-quick-add-field textarea:focus {
+    border-color: #7BA090;
+    box-shadow: 0 0 0 3px rgba(123, 160, 144, 0.2);
+  }
+
+  .jobtracker-quick-add-field textarea::placeholder {
+    color: #6B6863;
+  }
+
+  .jobtracker-optional-label {
     color: #6B6863;
   }
 

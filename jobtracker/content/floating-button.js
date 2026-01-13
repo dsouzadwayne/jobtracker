@@ -141,11 +141,12 @@
     floatingButton.className = 'jobtracker-floating-btn';
     floatingButton.innerHTML = `
       <div class="jobtracker-btn-group">
-        <button class="jobtracker-btn-applied" title="Mark as Applied">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <polyline points="20 6 9 17 4 12"></polyline>
+        <button class="jobtracker-btn-applied" title="Track this job">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
           </svg>
-          <span>I Applied</span>
+          <span>Track</span>
         </button>
         <button class="jobtracker-btn-main" title="Autofill Form">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -296,7 +297,7 @@
     }
   }
 
-  // Set button to applied state
+  // Set button to tracked state
   function setAppliedState() {
     hasApplied = true;
     const appliedBtn = floatingButton?.querySelector('.jobtracker-btn-applied');
@@ -306,7 +307,7 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <polyline points="20 6 9 17 4 12"></polyline>
         </svg>
-        <span>Applied</span>
+        <span>Tracked</span>
       `;
     }
   }
@@ -336,6 +337,13 @@
               <label for="jt-position">Position</label>
               <input type="text" id="jt-position" placeholder="e.g., Software Engineer" value="${escapeHtml(prefill.position || '')}">
             </div>
+            <div class="jobtracker-quick-add-field">
+              <label for="jt-description">
+                Job Description
+                <span class="jobtracker-optional-label">(optional)</span>
+              </label>
+              <textarea id="jt-description" placeholder="Paste or auto-extracted job description..." rows="4">${escapeHtml(prefill.jobDescription || '')}</textarea>
+            </div>
           </div>
           <div class="jobtracker-quick-add-footer">
             <button class="jobtracker-quick-add-cancel">Cancel</button>
@@ -349,6 +357,7 @@
       // Focus first empty field
       const companyInput = quickAddModal.querySelector('#jt-company');
       const positionInput = quickAddModal.querySelector('#jt-position');
+      const descriptionInput = quickAddModal.querySelector('#jt-description');
       if (!companyInput.value) {
         companyInput.focus();
       } else if (!positionInput.value) {
@@ -367,6 +376,7 @@
       const saveData = () => {
         const company = companyInput.value.trim();
         const position = positionInput.value.trim();
+        const jobDescription = descriptionInput.value.trim();
 
         if (!company && !position) {
           companyInput.focus();
@@ -375,7 +385,7 @@
 
         quickAddModal.remove();
         quickAddModal = null;
-        resolve({ company, position });
+        resolve({ company, position, jobDescription });
       };
 
       quickAddModal.querySelector('.jobtracker-quick-add-close').addEventListener('click', closeModal);

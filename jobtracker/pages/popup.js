@@ -194,7 +194,7 @@ function createApplicationItem(app) {
   `;
 
   item.addEventListener('click', () => {
-    chrome.tabs.create({ url: chrome.runtime.getURL(`pages/applications.html?id=${app.id}`) });
+    chrome.tabs.create({ url: chrome.runtime.getURL(`pages/dashboard.html?id=${app.id}`) });
   });
 
   return item;
@@ -234,7 +234,7 @@ function setupEventListeners() {
 
   // View all applications
   elements.viewAllBtn.addEventListener('click', () => {
-    chrome.tabs.create({ url: chrome.runtime.getURL('pages/applications.html') });
+    chrome.tabs.create({ url: chrome.runtime.getURL('pages/dashboard.html') });
   });
 
   // Settings

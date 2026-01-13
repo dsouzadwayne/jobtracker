@@ -401,6 +401,36 @@
   flex-shrink: 0;
 }
 
+/* Details overlay for mobile */
+.details-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+}
+
+.details-overlay:not(.hidden) {
+  display: block;
+}
+
+/* Show details panel on smaller screens as overlay */
+@media (max-width: 1199px) {
+  .dashboard-details:not(.hidden) {
+    display: flex;
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(400px, 90vw);
+    z-index: 1000;
+    box-shadow: -4px 0 20px rgba(0, 0, 0, 0.15);
+  }
+}
+
 .details-header {
   display: flex;
   align-items: center;
@@ -492,13 +522,89 @@
   color: var(--text-primary);
 }
 
+/* Job Description in Details Panel */
+.details-description {
+  margin-top: var(--space-lg);
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--border-color);
+}
+
+.details-description-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-sm);
+}
+
+.description-toggle-btn {
+  padding: var(--space-xs);
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-normal);
+}
+
+.description-toggle-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.description-toggle-btn svg {
+  transition: transform var(--transition-normal);
+}
+
+.description-toggle-btn.expanded svg {
+  transform: rotate(180deg);
+}
+
+.details-description-content {
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  line-height: 1.6;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.details-description-content[data-expanded="true"] {
+  max-height: 500px;
+}
+
+/* Job Description List Formatting */
+.details-description-content ul.job-desc-list {
+  margin: var(--space-sm) 0;
+  padding-left: var(--space-lg);
+  list-style-type: disc;
+}
+
+.details-description-content ul.job-desc-list li {
+  margin-bottom: var(--space-xs);
+  line-height: 1.6;
+}
+
+.details-description-content p {
+  margin-bottom: var(--space-sm);
+}
+
+/* Job Link with Icon */
 .job-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
   color: var(--primary);
   text-decoration: none;
+  font-weight: 500;
+  transition: all var(--transition-normal);
 }
 
 .job-link:hover {
   text-decoration: underline;
+}
+
+.job-link svg {
+  flex-shrink: 0;
 }
 
 .details-notes {

@@ -25,13 +25,36 @@
     console.log('JobTracker: Lever detection module loaded (manual mode)');
   }
 
+  function extractJobDescription() {
+    // Try to get all job description sections and combine them
+    const sections = document.querySelectorAll('.section.page-centered, [data-qa="job-description"]');
+    if (sections.length > 0) {
+      const content = Array.from(sections)
+        .map(el => el.innerText?.trim())
+        .filter(text => text && !text.includes('Apply for this job'))
+        .join('\n\n');
+      if (content) return content;
+    }
+
+    // Fallback to single container selectors
+    const selectors = ['.section-wrapper', '.posting-content', '.content-body'];
+    for (const selector of selectors) {
+      const el = document.querySelector(selector);
+      if (el && el.innerText?.trim()) {
+        return el.innerText.trim();
+      }
+    }
+    return '';
+  }
+
   function extractJobInfo() {
     return {
       position: document.querySelector('.posting-headline h2')?.textContent?.trim() || '',
       company: document.querySelector('.posting-categories .company, .main-header-content h1')?.textContent?.trim() || '',
       location: document.querySelector('.posting-categories .location')?.textContent?.trim() || '',
       jobUrl: window.location.href,
-      platform: 'lever'
+      platform: 'lever',
+      jobDescription: extractJobDescription()
     };
   }
 
