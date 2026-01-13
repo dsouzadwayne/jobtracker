@@ -26,7 +26,7 @@ const JobTrackerDB = {
       const request = indexedDB.open(this.DB_NAME, this.DB_VERSION);
 
       request.onerror = () => {
-        console.error('JobTracker: Failed to open database', request.error);
+        console.log('JobTracker: Failed to open database', request.error);
         reject(request.error);
       };
 
@@ -120,10 +120,55 @@ const JobTrackerDB = {
   },
 
   /**
-   * Add new application
+   * Find duplicate application by URL or company+position
+   */
+  async findDuplicate(application) {
+    const applications = await this.getAllApplications();
+
+    // Normalize strings for comparison
+    const normalize = (str) => (str || '').toLowerCase().trim();
+
+    const newUrl = normalize(application.jobUrl);
+    const newCompany = normalize(application.company);
+    const newPosition = normalize(application.position);
+
+    for (const app of applications) {
+      // Check by job URL (most reliable)
+      if (newUrl && normalize(app.jobUrl) === newUrl) {
+        return app;
+      }
+
+      // Check by company + position combination
+      if (newCompany && newPosition) {
+        const existingCompany = normalize(app.company);
+        const existingPosition = normalize(app.position);
+
+        if (existingCompany === newCompany && existingPosition === newPosition) {
+          return app;
+        }
+      }
+    }
+
+    return null;
+  },
+
+  /**
+   * Add new application (with duplicate check)
    */
   async addApplication(application) {
     await this.init();
+
+    // Check for duplicates first
+    const duplicate = await this.findDuplicate(application);
+    if (duplicate) {
+      return {
+        success: false,
+        duplicate: true,
+        existing: duplicate,
+        message: `This job already exists: ${duplicate.position} at ${duplicate.company}`
+      };
+    }
+
     const app = {
       ...application,
       id: application.id || this.generateId(),
@@ -144,7 +189,7 @@ const JobTrackerDB = {
       const store = transaction.objectStore(this.STORES.APPLICATIONS);
       const request = store.add(app);
 
-      request.onsuccess = () => resolve(app);
+      request.onsuccess = () => resolve({ success: true, application: app });
       request.onerror = () => reject(request.error);
     });
   },
@@ -280,7 +325,7 @@ const JobTrackerDB = {
     return {
       id: 'main',
       personal: {
-        firstName: '', lastName: '', email: '', phone: '',
+        firstName: '', middleName: '', lastName: '', email: '', phone: '',
         address: { street: '', city: '', state: '', zipCode: '', country: '' },
         linkedIn: '', github: '', portfolio: '', website: ''
       },
@@ -337,14 +382,15 @@ const JobTrackerDB = {
   getDefaultSettings() {
     return {
       id: 'main',
-      autofill: { enabled: true, showFloatingButton: true, autoDetectForms: true, confirmBeforeFill: false },
+      autofill: { enabled: true, showFloatingButton: true, autoDetectForms: true, confirmBeforeFill: false, delay: 0 },
       detection: {
         autoTrackSubmissions: true, notifyOnDetection: true,
-        enabledPlatforms: ['linkedin', 'indeed', 'glassdoor', 'workday', 'greenhouse', 'lever', 'icims', 'smartrecruiters'],
+        enabledPlatforms: ['linkedin', 'indeed', 'glassdoor', 'workday', 'greenhouse', 'lever', 'icims', 'smartrecruiters', 'naukri'],
         enableGenericDetection: true
       },
-      ui: { theme: 'system', floatingButtonPosition: 'bottom-right' },
-      data: { autoBackup: false, backupInterval: 7 }
+      ui: { theme: 'system', floatingButtonPosition: 'bottom-right', dashboardView: 'cards' },
+      data: { autoBackup: false, backupInterval: 7 },
+      customFieldRules: []
     };
   },
 
@@ -405,6 +451,16 @@ const JobTrackerDB = {
       if (chromeData.jobtracker_settings) {
         await this.saveSettings(chromeData.jobtracker_settings);
         console.log('JobTracker: Settings migrated');
+
+        // Also migrate theme to the new UI prefs key (separate from settings to avoid conflicts)
+        if (chromeData.jobtracker_settings.ui?.theme) {
+          await new Promise(resolve => {
+            chrome.storage.local.set({
+              'jobtracker_ui_prefs': { theme: chromeData.jobtracker_settings.ui.theme }
+            }, resolve);
+          });
+          console.log('JobTracker: Theme preference migrated to jobtracker_ui_prefs');
+        }
       }
 
       // Mark migration as complete
@@ -415,7 +471,7 @@ const JobTrackerDB = {
         applicationCount: chromeData.jobtracker_applications?.length || 0
       });
 
-      // Clear Chrome storage after successful migration
+      // Clear Chrome storage after successful migration (but keep jobtracker_ui_prefs)
       await new Promise(resolve => {
         chrome.storage.local.remove(['jobtracker_profile', 'jobtracker_applications', 'jobtracker_settings'], resolve);
       });
@@ -423,7 +479,7 @@ const JobTrackerDB = {
       console.log('JobTracker: Migration completed successfully');
       return true;
     } catch (error) {
-      console.error('JobTracker: Migration failed', error);
+      console.log('JobTracker: Migration failed', error);
       throw error;
     }
   },

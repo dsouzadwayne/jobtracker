@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "JobTracker",
-  "version": "0.001",
+  "version": "0.0.0.2",
   "description": "Track job applications and autofill forms. 100% local, privacy-first, open source.",
   "author": "JobTracker Contributors",
   "homepage_url": "https://github.com/yourusername/jobtracker",
@@ -9,7 +9,8 @@
   "permissions": [
     "storage",
     "activeTab",
-    "scripting"
+    "scripting",
+    "alarms"
   ],
 
   "host_permissions": [
@@ -22,7 +23,7 @@
   },
 
   "action": {
-    "default_popup": "popup.html",
+    "default_popup": "pages/popup.html",
     "default_icon": {
       "16": "icons/icon-16.png",
       "32": "icons/icon-32.png",
@@ -42,48 +43,108 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["lib/storage.js", "lib/utils.js", "content.js", "floating-button.js", "generic-detect.js"],
-      "css": ["floating-button.css"],
+      "js": [
+        "lib/storage.js",
+        "lib/utils.js",
+        "lib/format-utils.js",
+        "lib/field-matcher.js",
+        "lib/form-utils.js",
+        "content/content.js",
+        "content/floating-button.js",
+        "detect/generic-detect.js",
+        "autofill/generic-autofill.js"
+      ],
+      "css": ["content/floating-button.css"],
       "run_at": "document_end"
     },
     {
       "matches": ["*://www.linkedin.com/jobs/*", "*://www.linkedin.com/job/*"],
-      "js": ["lib/field-matcher.js", "lib/form-utils.js", "linkedin-autofill.js", "linkedin-detect.js"],
+      "js": [
+        "lib/field-matcher.js",
+        "lib/form-utils.js",
+        "autofill/linkedin-autofill.js",
+        "detect/linkedin-detect.js"
+      ],
       "run_at": "document_end"
     },
     {
       "matches": ["*://www.indeed.com/*", "*://*.indeed.com/*"],
-      "js": ["lib/field-matcher.js", "lib/form-utils.js", "indeed-autofill.js", "indeed-detect.js"],
+      "js": [
+        "lib/field-matcher.js",
+        "lib/form-utils.js",
+        "autofill/indeed-autofill.js",
+        "detect/indeed-detect.js"
+      ],
       "run_at": "document_end"
     },
     {
       "matches": ["*://www.glassdoor.com/*", "*://www.glassdoor.co.uk/*"],
-      "js": ["lib/field-matcher.js", "lib/form-utils.js", "glassdoor-autofill.js", "glassdoor-detect.js"],
+      "js": [
+        "lib/field-matcher.js",
+        "lib/form-utils.js",
+        "autofill/glassdoor-autofill.js",
+        "detect/glassdoor-detect.js"
+      ],
       "run_at": "document_end"
     },
     {
       "matches": ["*://boards.greenhouse.io/*", "*://*.greenhouse.io/*"],
-      "js": ["lib/field-matcher.js", "lib/form-utils.js", "greenhouse-autofill.js", "greenhouse-detect.js"],
+      "js": [
+        "lib/field-matcher.js",
+        "lib/form-utils.js",
+        "autofill/greenhouse-autofill.js",
+        "detect/greenhouse-detect.js"
+      ],
       "run_at": "document_end"
     },
     {
       "matches": ["*://jobs.lever.co/*", "*://*.lever.co/*", "*://*.lever.com/*"],
-      "js": ["lib/field-matcher.js", "lib/form-utils.js", "lever-autofill.js", "lever-detect.js"],
+      "js": [
+        "lib/field-matcher.js",
+        "lib/form-utils.js",
+        "autofill/lever-autofill.js",
+        "detect/lever-detect.js"
+      ],
       "run_at": "document_end"
     },
     {
       "matches": ["*://*.myworkdayjobs.com/*", "*://*.workday.com/*"],
-      "js": ["lib/field-matcher.js", "lib/form-utils.js", "workday-autofill.js", "workday-detect.js"],
+      "js": [
+        "lib/field-matcher.js",
+        "lib/form-utils.js",
+        "autofill/workday-autofill.js",
+        "detect/workday-detect.js"
+      ],
       "run_at": "document_end"
     },
     {
       "matches": ["*://*.icims.com/*"],
-      "js": ["lib/field-matcher.js", "lib/form-utils.js", "icims-autofill.js", "icims-detect.js"],
+      "js": [
+        "lib/field-matcher.js",
+        "lib/form-utils.js",
+        "autofill/icims-autofill.js",
+        "detect/icims-detect.js"
+      ],
       "run_at": "document_end"
     },
     {
       "matches": ["*://*.smartrecruiters.com/*"],
-      "js": ["lib/field-matcher.js", "lib/form-utils.js", "smartrecruiters-autofill.js", "smartrecruiters-detect.js"],
+      "js": [
+        "lib/field-matcher.js",
+        "lib/form-utils.js",
+        "autofill/smartrecruiters-autofill.js",
+        "detect/smartrecruiters-detect.js"
+      ],
+      "run_at": "document_end"
+    },
+    {
+      "matches": ["*://www.naukri.com/*", "*://naukri.com/*"],
+      "js": [
+        "lib/field-matcher.js",
+        "lib/form-utils.js",
+        "autofill/naukri-autofill.js",
+        "detect/naukri-detect.js"
+      ],
       "run_at": "document_end"
     }
   ],
@@ -103,11 +164,15 @@
         "lib/*.js",
         "icons/*",
         "common.css",
-        "dashboard.html",
-        "dashboard.js",
-        "dashboard.css"
+        "pages/dashboard.html",
+        "pages/dashboard.js",
+        "pages/dashboard.css"
       ],
       "matches": ["<all_urls>"]
     }
-  ]
+  ],
+
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
 }

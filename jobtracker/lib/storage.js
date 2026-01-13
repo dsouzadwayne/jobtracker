@@ -95,7 +95,7 @@ const JobTrackerStorage = {
       const result = await chrome.storage.local.get(this.KEYS.PROFILE);
       return result[this.KEYS.PROFILE] || this.getDefaultProfile();
     } catch (error) {
-      console.error('JobTracker: Error getting profile:', error);
+      console.log('JobTracker: Error getting profile:', error);
       return this.getDefaultProfile();
     }
   },
@@ -107,7 +107,7 @@ const JobTrackerStorage = {
       await chrome.storage.local.set({ [this.KEYS.PROFILE]: profile });
       return true;
     } catch (error) {
-      console.error('JobTracker: Error saving profile:', error);
+      console.log('JobTracker: Error saving profile:', error);
       return false;
     }
   },
@@ -124,7 +124,7 @@ const JobTrackerStorage = {
       obj[keys[keys.length - 1]] = value;
       return await this.saveProfile(profile);
     } catch (error) {
-      console.error('JobTracker: Error updating profile field:', error);
+      console.log('JobTracker: Error updating profile field:', error);
       return false;
     }
   },
@@ -232,7 +232,7 @@ const JobTrackerStorage = {
       const result = await chrome.storage.local.get(this.KEYS.APPLICATIONS);
       return result[this.KEYS.APPLICATIONS] || [];
     } catch (error) {
-      console.error('JobTracker: Error getting applications:', error);
+      console.log('JobTracker: Error getting applications:', error);
       return [];
     }
   },
@@ -242,7 +242,7 @@ const JobTrackerStorage = {
       await chrome.storage.local.set({ [this.KEYS.APPLICATIONS]: applications });
       return true;
     } catch (error) {
-      console.error('JobTracker: Error saving applications:', error);
+      console.log('JobTracker: Error saving applications:', error);
       return false;
     }
   },
@@ -264,7 +264,7 @@ const JobTrackerStorage = {
       applications.unshift(application); // Add to beginning
       return await this.saveApplications(applications) ? application : null;
     } catch (error) {
-      console.error('JobTracker: Error adding application:', error);
+      console.log('JobTracker: Error adding application:', error);
       return null;
     }
   },
@@ -298,7 +298,7 @@ const JobTrackerStorage = {
       }
       return false;
     } catch (error) {
-      console.error('JobTracker: Error updating application:', error);
+      console.log('JobTracker: Error updating application:', error);
       return false;
     }
   },
@@ -309,7 +309,7 @@ const JobTrackerStorage = {
       const filtered = applications.filter(a => a.id !== id);
       return await this.saveApplications(filtered);
     } catch (error) {
-      console.error('JobTracker: Error deleting application:', error);
+      console.log('JobTracker: Error deleting application:', error);
       return false;
     }
   },
@@ -357,7 +357,7 @@ const JobTrackerStorage = {
       const result = await chrome.storage.local.get(this.KEYS.SETTINGS);
       return { ...this.getDefaultSettings(), ...result[this.KEYS.SETTINGS] };
     } catch (error) {
-      console.error('JobTracker: Error getting settings:', error);
+      console.log('JobTracker: Error getting settings:', error);
       return this.getDefaultSettings();
     }
   },
@@ -367,7 +367,7 @@ const JobTrackerStorage = {
       await chrome.storage.local.set({ [this.KEYS.SETTINGS]: settings });
       return true;
     } catch (error) {
-      console.error('JobTracker: Error saving settings:', error);
+      console.log('JobTracker: Error saving settings:', error);
       return false;
     }
   },
@@ -384,7 +384,7 @@ const JobTrackerStorage = {
       obj[keys[keys.length - 1]] = value;
       return await this.saveSettings(settings);
     } catch (error) {
-      console.error('JobTracker: Error updating setting:', error);
+      console.log('JobTracker: Error updating setting:', error);
       return false;
     }
   },
@@ -407,52 +407,182 @@ const JobTrackerStorage = {
         settings
       };
     } catch (error) {
-      console.error('JobTracker: Error exporting data:', error);
+      console.log('JobTracker: Error exporting data:', error);
       return null;
     }
   },
 
+  // Validate imported data structure
+  validateImportData(data) {
+    const errors = [];
+
+    // Check basic structure
+    if (!data || typeof data !== 'object') {
+      errors.push('Invalid data format: expected an object');
+      return { valid: false, errors };
+    }
+
+    if (!data.version) {
+      errors.push('Missing version field');
+    }
+
+    // Validate profile if present
+    if (data.profile) {
+      if (typeof data.profile !== 'object') {
+        errors.push('Profile must be an object');
+      } else {
+        // Validate personal info
+        if (data.profile.personal && typeof data.profile.personal !== 'object') {
+          errors.push('Profile personal info must be an object');
+        }
+
+        // Validate arrays
+        ['workHistory', 'education', 'certifications', 'customQA'].forEach(key => {
+          if (data.profile[key] && !Array.isArray(data.profile[key])) {
+            errors.push(`Profile ${key} must be an array`);
+          }
+        });
+
+        // Validate skills structure
+        if (data.profile.skills && typeof data.profile.skills !== 'object') {
+          errors.push('Profile skills must be an object');
+        }
+      }
+    }
+
+    // Validate applications if present
+    if (data.applications) {
+      if (!Array.isArray(data.applications)) {
+        errors.push('Applications must be an array');
+      } else {
+        // Validate each application has required fields
+        data.applications.forEach((app, i) => {
+          if (!app || typeof app !== 'object') {
+            errors.push(`Application at index ${i} is not a valid object`);
+          } else if (!app.id) {
+            errors.push(`Application at index ${i} is missing id field`);
+          }
+        });
+      }
+    }
+
+    // Validate settings if present
+    if (data.settings && typeof data.settings !== 'object') {
+      errors.push('Settings must be an object');
+    }
+
+    return { valid: errors.length === 0, errors };
+  },
+
+  // Sanitize imported profile data
+  sanitizeProfile(profile) {
+    const sanitized = { ...this.getDefaultProfile() };
+
+    if (profile.personal && typeof profile.personal === 'object') {
+      // Only copy allowed fields
+      const allowedPersonal = ['firstName', 'lastName', 'email', 'phone', 'address', 'linkedIn', 'github', 'portfolio', 'website'];
+      allowedPersonal.forEach(key => {
+        if (profile.personal[key] !== undefined) {
+          sanitized.personal[key] = profile.personal[key];
+        }
+      });
+    }
+
+    // Sanitize arrays - ensure each item has an id
+    ['workHistory', 'education', 'certifications', 'customQA'].forEach(key => {
+      if (Array.isArray(profile[key])) {
+        sanitized[key] = profile[key]
+          .filter(item => item && typeof item === 'object')
+          .map(item => ({
+            ...item,
+            id: item.id || this.generateId()
+          }));
+      }
+    });
+
+    // Sanitize skills
+    if (profile.skills && typeof profile.skills === 'object') {
+      ['languages', 'frameworks', 'tools', 'soft', 'other'].forEach(key => {
+        if (Array.isArray(profile.skills[key])) {
+          sanitized.skills[key] = profile.skills[key].filter(s => typeof s === 'string');
+        }
+      });
+    }
+
+    return sanitized;
+  },
+
+  // Sanitize imported applications
+  sanitizeApplications(applications) {
+    if (!Array.isArray(applications)) return [];
+
+    return applications
+      .filter(app => app && typeof app === 'object')
+      .map(app => ({
+        id: app.id || this.generateId(),
+        company: String(app.company || ''),
+        position: String(app.position || ''),
+        status: app.status || 'applied',
+        dateApplied: app.dateApplied || new Date().toISOString(),
+        location: app.location || '',
+        jobUrl: app.jobUrl || '',
+        platform: app.platform || 'other',
+        salary: app.salary || '',
+        notes: app.notes || '',
+        statusHistory: Array.isArray(app.statusHistory) ? app.statusHistory : [],
+        meta: app.meta || { createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+      }));
+  },
+
   async importData(data, options = { merge: false }) {
     try {
-      if (!data || !data.version) {
-        throw new Error('Invalid import data format');
+      // Validate import data structure
+      const validation = this.validateImportData(data);
+      if (!validation.valid) {
+        console.log('JobTracker: Import validation errors:', validation.errors);
+        throw new Error(`Invalid import data: ${validation.errors.join(', ')}`);
       }
+
+      // Sanitize data before importing
+      const sanitizedProfile = data.profile ? this.sanitizeProfile(data.profile) : null;
+      const sanitizedApplications = data.applications ? this.sanitizeApplications(data.applications) : null;
 
       if (options.merge) {
         // Merge with existing data
         const existingProfile = await this.getProfile();
         const existingApps = await this.getApplications();
 
-        if (data.profile) {
+        if (sanitizedProfile) {
           // Merge arrays, don't duplicate
           ['workHistory', 'education', 'certifications', 'customQA'].forEach(key => {
-            if (data.profile[key]) {
-              const existingIds = new Set(existingProfile[key].map(item => item.id));
-              data.profile[key].forEach(item => {
+            if (sanitizedProfile[key]) {
+              const existingIds = new Set((existingProfile[key] || []).map(item => item.id));
+              sanitizedProfile[key].forEach(item => {
                 if (!existingIds.has(item.id)) {
+                  existingProfile[key] = existingProfile[key] || [];
                   existingProfile[key].push(item);
                 }
               });
             }
           });
-          await this.saveProfile({ ...existingProfile, ...data.profile });
+          await this.saveProfile({ ...existingProfile, ...sanitizedProfile });
         }
 
-        if (data.applications) {
+        if (sanitizedApplications) {
           const existingIds = new Set(existingApps.map(a => a.id));
-          const newApps = data.applications.filter(a => !existingIds.has(a.id));
+          const newApps = sanitizedApplications.filter(a => !existingIds.has(a.id));
           await this.saveApplications([...existingApps, ...newApps]);
         }
       } else {
         // Replace all data
-        if (data.profile) await this.saveProfile(data.profile);
-        if (data.applications) await this.saveApplications(data.applications);
+        if (sanitizedProfile) await this.saveProfile(sanitizedProfile);
+        if (sanitizedApplications) await this.saveApplications(sanitizedApplications);
         if (data.settings) await this.saveSettings(data.settings);
       }
 
       return true;
     } catch (error) {
-      console.error('JobTracker: Error importing data:', error);
+      console.log('JobTracker: Error importing data:', error);
       return false;
     }
   },
@@ -468,7 +598,7 @@ const JobTrackerStorage = {
       ]);
       return true;
     } catch (error) {
-      console.error('JobTracker: Error clearing data:', error);
+      console.log('JobTracker: Error clearing data:', error);
       return false;
     }
   }
