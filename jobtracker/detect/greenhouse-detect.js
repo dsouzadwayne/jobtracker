@@ -25,9 +25,42 @@
     console.log('JobTracker: Greenhouse detection module loaded (manual mode)');
   }
 
+  // Selectors for the new Greenhouse job board structure
+  const SELECTORS = {
+    // Job title selectors (new structure first)
+    jobTitle: [
+      'h1.section-header',
+      '.job__title h1',
+      '.job-title h1',
+      '.app-title',
+      'h1'
+    ],
+    // Company selectors
+    company: [
+      '.company-name',
+      '#header .company',
+      'img.logo[alt]' // Extract from logo alt text
+    ],
+    // Location selectors
+    location: [
+      '.job__location div',
+      '.job__location',
+      '.location',
+      '[class*="location"]'
+    ],
+    // Job description selectors
+    jobDescription: [
+      '.job__description.body',
+      '.job__description',
+      '.job-post-content',
+      '#content',
+      '.content-wrapper',
+      '[class*="job-description"]'
+    ]
+  };
+
   function extractJobDescription() {
-    const selectors = ['#content', '.job-post-content', '.content-wrapper', '[class*="job-description"]'];
-    for (const selector of selectors) {
+    for (const selector of SELECTORS.jobDescription) {
       const el = document.querySelector(selector);
       if (el && el.innerText?.trim()) {
         return el.innerText.trim();
@@ -37,23 +70,72 @@
   }
 
   function extractJobInfo() {
-    // Try to get from page elements first, fallback to document title
-    let position = document.querySelector('.app-title, h1')?.textContent?.trim() || '';
-    let company = document.querySelector('.company-name, #header .company')?.textContent?.trim() || '';
+    let position = '';
+    let company = '';
+    let location = '';
 
-    // Fallback: parse from document title (format: "Position at Company - Greenhouse")
-    if (!position || !company) {
-      const titleParts = document.title.split(' at ');
-      if (titleParts.length >= 2) {
-        if (!position) position = titleParts[0].trim();
-        if (!company) company = titleParts[1].split(' - ')[0].trim();
+    // Extract job title
+    for (const selector of SELECTORS.jobTitle) {
+      const el = document.querySelector(selector);
+      if (el && el.textContent?.trim()) {
+        position = el.textContent.trim();
+        break;
       }
+    }
+
+    // Extract company name
+    for (const selector of SELECTORS.company) {
+      const el = document.querySelector(selector);
+      if (el) {
+        // Handle logo alt text extraction
+        if (el.tagName === 'IMG' && el.alt) {
+          company = el.alt.replace(/\s*logo\s*/i, '').trim();
+        } else if (el.textContent?.trim()) {
+          company = el.textContent.trim();
+        }
+        if (company) break;
+      }
+    }
+
+    // Extract location
+    for (const selector of SELECTORS.location) {
+      const el = document.querySelector(selector);
+      if (el && el.textContent?.trim()) {
+        location = el.textContent.trim();
+        break;
+      }
+    }
+
+    // Fallback: parse from document title (format: "Job Application for Position at Company")
+    if (!position || !company) {
+      const title = document.title;
+      // Try "Job Application for X at Y" format
+      const appMatch = title.match(/Job Application for (.+?) at (.+?)$/i);
+      if (appMatch) {
+        if (!position) position = appMatch[1].trim();
+        if (!company) company = appMatch[2].trim();
+      } else {
+        // Try "Position at Company - Greenhouse" format
+        const titleParts = title.split(' at ');
+        if (titleParts.length >= 2) {
+          if (!position) position = titleParts[0].replace(/Job Application for/i, '').trim();
+          if (!company) company = titleParts[1].split(' - ')[0].trim();
+        }
+      }
+    }
+
+    // Clean up the job URL - remove tracking parameters but keep job ID
+    let jobUrl = window.location.href;
+    const urlMatch = jobUrl.match(/(https:\/\/[^\/]+\/[^\/]+\/jobs\/\d+)/);
+    if (urlMatch) {
+      jobUrl = urlMatch[1];
     }
 
     return {
       position,
       company,
-      jobUrl: window.location.href,
+      location,
+      jobUrl,
       platform: 'greenhouse',
       jobDescription: extractJobDescription()
     };

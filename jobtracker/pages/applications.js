@@ -300,7 +300,17 @@ function createAppCard(app) {
   if (openUrlBtn) {
     openUrlBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      window.open(openUrlBtn.dataset.url, '_blank');
+      const url = openUrlBtn.dataset.url;
+      try {
+        const parsed = new URL(url);
+        if (['http:', 'https:'].includes(parsed.protocol)) {
+          window.open(url, '_blank', 'noopener,noreferrer');
+        } else {
+          console.warn('JobTracker: Invalid URL protocol blocked:', parsed.protocol);
+        }
+      } catch (err) {
+        console.warn('JobTracker: Invalid URL:', url);
+      }
     });
   }
 

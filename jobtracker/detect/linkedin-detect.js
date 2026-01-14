@@ -13,16 +13,18 @@
 
   // LinkedIn-specific selectors
   const SELECTORS = {
-    jobTitle: '.job-details-jobs-unified-top-card__job-title, .jobs-unified-top-card__job-title, h1.t-24',
-    company: '.job-details-jobs-unified-top-card__company-name, .jobs-unified-top-card__company-name, .jobs-details-top-card__company-url',
-    location: '.job-details-jobs-unified-top-card__bullet, .jobs-unified-top-card__bullet',
-    jobDescription: '.jobs-description__content, .jobs-description, .jobs-box__html-content, [class*="jobs-description"]'
+    jobTitle: '.job-details-jobs-unified-top-card__job-title h1, .jobs-unified-top-card__job-title, h1.t-24',
+    company: '.job-details-jobs-unified-top-card__company-name a, .jobs-unified-top-card__company-name a, .jobs-details-top-card__company-url',
+    location: '.job-details-jobs-unified-top-card__tertiary-description-container .tvm__text, .job-details-jobs-unified-top-card__bullet, .jobs-unified-top-card__bullet',
+    jobDescription: '#job-details, .jobs-description__content, .jobs-description, .jobs-box__html-content'
   };
 
   // Valid LinkedIn job page patterns
   const LINKEDIN_JOB_PATTERNS = [
     /linkedin\.com\/jobs\/view/i,
-    /linkedin\.com\/jobs\/collections/i
+    /linkedin\.com\/jobs\/collections/i,
+    /linkedin\.com\/jobs\/search/i,
+    /linkedin\.com\/jobs.*currentJobId=/i
   ];
 
   // Check if we're on a LinkedIn job page
@@ -81,11 +83,43 @@
       }
     }
 
-    // Try to get job ID from URL
+    // Try to get job ID from URL - handle both /jobs/view/ and currentJobId parameter
+    let jobId = null;
+
+    // First try /jobs/view/{id} pattern
     const jobIdMatch = window.location.href.match(/\/jobs\/view\/(\d+)/);
     if (jobIdMatch) {
-      info.jobId = jobIdMatch[1];
-      info.jobUrl = `https://www.linkedin.com/jobs/view/${info.jobId}`;
+      jobId = jobIdMatch[1];
+    }
+
+    // Also check for currentJobId query parameter (used on collections/search pages)
+    if (!jobId) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const currentJobId = urlParams.get('currentJobId');
+      if (currentJobId) {
+        jobId = currentJobId;
+      }
+    }
+
+    // Also check for data-job-id attribute on active job card
+    if (!jobId) {
+      // Try to find the active job card with data-job-id attribute
+      const activeJobCard = document.querySelector('[data-job-id].jobs-search-results-list__list-item--active, [data-job-id][aria-current="page"]');
+      if (activeJobCard) {
+        jobId = activeJobCard.getAttribute('data-job-id');
+      }
+      // Also check parent li elements with data-occludable-job-id
+      if (!jobId) {
+        const activeListItem = document.querySelector('li[data-occludable-job-id]:has(.jobs-search-results-list__list-item--active)');
+        if (activeListItem) {
+          jobId = activeListItem.getAttribute('data-occludable-job-id');
+        }
+      }
+    }
+
+    if (jobId) {
+      info.jobId = jobId;
+      info.jobUrl = `https://www.linkedin.com/jobs/view/${jobId}/`;
     }
 
     return info;

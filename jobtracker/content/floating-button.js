@@ -16,6 +16,7 @@
   let isFormDetected = false;
   let hasApplied = false;
   let settings = null;
+  let currentJobId = null; // Track current job to detect changes
 
   // Form detection indicators
   const JOB_FORM_INDICATORS = {
@@ -66,6 +67,9 @@
 
       // Watch for dynamic form changes
       observeFormChanges();
+
+      // Watch for LinkedIn job selection changes (for two-pane view)
+      observeLinkedInJobChanges();
 
     } catch (error) {
       console.log('JobTracker: Error initializing floating button:', error);
@@ -309,6 +313,90 @@
         </svg>
         <span>Tracked</span>
       `;
+    }
+  }
+
+  // Reset button to untracked state
+  function resetButtonState() {
+    hasApplied = false;
+    const appliedBtn = floatingButton?.querySelector('.jobtracker-btn-applied');
+    if (appliedBtn) {
+      appliedBtn.classList.remove('applied');
+      appliedBtn.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+        <span>Track</span>
+      `;
+    }
+  }
+
+  // Get current job ID from LinkedIn page
+  function getCurrentLinkedInJobId() {
+    // Try to get job ID from URL first
+    const jobIdMatch = window.location.href.match(/\/jobs\/view\/(\d+)/);
+    if (jobIdMatch) {
+      return jobIdMatch[1];
+    }
+
+    // Check currentJobId query parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const currentJobIdParam = urlParams.get('currentJobId');
+    if (currentJobIdParam) {
+      return currentJobIdParam;
+    }
+
+    // Check for active job card with data-job-id
+    const activeJobCard = document.querySelector('[data-job-id].jobs-search-results-list__list-item--active, [data-job-id][aria-current="page"]');
+    if (activeJobCard) {
+      return activeJobCard.getAttribute('data-job-id');
+    }
+
+    // Check parent li elements with data-occludable-job-id
+    const activeListItem = document.querySelector('li[data-occludable-job-id]:has(.jobs-search-results-list__list-item--active)');
+    if (activeListItem) {
+      return activeListItem.getAttribute('data-occludable-job-id');
+    }
+
+    return null;
+  }
+
+  // Check if a job URL is already tracked
+  async function checkIfJobTracked(jobUrl) {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: 'CHECK_DUPLICATE',
+        payload: { jobUrl }
+      });
+      return response?.exists || false;
+    } catch (error) {
+      console.log('JobTracker: Error checking if job tracked:', error);
+      return false;
+    }
+  }
+
+  // Update button state based on whether current job is tracked
+  async function updateButtonForCurrentJob() {
+    const jobId = getCurrentLinkedInJobId();
+
+    // If job hasn't changed, no need to update
+    if (jobId === currentJobId) return;
+
+    currentJobId = jobId;
+
+    if (!jobId) {
+      resetButtonState();
+      return;
+    }
+
+    const jobUrl = `https://www.linkedin.com/jobs/view/${jobId}/`;
+    const isTracked = await checkIfJobTracked(jobUrl);
+
+    if (isTracked) {
+      setAppliedState();
+    } else {
+      resetButtonState();
     }
   }
 
@@ -718,6 +806,70 @@
     });
 
     observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+  }
+
+  // Watch for LinkedIn job selection changes
+  function observeLinkedInJobChanges() {
+    if (!window.location.href.includes('linkedin.com/jobs')) return;
+
+    // Check initial state
+    updateButtonForCurrentJob();
+
+    // Observer for class/attribute changes on job cards
+    const jobListObserver = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        // Check if the active class was added/removed
+        if (mutation.type === 'attributes' &&
+            (mutation.attributeName === 'class' || mutation.attributeName === 'aria-current')) {
+          const target = mutation.target;
+          if (target.classList?.contains('jobs-search-results-list__list-item--active') ||
+              target.getAttribute('aria-current') === 'page') {
+            updateButtonForCurrentJob();
+            return;
+          }
+        }
+        // Also check added nodes for active job cards
+        if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+          updateButtonForCurrentJob();
+          return;
+        }
+      }
+    });
+
+    // Observe the job list container
+    const jobListContainer = document.querySelector('.jobs-search-results-list, .scaffold-layout__list');
+    if (jobListContainer) {
+      jobListObserver.observe(jobListContainer, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['class', 'aria-current']
+      });
+    }
+
+    // Also listen for clicks on job cards as a fallback
+    document.addEventListener('click', (e) => {
+      const jobCard = e.target.closest('[data-job-id], li[data-occludable-job-id]');
+      if (jobCard) {
+        // Small delay to let LinkedIn update the UI
+        setTimeout(() => updateButtonForCurrentJob(), 100);
+      }
+    });
+
+    // Watch for URL changes (for SPA navigation)
+    let lastUrl = window.location.href;
+    const urlObserver = new MutationObserver(() => {
+      if (window.location.href !== lastUrl) {
+        lastUrl = window.location.href;
+        currentJobId = null; // Reset to force re-check
+        setTimeout(() => updateButtonForCurrentJob(), 100);
+      }
+    });
+
+    urlObserver.observe(document.body, {
       childList: true,
       subtree: true
     });
