@@ -19,6 +19,7 @@ const MessageTypes = {
   UPDATE_APPLICATION: 'UPDATE_APPLICATION',
   DELETE_APPLICATION: 'DELETE_APPLICATION',
   GET_APPLICATION_STATS: 'GET_APPLICATION_STATS',
+  CHECK_DUPLICATE: 'CHECK_DUPLICATE',
 
   // Autofill
   TRIGGER_AUTOFILL: 'TRIGGER_AUTOFILL',
@@ -40,6 +41,78 @@ const MessageTypes = {
 
 // Alarm name for badge clear
 const BADGE_CLEAR_ALARM = 'jobtracker-clear-badge';
+
+// Valid message types set for quick lookup
+const VALID_MESSAGE_TYPES = new Set(Object.values(MessageTypes));
+
+// Validate message payload based on type
+function validatePayload(type, payload) {
+  switch (type) {
+    case MessageTypes.SAVE_PROFILE:
+      if (!payload || typeof payload !== 'object') {
+        return { valid: false, error: 'Profile payload must be an object' };
+      }
+      break;
+
+    case MessageTypes.ADD_APPLICATION:
+    case MessageTypes.UPDATE_APPLICATION:
+      if (!payload || typeof payload !== 'object') {
+        return { valid: false, error: 'Application payload must be an object' };
+      }
+      // Validate required fields for add
+      if (type === MessageTypes.ADD_APPLICATION) {
+        if (!payload.company && !payload.position) {
+          return { valid: false, error: 'Application must have company or position' };
+        }
+      }
+      // Validate required fields for update
+      if (type === MessageTypes.UPDATE_APPLICATION && !payload.id) {
+        return { valid: false, error: 'Application update requires id' };
+      }
+      break;
+
+    case MessageTypes.DELETE_APPLICATION:
+      if (!payload || !payload.id) {
+        return { valid: false, error: 'Delete requires application id' };
+      }
+      break;
+
+    case MessageTypes.CHECK_DUPLICATE:
+      if (!payload || typeof payload !== 'object') {
+        return { valid: false, error: 'Check duplicate requires payload object' };
+      }
+      break;
+
+    case MessageTypes.IMPORT_DATA:
+      if (!payload || !payload.data || typeof payload.data !== 'object') {
+        return { valid: false, error: 'Import requires valid data object' };
+      }
+      break;
+
+    case MessageTypes.SAVE_SETTINGS:
+      if (!payload || typeof payload !== 'object') {
+        return { valid: false, error: 'Settings payload must be an object' };
+      }
+      break;
+
+    // Read-only operations don't need payload validation
+    case MessageTypes.GET_PROFILE:
+    case MessageTypes.GET_PROFILE_FOR_FILL:
+    case MessageTypes.GET_APPLICATIONS:
+    case MessageTypes.GET_APPLICATION_STATS:
+    case MessageTypes.GET_SETTINGS:
+    case MessageTypes.EXPORT_DATA:
+    case MessageTypes.CLEAR_ALL_DATA:
+    case MessageTypes.TRIGGER_AUTOFILL:
+    case MessageTypes.FORM_DETECTED:
+    case MessageTypes.SUBMISSION_DETECTED:
+      break;
+
+    default:
+      return { valid: false, error: 'Unknown message type' };
+  }
+  return { valid: true };
+}
 
 // Handle alarm events
 chrome.alarms.onAlarm.addListener((alarm) => {
@@ -97,6 +170,20 @@ chrome.commands.onCommand.addListener(async (command) => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const { type, payload } = message;
 
+  // Validate message type
+  if (!type || !VALID_MESSAGE_TYPES.has(type)) {
+    sendResponse({ error: 'Invalid message type' });
+    return true;
+  }
+
+  // Validate payload
+  const validation = validatePayload(type, payload);
+  if (!validation.valid) {
+    console.warn('JobTracker: Message validation failed:', validation.error);
+    sendResponse({ error: validation.error });
+    return true;
+  }
+
   // Handle async operations
   (async () => {
     try {
@@ -143,6 +230,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         case MessageTypes.GET_APPLICATION_STATS: {
           response = await JobTrackerDB.getApplicationStats();
+          break;
+        }
+
+        case MessageTypes.CHECK_DUPLICATE: {
+          const { jobUrl, company, position } = payload;
+          const duplicate = await JobTrackerDB.findDuplicate({ jobUrl, company, position });
+          response = { exists: !!duplicate, application: duplicate };
           break;
         }
 

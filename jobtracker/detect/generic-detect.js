@@ -21,7 +21,8 @@
     /(myworkdayjobs|workday)\.com/i,
     /icims\.com/i,
     /smartrecruiters\.com/i,
-    /naukri\.com/i
+    /naukri\.com/i,
+    /ashby(hq|prd)\.com/i
   ];
 
   if (SUPPORTED_PLATFORMS.some(p => p.test(window.location.href))) {
@@ -46,6 +47,26 @@
       platform: 'other',
       jobDescription: ''
     };
+
+    // Strategy 0: Check for __appData (Ashby-like ATS systems)
+    try {
+      if (window.__appData?.posting) {
+        const posting = window.__appData.posting;
+        info.position = posting.title || '';
+        info.company = window.__appData.organization?.name ||
+                      posting.linkedData?.hiringOrganization?.name || '';
+        info.location = posting.locationName ||
+                       [posting.address?.postalAddress?.addressLocality,
+                        posting.address?.postalAddress?.addressCountry].filter(Boolean).join(', ') || '';
+        info.jobDescription = posting.descriptionPlainText || '';
+        info.platform = 'ashby-like';
+        if (info.position && info.company) {
+          return info;
+        }
+      }
+    } catch (e) {
+      // __appData not available or parsing failed
+    }
 
     // Strategy 1: JSON-LD structured data
     try {
@@ -81,6 +102,11 @@
 
     // Strategy 3: Common selector heuristics
     const positionSelectors = [
+      // Ashby-like ATS selectors
+      '.ashby-job-posting-heading',
+      '[class*="posting-headline"] h2',
+      '[class*="_title_"]',
+      // Standard job board selectors
       'h1',
       '[class*="job-title"]',
       '[class*="position-title"]',
@@ -88,25 +114,42 @@
       '[data-automation*="title"]',
       '[data-testid*="title"]',
       '.job-title',
-      '.position-title'
+      '.position-title',
+      // Additional ATS patterns
+      '[class*="JobTitle"]',
+      '[class*="posting-title"]'
     ];
 
     const companySelectors = [
+      // Ashby-like ATS selectors
+      '[class*="navLogo"] img[alt]',
+      '[class*="posting-categories"] .company',
+      // Standard selectors
       '[class*="company-name"]',
       '[class*="employer"]',
       '[class*="organization"]',
       '[data-automation*="company"]',
       '[data-testid*="company"]',
       '.company-name',
-      '.employer-name'
+      '.employer-name',
+      // Additional ATS patterns
+      '[class*="CompanyName"]',
+      '[class*="hiringOrganization"]'
     ];
 
     const locationSelectors = [
+      // Ashby-like ATS selectors
+      '[class*="posting-categories"] .location',
+      '[class*="_location_"]',
+      // Standard selectors
       '[class*="location"]',
       '[class*="job-location"]',
       '[data-automation*="location"]',
       '.location',
-      '.job-location'
+      '.job-location',
+      // Additional ATS patterns
+      '[class*="JobLocation"]',
+      '[class*="workLocation"]'
     ];
 
     if (!info.position) {
@@ -125,9 +168,17 @@
       for (const selector of companySelectors) {
         try {
           const el = document.querySelector(selector);
-          if (el && el.textContent.trim().length < 100) {
-            info.company = el.textContent.trim();
-            break;
+          if (el) {
+            // Handle image elements (for logo-based company names)
+            if (el.tagName === 'IMG' && el.alt) {
+              info.company = el.alt.trim();
+              break;
+            }
+            // Handle text elements
+            if (el.textContent.trim().length < 100) {
+              info.company = el.textContent.trim();
+              break;
+            }
           }
         } catch (e) {}
       }
@@ -147,16 +198,33 @@
 
     // Strategy 4: Document title parsing
     if (!info.position || !info.company) {
-      const titleParts = document.title.split(/[-|–—]/);
-      if (titleParts.length >= 2) {
-        if (!info.position) info.position = titleParts[0].trim();
-        if (!info.company) info.company = titleParts[1].trim();
+      const title = document.title;
+
+      // Ashby format: "Job Title @ Company"
+      if (title.includes('@')) {
+        const [jobPart, companyPart] = title.split('@');
+        if (!info.position && jobPart) info.position = jobPart.trim();
+        if (!info.company && companyPart) info.company = companyPart.trim();
+      }
+      // Standard format: "Job Title - Company" or "Job Title | Company"
+      else {
+        const titleParts = title.split(/[-|–—]/);
+        if (titleParts.length >= 2) {
+          if (!info.position) info.position = titleParts[0].trim();
+          if (!info.company) info.company = titleParts[1].trim();
+        }
       }
     }
 
     // Strategy 5: Job description extraction
     if (!info.jobDescription) {
       const descriptionSelectors = [
+        // Ashby-like ATS selectors
+        '.ashby-job-posting-description',
+        '[class*="descriptionBody"]',
+        '[class*="posting-description"]',
+        '[class*="_content_"]',
+        // Standard selectors
         '[class*="job-description"]',
         '[class*="jobDescription"]',
         '[class*="description"]',

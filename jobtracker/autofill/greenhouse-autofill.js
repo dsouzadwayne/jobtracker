@@ -63,6 +63,7 @@
     const fullName = [personal.firstName, personal.middleName, personal.lastName].filter(n => n && n.trim()).join(' ');
 
     if (/first.?name|given.?name|fname/i.test(id)) return personal.firstName;
+    if (/preferred.?name|preferred.?first/i.test(id)) return personal.firstName;
     if (/middle.?name|mname/i.test(id)) return personal.middleName;
     if (/last.?name|family.?name|surname|lname/i.test(id)) return personal.lastName;
     if (/full.?name|^name$/i.test(id) && !/last|company|first|middle/i.test(id)) return fullName;

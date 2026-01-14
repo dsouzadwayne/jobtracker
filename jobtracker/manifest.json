@@ -146,6 +146,16 @@
         "detect/naukri-detect.js"
       ],
       "run_at": "document_end"
+    },
+    {
+      "matches": ["*://jobs.ashbyhq.com/*", "*://*.ashbyhq.com/*", "*://*.ashbyprd.com/*"],
+      "js": [
+        "lib/field-matcher.js",
+        "lib/form-utils.js",
+        "autofill/ashby-autofill.js",
+        "detect/ashby-detect.js"
+      ],
+      "run_at": "document_end"
     }
   ],
 
