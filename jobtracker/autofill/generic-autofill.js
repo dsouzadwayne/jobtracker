@@ -67,6 +67,7 @@
 
     // Match fields using certainty scoring
     const matches = [];
+    const coverLetterMatches = [];
     const processedFields = new Set();
 
     for (const input of inputs) {
@@ -82,10 +83,19 @@
       // Pass customRules to field matcher for user-defined patterns
       const match = FieldMatcher.matchField(input, profile, customRules);
       if (match && match.value) {
-        matches.push({
-          input,
-          ...match
-        });
+        // Check if this is a cover letter field that requires selection
+        const fieldConfig = FieldMatcher.patterns[match.fieldType];
+        if (fieldConfig?.requiresSelection && profile.coverLetters?.length > 0) {
+          coverLetterMatches.push({
+            input,
+            ...match
+          });
+        } else {
+          matches.push({
+            input,
+            ...match
+          });
+        }
         processedFields.add(input);
       }
     }
@@ -93,8 +103,13 @@
     // Sort by certainty (highest first)
     matches.sort((a, b) => b.certainty - a.certainty);
 
-    // Fill fields with delay between each
+    // Fill regular fields with delay between each
     const filledCount = await FormUtils.fillFieldsWithDelay(matches, 50);
+
+    // Handle cover letter fields - show picker for user selection
+    for (const clMatch of coverLetterMatches) {
+      await handleCoverLetterField(clMatch.input, profile);
+    }
 
     // Show notification
     if (filledCount > 0) {
@@ -119,6 +134,8 @@
       .filter(name => name && name.trim())
       .join(' ');
 
+    const prevWork = profile.workHistory?.[1] || {};
+
     const valueMap = {
       firstName: personal.firstName,
       middleName: personal.middleName,
@@ -136,8 +153,16 @@
       github: personal.github,
       portfolio: personal.portfolio || personal.website,
       twitter: personal.twitter,
+      // Current work experience
       currentCompany: work.company,
       currentTitle: work.title,
+      workLocation: work.location,
+      workStartDate: work.startDate,
+      workEndDate: work.current ? '' : work.endDate,
+      workDescription: work.description,
+      // Previous work experience
+      previousCompany: prevWork.company,
+      previousTitle: prevWork.title,
       yearsExperience: personal.yearsExperience,
       school: edu.school,
       degree: edu.degree,
@@ -199,6 +224,76 @@
     return filledCount;
   }
 
+  /**
+   * Handle cover letter field with user selection
+   */
+  async function handleCoverLetterField(input, profile) {
+    const coverLetters = profile.coverLetters || [];
+
+    if (coverLetters.length === 0) return;
+
+    // If there's only one cover letter, fill it directly
+    if (coverLetters.length === 1) {
+      fillCoverLetterField(input, coverLetters[0].content);
+      return;
+    }
+
+    // Show picker for multiple cover letters
+    return new Promise((resolve) => {
+      if (window.JobTrackerCoverLetterPicker) {
+        window.JobTrackerCoverLetterPicker.show(coverLetters, input)
+          .then((selectedContent) => {
+            if (selectedContent) {
+              fillCoverLetterField(input, selectedContent);
+            }
+            resolve();
+          });
+      } else {
+        // Fallback: dispatch event for picker
+        const event = new CustomEvent('jobtracker:show-cover-letter-picker', {
+          detail: {
+            coverLetters,
+            targetInput: input,
+            callback: (selectedContent) => {
+              if (selectedContent) {
+                fillCoverLetterField(input, selectedContent);
+              }
+              resolve();
+            }
+          }
+        });
+        window.dispatchEvent(event);
+
+        // Timeout fallback - if no picker responds, use default
+        setTimeout(() => {
+          if (!input.value || !input.value.trim()) {
+            const defaultCL = coverLetters.find(cl => cl.isDefault) || coverLetters[0];
+            if (defaultCL) {
+              fillCoverLetterField(input, defaultCL.content);
+            }
+          }
+          resolve();
+        }, 10000);
+      }
+    });
+  }
+
+  /**
+   * Fill cover letter field with content
+   */
+  function fillCoverLetterField(input, content) {
+    if (!input || !content) return;
+
+    const FormUtils = window.JobTrackerFormUtils;
+
+    if (FormUtils) {
+      FormUtils.fillInput(input, content);
+    } else {
+      // Fallback filling
+      fillField(input, content);
+    }
+  }
+
   // Format CTC with currency
   function formatCtc(amount, currency) {
     if (!amount) return '';
@@ -228,6 +323,12 @@
     twitter: [/twitter/i, /^x$/i],
     currentCompany: [/current.?company/i, /current.?employer/i, /employer/i, /company.?name/i],
     currentTitle: [/current.?title/i, /job.?title/i, /current.?position/i, /position/i, /role/i],
+    workLocation: [/work.?location/i, /job.?location/i, /employer.?location/i, /company.?location/i],
+    workStartDate: [/start.?date/i, /date.?started/i, /joined.?date/i, /employment.?start/i],
+    workEndDate: [/end.?date/i, /date.?ended/i, /left.?date/i, /employment.?end/i],
+    workDescription: [/job.?description/i, /responsibilities/i, /duties/i, /role.?description/i],
+    previousCompany: [/previous.?company/i, /previous.?employer/i, /past.?employer/i, /former.?company/i],
+    previousTitle: [/previous.?title/i, /previous.?position/i, /past.?position/i, /former.?title/i],
     yearsExperience: [/years?.?(?:of)?.?experience/i, /experience.?years/i, /total.?experience/i],
     school: [/school/i, /university/i, /college/i, /institution/i],
     degree: [/degree/i, /qualification/i, /diploma/i],

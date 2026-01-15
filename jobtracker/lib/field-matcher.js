@@ -163,6 +163,7 @@ const JobTrackerFieldMatcher = {
       patterns: [
         /current.?company/i, /current.?employer/i, /employer/i,
         /company.?name/i, /organization/i, /firm/i,
+        /most.?recent.?company/i, /present.?company/i,
         /arbeitgeber/i, /entreprise/i, /empresa/i             // German, French, Spanish
       ],
       profilePath: 'workHistory[0].company'
@@ -171,9 +172,58 @@ const JobTrackerFieldMatcher = {
       patterns: [
         /current.?title/i, /job.?title/i, /current.?position/i,
         /position/i, /role/i, /designation/i,
+        /most.?recent.?title/i, /present.?position/i,
         /jobtitel/i, /puesto/i, /poste/i                      // German, Spanish, French
       ],
       profilePath: 'workHistory[0].title'
+    },
+    workLocation: {
+      patterns: [
+        /work.?location/i, /job.?location/i, /employer.?location/i,
+        /company.?location/i, /office.?location/i,
+        /where.?do.?you.?work/i, /current.?location/i
+      ],
+      profilePath: 'workHistory[0].location'
+    },
+    workStartDate: {
+      patterns: [
+        /start.?date/i, /date.?started/i, /joined.?date/i,
+        /employment.?start/i, /from.?date/i, /starting.?date/i,
+        /when.?did.?you.?start/i, /hire.?date/i
+      ],
+      profilePath: 'workHistory[0].startDate'
+    },
+    workEndDate: {
+      patterns: [
+        /end.?date/i, /date.?ended/i, /left.?date/i,
+        /employment.?end/i, /to.?date/i, /ending.?date/i,
+        /when.?did.?you.?leave/i, /termination.?date/i
+      ],
+      profilePath: 'workHistory[0].endDate'
+    },
+    workDescription: {
+      patterns: [
+        /job.?description/i, /role.?description/i, /responsibilities/i,
+        /duties/i, /job.?duties/i, /work.?description/i,
+        /describe.?your.?role/i, /describe.?your.?work/i,
+        /what.?did.?you.?do/i, /job.?summary/i
+      ],
+      profilePath: 'workHistory[0].description',
+      textarea: true
+    },
+    previousCompany: {
+      patterns: [
+        /previous.?company/i, /previous.?employer/i, /past.?employer/i,
+        /former.?company/i, /last.?company/i, /prior.?employer/i
+      ],
+      profilePath: 'workHistory[1].company'
+    },
+    previousTitle: {
+      patterns: [
+        /previous.?title/i, /previous.?position/i, /past.?position/i,
+        /former.?title/i, /last.?position/i, /prior.?title/i
+      ],
+      profilePath: 'workHistory[1].title'
     },
     yearsExperience: {
       patterns: [
@@ -328,6 +378,19 @@ const JobTrackerFieldMatcher = {
       ],
       autocomplete: ['username'],
       profilePath: 'personal.username'
+    },
+
+    // Cover Letter
+    coverLetter: {
+      patterns: [
+        /cover.?letter/i, /covering.?letter/i,
+        /motivation.?letter/i, /letter.?of.?motivation/i,
+        /intro.?letter/i, /introduction.?letter/i,
+        /anschreiben/i, /lettre.?de.?motivation/i, /carta.?de.?presentacion/i  // German, French, Spanish
+      ],
+      profilePath: 'coverLetters.default',
+      requiresSelection: true,  // Indicates this field needs user selection during autofill
+      textarea: true
     }
   },
 
@@ -690,6 +753,13 @@ const JobTrackerFieldMatcher = {
    */
   getValueFromProfile(path, profile) {
     if (!path || !profile) return '';
+
+    // Special handling for cover letter - get default cover letter
+    if (path === 'coverLetters.default') {
+      const coverLetters = profile.coverLetters || [];
+      const defaultCL = coverLetters.find(cl => cl.isDefault) || coverLetters[0];
+      return defaultCL?.content || '';
+    }
 
     // Handle array notation like workHistory[0].company
     const arrayMatch = path.match(/^(\w+)\[(\d+)\]\.(.+)$/);

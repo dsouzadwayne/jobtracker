@@ -335,6 +335,7 @@ const JobTrackerDB = {
       certifications: [],
       links: [],
       customQA: [],
+      coverLetters: [],
       meta: { createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), version: 1 }
     };
   },

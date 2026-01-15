@@ -21,21 +21,14 @@
         <h1>Profile</h1>
       </div>
       <div class="header-actions">
-        <button id="import-btn" class="btn-secondary">
+        <button id="import-resume-btn" class="btn-primary">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="17 8 12 3 7 8"></polyline>
-            <line x1="12" y1="3" x2="12" y2="15"></line>
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="12" y1="18" x2="12" y2="12"></line>
+            <line x1="9" y1="15" x2="15" y2="15"></line>
           </svg>
-          Import
-        </button>
-        <button id="export-btn" class="btn-secondary">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
-          Export
+          Import Resume
         </button>
       </div>
     </header>
@@ -47,6 +40,7 @@
       <button class="tab-btn" data-tab="education">Education</button>
       <button class="tab-btn" data-tab="skills">Skills</button>
       <button class="tab-btn" data-tab="qa">Q&A</button>
+      <button class="tab-btn" data-tab="cover">Cover Letters</button>
       <button class="tab-btn" data-tab="settings">Settings</button>
     </nav>
 
@@ -169,7 +163,7 @@
               <line x1="12" y1="5" x2="12" y2="19"></line>
               <line x1="5" y1="12" x2="19" y2="12"></line>
             </svg>
-            Add Experience
+            Add Position
           </button>
         </div>
         <div id="work-list" class="entry-list">
@@ -204,6 +198,20 @@
 
       <!-- Skills Tab -->
       <section id="tab-skills" class="tab-panel">
+        <!-- Soft Skills - First -->
+        <div class="section-card">
+          <h2>Soft Skills</h2>
+          <div class="skills-recommendations" id="soft-skills-recommendations">
+            <span class="recommendations-label">Recommended:</span>
+            <div class="recommendations-list" id="soft-skills-recommendations-list">
+              <!-- Clickable recommendation chips will be rendered here -->
+            </div>
+          </div>
+          <div class="skills-input-group">
+            <input type="text" id="skill-soft" placeholder="Add a soft skill and press Enter">
+            <div id="skills-soft-list" class="tags-list" data-category="soft"></div>
+          </div>
+        </div>
         <div class="section-card">
           <h2>Programming Languages</h2>
           <div class="skills-input-group">
@@ -223,13 +231,6 @@
           <div class="skills-input-group">
             <input type="text" id="skill-tools" placeholder="Add a tool and press Enter">
             <div id="skills-tools-list" class="tags-list" data-category="tools"></div>
-          </div>
-        </div>
-        <div class="section-card">
-          <h2>Soft Skills</h2>
-          <div class="skills-input-group">
-            <input type="text" id="skill-soft" placeholder="Add a soft skill and press Enter">
-            <div id="skills-soft-list" class="tags-list" data-category="soft"></div>
           </div>
         </div>
       </section>
@@ -253,6 +254,30 @@
         <div id="qa-empty" class="empty-state">
           <p>No Q&A saved yet</p>
           <p class="hint">Add common questions like "Why do you want to work here?"</p>
+        </div>
+      </section>
+
+      <!-- Cover Letters Tab -->
+      <section id="tab-cover" class="tab-panel">
+        <div class="section-header-inline">
+          <div>
+            <h2>Cover Letters</h2>
+            <p class="section-hint">Store multiple cover letters and choose which one to use during autofill</p>
+          </div>
+          <button id="add-cover-btn" class="btn-primary btn-sm">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            Add Cover Letter
+          </button>
+        </div>
+        <div id="cover-list" class="entry-list">
+          <!-- Cover letter entries will be loaded here -->
+        </div>
+        <div id="cover-empty" class="empty-state">
+          <p>No cover letters added yet</p>
+          <p class="hint">Create cover letters for different job types or industries</p>
         </div>
       </section>
 
@@ -353,6 +378,38 @@
           </div>
         </div>
 
+        <div class="section-card">
+          <h2>Import / Export Data</h2>
+          <div class="setting-row">
+            <div class="setting-info">
+              <label>Export Profile</label>
+              <p class="setting-desc">Download your profile data as a JSON file</p>
+            </div>
+            <button id="export-btn" class="btn-secondary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              Export
+            </button>
+          </div>
+          <div class="setting-row">
+            <div class="setting-info">
+              <label>Import Profile</label>
+              <p class="setting-desc">Restore your profile data from a previously exported JSON file</p>
+            </div>
+            <button id="import-btn" class="btn-secondary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+              Import
+            </button>
+          </div>
+        </div>
+
         <div class="section-card danger-zone">
           <h2>Danger Zone</h2>
           <div class="setting-row">
@@ -379,7 +436,7 @@
   <div id="work-modal" class="modal hidden">
     <div class="modal-content modal-lg">
       <div class="modal-header">
-        <h3 id="work-modal-title">Add Work Experience</h3>
+        <h3 id="work-modal-title">Add Position</h3>
         <button class="close-btn" data-close="work-modal">&times;</button>
       </div>
       <form id="work-form">
@@ -500,6 +557,41 @@
     </div>
   </div>
 
+  <!-- Cover Letter Modal -->
+  <div id="cover-modal" class="modal hidden">
+    <div class="modal-content modal-lg">
+      <div class="modal-header">
+        <h3 id="cover-modal-title">Add Cover Letter</h3>
+        <button class="close-btn" data-close="cover-modal">&times;</button>
+      </div>
+      <form id="cover-form">
+        <input type="hidden" id="cover-id">
+        <div class="form-group">
+          <label for="cover-name">Name *</label>
+          <input type="text" id="cover-name" required placeholder="e.g., Tech Company Cover Letter">
+        </div>
+        <div class="form-group">
+          <label for="cover-content">Cover Letter *</label>
+          <textarea id="cover-content" rows="12" required placeholder="Dear Hiring Manager..."></textarea>
+        </div>
+        <div class="setting-row" style="border: none; padding: var(--space-md) 0 0 0;">
+          <div class="setting-info">
+            <label>Set as Default</label>
+            <p class="setting-desc">Use this cover letter when autofilling forms</p>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="cover-default">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn-cancel" data-close="cover-modal">Cancel</button>
+          <button type="submit" class="btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Custom Rule Modal -->
   <div id="rule-modal" class="modal hidden">
     <div class="modal-content">
@@ -573,6 +665,86 @@
 
   <!-- Hidden file input for import -->
   <input type="file" id="import-file" accept=".json" hidden>
+
+  <!-- Hidden file input for resume -->
+  <input type="file" id="resume-file-input" accept=".pdf,.docx,.txt" hidden>
+
+  <!-- Resume Preview Modal -->
+  <div id="resume-preview-modal" class="modal hidden">
+    <div class="modal-content modal-xl">
+      <div class="modal-header">
+        <h3>Resume Import Preview</h3>
+        <button class="close-btn" data-close="resume-preview-modal">&times;</button>
+      </div>
+
+      <!-- Preview Tabs -->
+      <nav class="preview-tabs">
+        <button class="preview-tab-btn active" data-preview-tab="personal">Personal</button>
+        <button class="preview-tab-btn" data-preview-tab="work">Work History</button>
+        <button class="preview-tab-btn" data-preview-tab="education">Education</button>
+        <button class="preview-tab-btn" data-preview-tab="skills">Skills</button>
+      </nav>
+
+      <!-- Selection Controls -->
+      <div class="preview-controls">
+        <button id="select-all-fields" class="btn-secondary btn-sm">Select All</button>
+        <button id="deselect-all-fields" class="btn-secondary btn-sm">Deselect All</button>
+        <span id="selection-count" class="selection-count">0 fields selected</span>
+      </div>
+
+      <!-- Loading State -->
+      <div id="preview-loading" class="preview-loading hidden">
+        <div class="spinner"></div>
+        <p>Parsing resume...</p>
+      </div>
+
+      <!-- Preview Content Panels -->
+      <div class="preview-content">
+        <div id="preview-personal" class="preview-panel active">
+          <!-- Personal fields will be rendered here -->
+        </div>
+        <div id="preview-work" class="preview-panel">
+          <!-- Work history will be rendered here -->
+        </div>
+        <div id="preview-education" class="preview-panel">
+          <!-- Education will be rendered here -->
+        </div>
+        <div id="preview-skills" class="preview-panel">
+          <!-- Skills will be rendered here -->
+        </div>
+      </div>
+
+      <!-- Footer Actions -->
+      <div class="modal-footer">
+        <button class="btn-cancel" data-close="resume-preview-modal">Cancel</button>
+        <button id="import-selected-btn" class="btn-primary" disabled>Import Selected</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Resume Parser Libraries -->
+  <script src="../lib/vendor/pdf.min.js"></script>
+  <script src="../lib/vendor/mammoth.browser.min.js"></script>
+
+  <!-- Resume Parser Modules -->
+  <script src="../lib/resume-parser/txt-parser.js"></script>
+  <script src="../lib/resume-parser/pdf-parser.js"></script>
+  <script src="../lib/resume-parser/docx-parser.js"></script>
+  <script src="../lib/resume-parser/section-detector.js"></script>
+  <script src="../lib/resume-parser/field-extractor.js"></script>
+  <script src="../lib/resume-parser/data-normalizer.js"></script>
+
+  <!-- Smart Resume Parser (modular) -->
+  <script src="../lib/resume-parser/extractors/pdf-reader.js"></script>
+  <script src="../lib/resume-parser/extractors/line-grouper.js"></script>
+  <script src="../lib/resume-parser/extractors/section-grouper.js"></script>
+  <script src="../lib/resume-parser/extractors/profile-extractor.js"></script>
+  <script src="../lib/resume-parser/extractors/work-extractor.js"></script>
+  <script src="../lib/resume-parser/extractors/education-extractor.js"></script>
+  <script src="../lib/resume-parser/extractors/skills-extractor.js"></script>
+  <script src="../lib/resume-parser/extractors/index.js"></script>
+
+  <script src="../lib/resume-parser/index.js"></script>
 
   <script src="profile.js"></script>
 </body>

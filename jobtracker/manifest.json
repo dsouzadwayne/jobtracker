@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "JobTracker",
-  "version": "0.002",
+  "version": "0.003",
   "description": "Track job applications and autofill forms. 100% local, privacy-first, open source.",
   "author": "JobTracker Contributors",
   "homepage_url": "https://github.com/yourusername/jobtracker",
@@ -51,6 +51,7 @@
         "lib/form-utils.js",
         "content/content.js",
         "content/floating-button.js",
+        "content/cover-letter-picker.js",
         "detect/generic-detect.js",
         "autofill/generic-autofill.js"
       ],
@@ -172,6 +173,9 @@
     {
       "resources": [
         "lib/*.js",
+        "lib/vendor/*",
+        "lib/resume-parser/*",
+        "lib/resume-parser/extractors/*",
         "icons/*",
         "common.css",
         "pages/dashboard.html",
