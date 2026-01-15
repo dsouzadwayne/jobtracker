@@ -31,7 +31,7 @@ const ThemeManager = {
       await chrome.storage.local.set({ [this.STORAGE_KEY]: prefs });
       this.applyTheme(theme);
     } catch (error) {
-      console.log('Error saving theme:', error);
+      console.error('Error saving theme:', error);
     }
   },
 
@@ -88,6 +88,12 @@ let selectedAppId = null;
 let currentView = 'cards'; // Will be loaded from settings
 let currentPage = 'applications'; // 'applications' or 'stats'
 let cachedSettings = null; // Cache settings for view preference updates
+let formIsDirty = false; // Track if form has unsaved changes
+let isSubmitting = false; // Track form submission state
+
+// Event handler references for cleanup
+let keyboardShortcutHandler = null;
+let escapeKeyHandler = null;
 
 // DOM Elements - initialized after DOM is ready
 let elements = {};
@@ -205,7 +211,7 @@ async function loadSettings() {
       currentView = cachedSettings.ui.dashboardView;
     }
   } catch (error) {
-    console.log('Error loading settings:', error);
+    console.error('Error loading settings:', error);
   }
 }
 
@@ -215,7 +221,7 @@ async function loadApplications() {
     applications = await chrome.runtime.sendMessage({ type: MessageTypes.GET_APPLICATIONS }) || [];
     applyFilters();
   } catch (error) {
-    console.log('Error loading applications:', error);
+    console.error('Error loading applications:', error);
   }
 }
 
@@ -230,7 +236,7 @@ async function updateStats() {
       elements.statOffers.textContent = stats.byStatus?.offer || 0;
     }
   } catch (error) {
-    console.log('Error loading stats:', error);
+    console.error('Error loading stats:', error);
   }
 }
 
@@ -290,6 +296,24 @@ function render() {
     elements.list.innerHTML = '';
     elements.tableBody.innerHTML = '';
     elements.emptyState.classList.remove('hidden');
+
+    // Check if filters are active to show appropriate message
+    const hasActiveFilters = elements.searchInput.value.trim() || elements.filterStatus.value;
+    const emptyTitle = elements.emptyState.querySelector('h2');
+    const emptyDesc = elements.emptyState.querySelector('p');
+    const emptyBtn = elements.emptyState.querySelector('#empty-add-btn');
+
+    if (hasActiveFilters && applications.length > 0) {
+      // Filters are active but no results
+      emptyTitle.textContent = 'No matching applications';
+      emptyDesc.textContent = 'Try adjusting your search or filter criteria';
+      emptyBtn.style.display = 'none';
+    } else {
+      // No applications at all
+      emptyTitle.textContent = 'No applications yet';
+      emptyDesc.textContent = 'Start tracking your job search by adding your first application';
+      emptyBtn.style.display = '';
+    }
     return;
   }
 
@@ -419,8 +443,8 @@ function showDetailsPanel(app) {
     ${app.salary ? `<div class="details-field"><strong>Salary:</strong> ${escapeHtml(app.salary)}</div>` : ''}
     ${app.jobType ? `<div class="details-field"><strong>Type:</strong> ${escapeHtml(capitalizeStatus(app.jobType))}</div>` : ''}
     ${app.remote ? `<div class="details-field"><strong>Remote:</strong> ${escapeHtml(capitalizeStatus(app.remote))}</div>` : ''}
-    ${app.jobUrl ? `<div class="details-field">
-      <a href="${escapeHtml(app.jobUrl)}" target="_blank" rel="noopener noreferrer" class="job-link">
+    ${app.jobUrl && isValidUrl(app.jobUrl) ? `<div class="details-field">
+      <a href="${sanitizeUrl(app.jobUrl)}" target="_blank" rel="noopener noreferrer" class="job-link">
         <span>View Job Posting</span>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
@@ -483,34 +507,51 @@ function setupEventListeners() {
   elements.sidebarOverlay?.addEventListener('click', toggleMobileSidebar);
 
   // Modal
-  elements.closeModal?.addEventListener('click', closeModal);
-  elements.cancelBtn?.addEventListener('click', closeModal);
+  elements.closeModal?.addEventListener('click', () => closeModalWithConfirm());
+  elements.cancelBtn?.addEventListener('click', () => closeModalWithConfirm());
   elements.deleteBtn?.addEventListener('click', handleDelete);
   elements.appForm?.addEventListener('submit', handleSubmit);
   elements.modal?.addEventListener('click', (e) => {
-    if (e.target === elements.modal) closeModal();
+    if (e.target === elements.modal) closeModalWithConfirm();
+  });
+
+  // Track form changes for dirty state
+  elements.appForm?.addEventListener('input', () => {
+    formIsDirty = true;
   });
 
   // Details panel
   elements.closeDetails?.addEventListener('click', closeDetailsPanel);
 
-  // Keyboard
-  document.addEventListener('keydown', (e) => {
+  // Remove old escape handler if exists, then add new one
+  if (escapeKeyHandler) {
+    document.removeEventListener('keydown', escapeKeyHandler);
+  }
+  escapeKeyHandler = (e) => {
     if (e.key === 'Escape') {
-      if (!elements.modal.classList.contains('hidden')) closeModal();
-      if (!elements.detailsPanel.classList.contains('hidden')) closeDetailsPanel();
+      if (!elements.modal.classList.contains('hidden')) closeModalWithConfirm();
+      else if (!elements.detailsPanel.classList.contains('hidden')) closeDetailsPanel();
     }
-  });
+  };
+  document.addEventListener('keydown', escapeKeyHandler);
 }
 
 // Setup keyboard shortcuts
 function setupKeyboardShortcuts() {
-  document.addEventListener('keydown', (e) => {
+  // Remove old handler if exists to prevent accumulation
+  if (keyboardShortcutHandler) {
+    document.removeEventListener('keydown', keyboardShortcutHandler);
+  }
+
+  keyboardShortcutHandler = (e) => {
     // Don't handle if in input/textarea (except for Escape)
     if (e.target.matches('input, textarea, select') && e.key !== 'Escape') return;
 
     // Skip if modal is open (except for Escape which is handled elsewhere)
     if (!elements.modal.classList.contains('hidden') && e.key !== 'Escape') return;
+
+    // Skip J/K navigation if details panel is open on mobile (overlay mode)
+    const isDetailsPanelOverlay = !elements.detailsPanel.classList.contains('hidden') && window.innerWidth < 1200;
 
     switch (e.key) {
       case 'n':
@@ -521,15 +562,19 @@ function setupKeyboardShortcuts() {
         }
         break;
       case 'j':
-        e.preventDefault();
-        navigateList(1);
+        if (!isDetailsPanelOverlay) {
+          e.preventDefault();
+          navigateList(1);
+        }
         break;
       case 'k':
-        e.preventDefault();
-        navigateList(-1);
+        if (!isDetailsPanelOverlay) {
+          e.preventDefault();
+          navigateList(-1);
+        }
         break;
       case 'Enter':
-        if (selectedAppId) {
+        if (selectedAppId && !isDetailsPanelOverlay) {
           const app = applications.find(a => a.id === selectedAppId);
           if (app) openModal(app);
         }
@@ -539,7 +584,9 @@ function setupKeyboardShortcuts() {
         showKeyboardShortcutsHelp();
         break;
     }
-  });
+  };
+
+  document.addEventListener('keydown', keyboardShortcutHandler);
 }
 
 // Show keyboard shortcuts help modal
@@ -645,10 +692,29 @@ let focusTrapHandler = null;
 
 // Focus trap function for modals
 function trapFocus(modal) {
-  const focusableElements = modal.querySelectorAll(
-    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-  );
-  const focusableArray = Array.from(focusableElements).filter(el => !el.disabled && el.offsetParent !== null);
+  const focusableSelectors = [
+    'button:not([disabled]):not([tabindex="-1"])',
+    '[href]:not([tabindex="-1"])',
+    'input:not([disabled]):not([type="hidden"]):not([tabindex="-1"])',
+    'select:not([disabled]):not([tabindex="-1"])',
+    'textarea:not([disabled]):not([tabindex="-1"])',
+    '[tabindex]:not([tabindex="-1"]):not([disabled])'
+  ].join(', ');
+
+  const focusableElements = modal.querySelectorAll(focusableSelectors);
+
+  // Filter to only visible elements
+  const focusableArray = Array.from(focusableElements).filter(el => {
+    // Check if element is visible
+    if (el.offsetParent === null && getComputedStyle(el).position !== 'fixed') return false;
+    // Check if element or parent has display: none or visibility: hidden
+    const style = getComputedStyle(el);
+    if (style.display === 'none' || style.visibility === 'hidden') return false;
+    // Check if element is in a hidden parent
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) return false;
+    return true;
+  });
 
   if (focusableArray.length === 0) return;
 
@@ -663,17 +729,29 @@ function trapFocus(modal) {
   focusTrapHandler = (e) => {
     if (e.key !== 'Tab') return;
 
+    // Re-calculate focusable elements in case of dynamic changes
+    const currentFocusable = Array.from(modal.querySelectorAll(focusableSelectors)).filter(el => {
+      if (el.offsetParent === null && getComputedStyle(el).position !== 'fixed') return false;
+      const style = getComputedStyle(el);
+      return style.display !== 'none' && style.visibility !== 'hidden';
+    });
+
+    if (currentFocusable.length === 0) return;
+
+    const first = currentFocusable[0];
+    const last = currentFocusable[currentFocusable.length - 1];
+
     if (e.shiftKey) {
       // Shift + Tab
-      if (document.activeElement === firstFocusable) {
+      if (document.activeElement === first) {
         e.preventDefault();
-        lastFocusable.focus();
+        last.focus();
       }
     } else {
       // Tab
-      if (document.activeElement === lastFocusable) {
+      if (document.activeElement === last) {
         e.preventDefault();
-        firstFocusable.focus();
+        first.focus();
       }
     }
   };
@@ -685,6 +763,10 @@ function trapFocus(modal) {
 function openModal(app = null) {
   // Store the currently focused element for restoration
   previouslyFocusedElement = document.activeElement;
+
+  // Reset form state
+  formIsDirty = false;
+  hideFormError();
 
   elements.modalTitle.textContent = app ? 'Edit Application' : 'Add Application';
   elements.appForm.reset();
@@ -715,9 +797,21 @@ function openModal(app = null) {
   document.getElementById('app-company').focus();
 }
 
-// Close modal
+// Close modal with confirmation if form is dirty
+function closeModalWithConfirm() {
+  if (formIsDirty && !isSubmitting) {
+    if (!confirm('You have unsaved changes. Are you sure you want to close?')) {
+      return;
+    }
+  }
+  closeModal();
+}
+
+// Close modal (force close without confirmation)
 function closeModal() {
   elements.modal.classList.add('hidden');
+  formIsDirty = false;
+  hideFormError();
 
   // Remove focus trap handler
   if (focusTrapHandler) {
@@ -735,6 +829,11 @@ function closeModal() {
 // Handle form submit
 async function handleSubmit(e) {
   e.preventDefault();
+
+  // Prevent double submission
+  if (isSubmitting) return;
+
+  hideFormError();
 
   const id = document.getElementById('app-id').value;
   const appData = {
@@ -754,6 +853,16 @@ async function handleSubmit(e) {
     platform: detectPlatform(document.getElementById('app-url').value)
   };
 
+  // Validate form data
+  const validationErrors = validateFormData(appData);
+  if (validationErrors.length > 0) {
+    showFormError(validationErrors.join('. '));
+    return;
+  }
+
+  // Set loading state
+  setSubmitState(true);
+
   try {
     if (id) {
       await chrome.runtime.sendMessage({
@@ -767,12 +876,16 @@ async function handleSubmit(e) {
       });
     }
 
+    formIsDirty = false;
     closeModal();
     await loadApplications();
     await updateStats();
   } catch (error) {
-    console.log('Error saving application:', error);
-    alert('Error saving application. Please try again.');
+    console.error('Error saving application:', error);
+    // Keep modal open and show specific error
+    showFormError('Failed to save application. Please check your connection and try again.');
+  } finally {
+    setSubmitState(false);
   }
 }
 
@@ -797,12 +910,15 @@ async function deleteApplication(id) {
     if (selectedAppId === id) {
       selectedAppId = null;
       elements.detailsPanel.classList.add('hidden');
+      hideDetailsOverlay();
     }
 
     await loadApplications();
     await updateStats();
   } catch (error) {
-    console.log('Error deleting application:', error);
+    console.error('Error deleting application:', error);
+    // Show error in a way that's visible regardless of modal state
+    showNotification('Failed to delete application. Please try again.', 'error');
   }
 }
 
@@ -862,6 +978,132 @@ function debounce(func, wait) {
     clearTimeout(timeout);
     timeout = setTimeout(() => func.apply(this, args), wait);
   };
+}
+
+// Validate URL format and protocol (prevent XSS via javascript: URLs)
+function isValidUrl(url) {
+  if (!url || !url.trim()) return true; // Empty URLs are valid (optional field)
+  try {
+    const parsed = new URL(url);
+    return ['http:', 'https:'].includes(parsed.protocol);
+  } catch {
+    return false;
+  }
+}
+
+// Sanitize URL for safe use in href attributes
+function sanitizeUrl(url) {
+  if (!url || !url.trim()) return '';
+  if (!isValidUrl(url)) return '#invalid-url';
+  return escapeHtml(url);
+}
+
+// Show form error message
+function showFormError(message) {
+  let errorEl = document.getElementById('form-error-message');
+  if (!errorEl) {
+    errorEl = document.createElement('div');
+    errorEl.id = 'form-error-message';
+    errorEl.className = 'form-error-message';
+    errorEl.setAttribute('role', 'alert');
+    errorEl.setAttribute('aria-live', 'polite');
+    const formActions = document.querySelector('.form-actions');
+    if (formActions) {
+      formActions.parentNode.insertBefore(errorEl, formActions);
+    }
+  }
+  errorEl.textContent = message;
+  errorEl.style.display = 'block';
+}
+
+// Hide form error message
+function hideFormError() {
+  const errorEl = document.getElementById('form-error-message');
+  if (errorEl) {
+    errorEl.style.display = 'none';
+    errorEl.textContent = '';
+  }
+}
+
+// Show notification toast (for errors outside modal context)
+function showNotification(message, type = 'info') {
+  // Remove existing notification if any
+  const existing = document.getElementById('notification-toast');
+  if (existing) existing.remove();
+
+  const notification = document.createElement('div');
+  notification.id = 'notification-toast';
+  notification.className = `notification-toast notification-${type}`;
+  notification.setAttribute('role', 'alert');
+  notification.setAttribute('aria-live', 'assertive');
+  notification.innerHTML = `
+    <span>${escapeHtml(message)}</span>
+    <button class="notification-close" aria-label="Dismiss">&times;</button>
+  `;
+
+  document.body.appendChild(notification);
+
+  // Add close handler
+  notification.querySelector('.notification-close').addEventListener('click', () => {
+    notification.remove();
+  });
+
+  // Auto-dismiss after 5 seconds
+  setTimeout(() => {
+    if (notification.parentNode) {
+      notification.classList.add('notification-fade-out');
+      setTimeout(() => notification.remove(), 300);
+    }
+  }, 5000);
+}
+
+// Validate form data
+function validateFormData(appData) {
+  const errors = [];
+
+  // Required fields
+  if (!appData.company || appData.company.length === 0) {
+    errors.push('Company name is required');
+  }
+  if (!appData.position || appData.position.length === 0) {
+    errors.push('Position is required');
+  }
+
+  // Max length validation (prevent excessive data)
+  const maxLengths = {
+    company: 200,
+    position: 200,
+    location: 200,
+    salary: 100,
+    jobUrl: 2000,
+    jobDescription: 50000,
+    notes: 10000
+  };
+
+  for (const [field, maxLen] of Object.entries(maxLengths)) {
+    if (appData[field] && appData[field].length > maxLen) {
+      errors.push(`${capitalizeStatus(field)} exceeds maximum length of ${maxLen} characters`);
+    }
+  }
+
+  // URL validation
+  if (appData.jobUrl && !isValidUrl(appData.jobUrl)) {
+    errors.push('Please enter a valid URL starting with http:// or https://');
+  }
+
+  return errors;
+}
+
+// Set form submitting state (loading indicator)
+function setSubmitState(submitting) {
+  isSubmitting = submitting;
+  const submitBtn = elements.appForm?.querySelector('button[type="submit"]');
+  if (submitBtn) {
+    submitBtn.disabled = submitting;
+    submitBtn.innerHTML = submitting
+      ? '<span class="spinner"></span> Saving...'
+      : 'Save';
+  }
 }
 
 // Format job description with bullet points and structure
@@ -947,7 +1189,7 @@ async function toggleView(view) {
       });
     }
   } catch (error) {
-    console.log('Error saving view preference:', error);
+    console.error('Error saving view preference:', error);
   }
 }
 
@@ -957,10 +1199,15 @@ async function toggleView(view) {
 function renderTable() {
   elements.tableBody.innerHTML = '';
 
-  filteredApplications.forEach(app => {
+  filteredApplications.forEach((app) => {
     const row = document.createElement('tr');
     row.dataset.id = escapeHtml(app.id);
     row.className = selectedAppId === app.id ? 'selected' : '';
+
+    // Accessibility: make rows interactive
+    row.setAttribute('tabindex', '0');
+    row.setAttribute('role', 'row');
+    row.setAttribute('aria-label', `${app.company || 'Unknown'} - ${app.position || 'Unknown'}, Status: ${capitalizeStatus(app.status)}`);
 
     const tableInitial = escapeHtml((app.company || 'U')[0].toUpperCase());
     const tableStatusClass = `status-${sanitizeStatus(app.status)}`;
@@ -974,19 +1221,19 @@ function renderTable() {
         </div>
       </td>
       <td>${escapeHtml(app.position || 'Unknown')}</td>
-      <td><span class="status-badge ${tableStatusClass}" aria-label="Status: ${escapeHtml(capitalizeStatus(app.status))}">${escapeHtml(capitalizeStatus(app.status))}</span></td>
+      <td><span class="status-badge ${tableStatusClass}">${escapeHtml(capitalizeStatus(app.status))}</span></td>
       <td>${escapeHtml(tableDateStr)}</td>
       <td>${escapeHtml(app.location || '-')}</td>
       <td>${escapeHtml(app.salary || '-')}</td>
       <td class="table-actions">
-        <button class="action-btn edit-btn" title="Edit">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <button class="action-btn edit-btn" title="Edit" aria-label="Edit ${escapeHtml(app.company || 'application')}">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
           </svg>
         </button>
-        <button class="action-btn delete-btn" title="Delete">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <button class="action-btn delete-btn" title="Delete" aria-label="Delete ${escapeHtml(app.company || 'application')}">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <polyline points="3 6 5 6 21 6"></polyline>
             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
           </svg>
@@ -997,6 +1244,14 @@ function renderTable() {
     // Event listeners
     row.addEventListener('click', (e) => {
       if (!e.target.closest('.action-btn')) {
+        selectApp(app.id);
+      }
+    });
+
+    // Keyboard support for table rows
+    row.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
         selectApp(app.id);
       }
     });
