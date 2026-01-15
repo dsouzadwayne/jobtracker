@@ -399,6 +399,51 @@ input::placeholder, textarea::placeholder {
   color: var(--text-muted);
 }
 
+/* Date/Month input picker icon color */
+input[type="date"],
+input[type="month"],
+input[type="datetime-local"],
+input[type="time"] {
+  color-scheme: light;
+}
+
+[data-theme="dark"] input[type="date"],
+[data-theme="dark"] input[type="month"],
+[data-theme="dark"] input[type="datetime-local"],
+[data-theme="dark"] input[type="time"] {
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) input[type="date"],
+  :root:not([data-theme="light"]) input[type="month"],
+  :root:not([data-theme="light"]) input[type="datetime-local"],
+  :root:not([data-theme="light"]) input[type="time"] {
+    color-scheme: dark;
+  }
+}
+
+/* Chrome/Edge webkit calendar picker icon */
+::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity var(--transition-base);
+}
+
+::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+[data-theme="dark"] ::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) ::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+  }
+}
+
 label {
   display: block;
   font-size: var(--font-size-xs);
