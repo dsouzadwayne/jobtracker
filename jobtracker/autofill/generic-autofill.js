@@ -164,11 +164,20 @@
       previousCompany: prevWork.company,
       previousTitle: prevWork.title,
       yearsExperience: personal.yearsExperience,
+      // Education
       school: edu.school,
       degree: edu.degree,
       major: edu.field,
-      graduationYear: edu.graduationYear,
+      fieldOfStudy: edu.field,
+      graduationYear: edu.graduationYear || edu.endDate,
       gpa: edu.gpa,
+      // Skills
+      skills: formatAllSkills(profile.skills),
+      technicalSkills: formatSkillsArray(profile.skills?.languages),
+      frameworks: formatSkillsArray(profile.skills?.frameworks),
+      tools: formatSkillsArray(profile.skills?.tools),
+      softSkills: formatSkillsArray(profile.skills?.soft),
+      // Compensation
       currentCtc: formatCtc(personal.currentCtc, personal.ctcCurrency),
       expectedCtc: formatCtc(personal.expectedCtc, personal.ctcCurrency),
       noticePeriod: personal.noticePeriod,
@@ -303,6 +312,59 @@
     return amount;
   }
 
+  // Format skills array as comma-separated string
+  function formatSkillsArray(arr) {
+    if (!Array.isArray(arr)) return '';
+    return arr.join(', ');
+  }
+
+  // Format all skills categories combined
+  function formatAllSkills(skills) {
+    if (!skills) return '';
+    const all = [
+      ...(skills.languages || []),
+      ...(skills.frameworks || []),
+      ...(skills.tools || []),
+      ...(skills.soft || [])
+    ];
+    return all.join(', ');
+  }
+
+  // Find matching Q&A answer using keyword matching
+  function findQAMatch(customQA, fieldContext) {
+    if (!Array.isArray(customQA) || customQA.length === 0) return '';
+
+    const contextLower = fieldContext.toLowerCase();
+    const contextWords = contextLower.split(/\s+/);
+
+    // Score each Q&A by keyword matches
+    let bestMatch = null;
+    let bestScore = 0;
+
+    const stopWords = ['what', 'why', 'how', 'the', 'a', 'an', 'is', 'are', 'do', 'you', 'your', 'to', 'for', 'and', 'or', 'in', 'on', 'at', 'of'];
+
+    for (const qa of customQA) {
+      if (!qa.question) continue;
+      const questionLower = qa.question.toLowerCase();
+
+      // Count matching words (excluding common words)
+      let score = 0;
+      for (const word of contextWords) {
+        if (word.length > 2 && !stopWords.includes(word)) {
+          if (questionLower.includes(word)) score++;
+        }
+      }
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = qa;
+      }
+    }
+
+    // Return best match if score is at least 2, otherwise return empty
+    return bestScore >= 2 ? bestMatch.answer : '';
+  }
+
   // Field patterns for basic matching
   const FIELD_PATTERNS = {
     firstName: [/first.?name/i, /given.?name/i, /fname/i, /vorname/i, /prenom/i],
@@ -333,8 +395,16 @@
     school: [/school/i, /university/i, /college/i, /institution/i],
     degree: [/degree/i, /qualification/i, /diploma/i],
     major: [/major/i, /field.?of.?study/i, /specialization/i, /course/i],
-    graduationYear: [/graduation.?year/i, /grad.?year/i, /year.?graduated/i],
+    fieldOfStudy: [/field.?of.?study/i, /major/i, /specialization/i, /concentration/i],
+    graduationYear: [/graduation.?year/i, /grad.?year/i, /year.?graduated/i, /completion.?year/i],
     gpa: [/gpa/i, /grade.?point/i, /cgpa/i],
+    // Skills
+    skills: [/\bskills?\b/i, /competenc/i, /expertise/i, /proficienc/i],
+    technicalSkills: [/technical.?skills?/i, /programming/i, /technologies/i, /tech.?stack/i, /coding/i],
+    frameworks: [/frameworks?/i, /libraries/i],
+    tools: [/tools?/i, /software/i, /platforms?/i],
+    softSkills: [/soft.?skills?/i, /interpersonal/i, /leadership.?skills/i],
+    // Compensation
     currentCtc: [/current.?ctc/i, /current.?salary/i, /present.?salary/i, /current.?compensation/i, /current.?package/i, /ctc.?\(?fixed\)?/i, /fixed.?ctc/i, /base.?salary/i],
     expectedCtc: [/expected.?ctc/i, /expected.?salary/i, /desired.?salary/i, /expected.?compensation/i, /expected.?package/i, /salary.?expectation/i, /target.?salary/i],
     noticePeriod: [/notice.?period/i, /notice/i, /availability/i, /joining.?time/i],

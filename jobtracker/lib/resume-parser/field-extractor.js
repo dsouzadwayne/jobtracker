@@ -923,35 +923,13 @@ const ResumeFieldExtractor = {
    * @returns {string} - Cleaned phone (not reformatted to preserve international numbers)
    */
   formatPhone(phone) {
+    // Use CountryCodes module if available
+    if (typeof CountryCodes !== 'undefined') {
+      return CountryCodes.formatPhone(phone);
+    }
+    // Fallback to basic formatting
     if (!phone) return '';
-
-    // Clean up the phone number but preserve its format
-    let cleaned = phone.trim()
-      .replace(/\s+/g, ' ')  // Normalize whitespace
-      .replace(/[()]/g, '')  // Remove parentheses
-      .replace(/\s*-\s*/g, '-'); // Clean up dashes
-
-    // If it starts with + (international), preserve it
-    if (cleaned.startsWith('+')) {
-      return cleaned;
-    }
-
-    // Check if it looks like an international number (more than 10 digits)
-    const digits = cleaned.replace(/\D/g, '');
-    if (digits.length > 10) {
-      // Likely international - add + if it starts with country code
-      if (digits.startsWith('91') && digits.length >= 12) {
-        // Indian number
-        return `+${digits.slice(0, 2)} ${digits.slice(2)}`;
-      } else if (digits.startsWith('1') && digits.length === 11) {
-        // US/Canada number
-        return `+1 ${digits.slice(1, 4)}-${digits.slice(4, 7)}-${digits.slice(7)}`;
-      }
-      return `+${digits}`;
-    }
-
-    // Return as-is for other formats
-    return cleaned;
+    return phone.trim();
   },
 
   /**

@@ -552,7 +552,7 @@ function createPositionCard(entry) {
         </button>
       </div>
     </div>
-    ${entry.description ? `<div class="position-description">${escapeHtml(entry.description)}</div>` : ''}
+    ${entry.description ? `<div class="position-description">${formatBulletText(entry.description)}</div>` : ''}
   `;
 
   card.querySelector('.edit').addEventListener('click', () => openWorkModal(entry));
@@ -883,7 +883,7 @@ function createQACard(entry) {
         </button>
       </div>
     </div>
-    <div class="entry-description">${escapeHtml(entry.answer)}</div>
+    <div class="entry-description">${formatBulletText(entry.answer)}</div>
   `;
 
   card.querySelector('.edit').addEventListener('click', () => openQAModal(entry));
@@ -1684,6 +1684,22 @@ function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
+}
+
+function formatBulletText(text) {
+  if (!text) return '';
+  let formatted = escapeHtml(text);
+  // Convert bullet markers to list items
+  formatted = formatted
+    .replace(/^[\s]*[•\-\*\●\○\■\□\►\▸]\s*/gm, '<li>')
+    .replace(/^[\s]*\d+[\.\)]\s+/gm, '<li>')
+    .replace(/(<li>.*?)(?=(?:<li>|$))/gs, '$1</li>');
+  formatted = formatted.replace(/((?:<li>.*?<\/li>\s*)+)/gs, '<ul class="bullet-list">$1</ul>');
+  formatted = formatted.replace(/\n\n+/g, '</p><p>');
+  formatted = formatted.replace(/\n/g, '<br>');
+  if (formatted.trim()) formatted = '<p>' + formatted + '</p>';
+  formatted = formatted.replace(/<p>\s*<\/p>/g, '');
+  return formatted;
 }
 
 function formatMonthInput(dateStr) {

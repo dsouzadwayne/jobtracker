@@ -270,6 +270,16 @@
   margin-bottom: var(--space-sm);
 }
 
+.app-notes-content ul.job-desc-list {
+  margin: 0.5rem 0;
+  padding-left: 1.25rem;
+  list-style-type: disc;
+}
+
+.app-notes-content ul.job-desc-list li {
+  margin-bottom: 0.25rem;
+}
+
 /* Job Description */
 .app-description {
   margin-bottom: var(--space-lg);

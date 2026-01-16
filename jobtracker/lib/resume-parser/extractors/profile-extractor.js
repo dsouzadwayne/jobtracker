@@ -115,28 +115,13 @@ const ProfileExtractor = {
   },
 
   formatPhone(phone) {
+    // Use CountryCodes module if available
+    if (typeof CountryCodes !== 'undefined') {
+      return CountryCodes.formatPhone(phone);
+    }
+    // Fallback to basic formatting
     if (!phone) return '';
-
-    let cleaned = phone.trim()
-      .replace(/\s+/g, ' ')
-      .replace(/[()]/g, '')
-      .replace(/\s*-\s*/g, '-');
-
-    if (cleaned.startsWith('+')) {
-      return cleaned;
-    }
-
-    const digits = cleaned.replace(/\D/g, '');
-    if (digits.length > 10) {
-      if (digits.startsWith('91') && digits.length >= 12) {
-        return `+${digits.slice(0, 2)} ${digits.slice(2)}`;
-      } else if (digits.startsWith('1') && digits.length === 11) {
-        return `+1 ${digits.slice(1, 4)}-${digits.slice(4, 7)}-${digits.slice(7)}`;
-      }
-      return `+${digits}`;
-    }
-
-    return cleaned;
+    return phone.trim();
   },
 
   splitName(name) {
