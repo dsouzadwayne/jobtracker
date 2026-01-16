@@ -353,7 +353,19 @@
   color: var(--text-secondary);
   margin-top: var(--space-sm);
   line-height: var(--line-height-relaxed);
-  white-space: pre-wrap;
+}
+
+.position-description ul.bullet-list,
+.entry-description ul.bullet-list {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+  list-style-type: disc;
+}
+
+.position-description ul.bullet-list li,
+.entry-description ul.bullet-list li {
+  margin-bottom: 0.25rem;
+  line-height: 1.5;
 }
 
 .position-actions {

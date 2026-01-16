@@ -39,6 +39,10 @@ const SmartResumeParser = {
 
     const workExperiences = WorkExtractor.extract(sections);
     console.log('[SmartResumeParser] Extracted', workExperiences.length, 'work experiences');
+    console.log('[SmartResumeParser] Work experiences details:');
+    workExperiences.forEach((exp, i) => {
+      console.log(`  [${i}] jobTitle: "${exp.jobTitle}", company: "${exp.company}", date: "${exp.date}"`);
+    });
 
     const education = EducationExtractor.extract(sections);
     console.log('[SmartResumeParser] Extracted', education.length, 'education entries');

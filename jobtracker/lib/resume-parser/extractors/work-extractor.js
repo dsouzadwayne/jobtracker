@@ -16,9 +16,22 @@ const WorkExtractor = {
 
   extract(sections) {
     const lines = this.getSectionLines(sections, ['experience', 'employment', 'work', 'professional']);
+    console.log('[WorkExtractor] Found', lines.length, 'lines in work section');
     if (lines.length === 0) return [];
 
     const subsections = this.divideIntoSubsections(lines);
+    console.log('[WorkExtractor] Divided into', subsections.length, 'subsections');
+
+    // Log each subsection's content
+    subsections.forEach((sub, i) => {
+      console.log(`[WorkExtractor] Subsection ${i}:`);
+      sub.forEach((line, j) => {
+        const lineText = line.map(item => item.text).join(' ').trim();
+        const isBold = line[0] && line[0].fontName && line[0].fontName.toLowerCase().includes('bold');
+        console.log(`  Line ${j} [${isBold ? 'BOLD' : 'NORM'}]: "${lineText.substring(0, 80)}${lineText.length > 80 ? '...' : ''}"`);
+      });
+    });
+
     const workExperiences = [];
 
     for (const subsectionLines of subsections) {
@@ -126,76 +139,94 @@ const WorkExtractor = {
   },
 
   extractEntry(subsectionLines) {
-    const descriptionsLineIdx = this.getDescriptionsLineIdx(subsectionLines);
-    const infoLines = subsectionLines.slice(0, descriptionsLineIdx);
-    const descriptionLines = subsectionLines.slice(descriptionsLineIdx);
+    // Flatten all text items from all lines for individual item analysis (like OpenResume)
+    const allItems = subsectionLines.flat();
 
-    const infoTexts = infoLines.map(line => ({
-      text: line.map(item => item.text).join(' ').trim(),
-      items: line,
-      isBold: line[0] && this.isBold(line[0])
-    }));
+    console.log('[WorkExtractor.extractEntry] Processing', subsectionLines.length, 'lines with', allItems.length, 'text items');
 
     let jobTitle = '';
     let company = '';
     let date = '';
+    let descriptions = [];
 
-    // Step 1: Find date
-    for (const info of infoTexts) {
-      if (this.hasYear(info.text) || this.hasPresent(info.text)) {
-        date = info.text;
-        break;
-      }
-    }
+    // Step 1: Find job title by looking at individual text items
+    for (const item of allItems) {
+      const text = item.text.trim();
+      if (!text) continue;
 
-    // Step 2: Find job title
-    for (const info of infoTexts) {
-      if (info.text === date) continue;
-      if (/^[-•*]/.test(info.text)) continue;
-      if (this.hasJobTitle(info.text)) {
-        const titleMatch = info.text.match(/^(.+?)\s*(?:at|@|\||–|—|-)\s*/i);
-        if (titleMatch) {
-          jobTitle = titleMatch[1].trim();
-          const rest = info.text.slice(titleMatch[0].length).trim();
-          if (rest && !this.hasYear(rest)) {
-            company = rest.replace(/\s*(?:\||–|—|-)?\s*\d{4}.*$/, '').trim();
-          }
-        } else {
-          jobTitle = info.text.replace(/\s*(?:\||–|—|-)?\s*\d{4}.*$/, '').trim();
-        }
-        break;
-      }
-    }
+      // Skip if it's a date or separator
+      if (/^[-–—]$/.test(text)) continue;
+      if (this.hasYear(text) && text.length < 15) continue;
+      if (/^(Present|Current|Now|Ongoing)$/i.test(text)) continue;
 
-    // Step 3: Find company
-    if (!company) {
-      for (const info of infoTexts) {
-        if (info.text === date || info.text === jobTitle) continue;
-        if (/^[-•*]/.test(info.text)) continue;
-
-        const hasCompanyIndicator = this.COMPANY_INDICATORS.test(info.text);
-        const isKnownCompany = this.KNOWN_COMPANIES.test(info.text);
-        const isShortAndCapitalized = info.text.length < 60 && /^[A-Z]/.test(info.text);
-
-        if (hasCompanyIndicator || isKnownCompany || (info.isBold && isShortAndCapitalized)) {
-          company = info.text.replace(/\s*(?:\||–|—|-)?\s*\d{4}.*$/, '').trim();
+      // Check if this individual item contains a job title keyword
+      if (this.hasJobTitle(text) && text.length < 80) {
+        // Make sure it's not a description (too long or too many words)
+        const wordCount = text.split(/\s+/).length;
+        if (wordCount <= 5) {
+          jobTitle = text;
+          console.log('[WorkExtractor.extractEntry] Found job title:', jobTitle);
           break;
         }
       }
     }
 
-    // Step 4: Fallback - first bold line as company
-    if (!company && infoTexts.length > 0) {
-      const firstBold = infoTexts.find(i => i.isBold && !this.hasJobTitle(i.text));
-      if (firstBold) {
-        company = firstBold.text.replace(/\s*(?:\||–|—|-)?\s*\d{4}.*$/, '').trim();
+    // Step 2: Find date by looking at individual text items
+    const dateItems = [];
+    for (const item of allItems) {
+      const text = item.text.trim();
+      if (!text) continue;
+
+      if (this.hasYear(text) || /^(Present|Current|Now|Ongoing)$/i.test(text)) {
+        dateItems.push(text);
+      }
+    }
+    if (dateItems.length > 0) {
+      date = dateItems.join(' ').replace(/\s*-\s*/g, ' - ');
+      console.log('[WorkExtractor.extractEntry] Found date:', date);
+    }
+
+    // Step 3: Find company - look for bold items that aren't job titles
+    for (const item of allItems) {
+      const text = item.text.trim();
+      if (!text) continue;
+
+      if (this.isBold(item) && !this.hasJobTitle(text) && text.length < 80) {
+        // Skip if it's the job title we already found
+        if (text === jobTitle) continue;
+        // Skip if it contains dates
+        if (this.hasYear(text)) continue;
+
+        company = text;
+        console.log('[WorkExtractor.extractEntry] Found company:', company);
+        break;
       }
     }
 
-    const parsedDates = this.parseDate(date);
-    const descriptions = this.getBulletPoints(descriptionLines);
+    // Step 4: If no company found, check for known companies or company indicators
+    if (!company) {
+      for (const item of allItems) {
+        const text = item.text.trim();
+        if (!text || text === jobTitle) continue;
 
-    return {
+        if (this.COMPANY_INDICATORS.test(text) || this.KNOWN_COMPANIES.test(text)) {
+          if (text.length < 80 && !this.hasYear(text)) {
+            company = text;
+            console.log('[WorkExtractor.extractEntry] Found company (indicator):', company);
+            break;
+          }
+        }
+      }
+    }
+
+    // Step 5: Extract descriptions - lines after the first few info lines
+    const descriptionsLineIdx = this.getDescriptionsLineIdx(subsectionLines);
+    const descriptionLines = subsectionLines.slice(descriptionsLineIdx);
+    descriptions = this.getBulletPoints(descriptionLines);
+
+    const parsedDates = this.parseDate(date);
+
+    const result = {
       company,
       jobTitle,
       date,
@@ -204,26 +235,83 @@ const WorkExtractor = {
       current: parsedDates.current,
       descriptions
     };
+
+    // Debug logging
+    console.log('[WorkExtractor] Extracted entry:', {
+      jobTitle: result.jobTitle,
+      company: result.company,
+      date: result.date,
+      descriptionsCount: result.descriptions.length
+    });
+
+    return result;
   },
 
   getDescriptionsLineIdx(lines) {
+    console.log('[getDescriptionsLineIdx] *** NEW CODE v3 *** Processing', lines.length, 'lines');
+
     // Check for bullet points
     for (let i = 0; i < lines.length; i++) {
       for (const item of lines[i]) {
-        if (this.BULLET_POINTS.some(bp => item.text.includes(bp)) || /^[-•*]/.test(item.text.trim())) {
+        const trimmedText = item.text.trim();
+
+        // Check for special bullet point characters
+        if (this.BULLET_POINTS.some(bp => trimmedText.includes(bp))) {
+          console.log(`[getDescriptionsLineIdx] Found bullet point char in line ${i}: "${trimmedText.substring(0, 30)}"`);
+          return i;
+        }
+
+        // Check for dash/asterisk bullet, but NOT if it's a date prefix like "-Feb 2025"
+        if (/^[-•*]/.test(trimmedText)) {
+          // Skip if this looks like a date (dash followed by month name or year)
+          const isDatePrefix = /^-\s*(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{4})/i.test(trimmedText);
+          if (!isDatePrefix) {
+            console.log(`[getDescriptionsLineIdx] Found bullet dash in line ${i}: "${trimmedText.substring(0, 30)}"`);
+            return i;
+          } else {
+            console.log(`[getDescriptionsLineIdx] Skipped date-prefix dash in line ${i}: "${trimmedText.substring(0, 30)}"`);
+          }
+        }
+      }
+    }
+
+    // Track the last line with job title or date info
+    let lastInfoLineIdx = -1;
+
+    // Check ALL lines (not just single-item lines) for job title or date info
+    for (let i = 0; i < lines.length; i++) {
+      // Join all text items in the line
+      const lineText = lines[i].map(item => item.text).join(' ').trim();
+
+      // Check if this line contains job title/date info
+      const hasJobTitle = this.hasJobTitle(lineText);
+      const hasDate = this.hasYear(lineText) || this.hasPresent(lineText);
+
+      console.log(`[getDescriptionsLineIdx] Line ${i}: hasJobTitle=${hasJobTitle}, hasDate=${hasDate}, text="${lineText.substring(0, 50)}..."`);
+
+      // If this line has job title or date, mark it as info line
+      if (hasJobTitle || hasDate) {
+        console.log(`[getDescriptionsLineIdx] Line ${i} marked as INFO line`);
+        lastInfoLineIdx = i;
+        continue;
+      }
+
+      // If line has 8+ words and no job title/date, it's likely a description
+      const wordCount = lineText.split(/\s/).filter(w => !/[0-9]/.test(w)).length;
+      if (wordCount >= 8) {
+        // Only return if we've already found at least one info line
+        if (lastInfoLineIdx >= 0) {
           return i;
         }
       }
     }
 
-    // Fallback: line with 8+ words
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].length === 1) {
-        const wordCount = lines[i][0].text.split(/\s/).filter(w => !/[0-9]/.test(w)).length;
-        if (wordCount >= 8) return i;
-      }
+    // If we found info lines, return the line after the last one
+    if (lastInfoLineIdx >= 0) {
+      return lastInfoLineIdx + 1;
     }
 
+    // Default: use line 2 or less
     return Math.min(2, lines.length);
   },
 
@@ -291,6 +379,37 @@ const WorkExtractor = {
     }
 
     return result;
+  },
+
+  extractDateSubstring(text) {
+    if (!text) return '';
+
+    // Pattern 1: Month-Year ranges (e.g., "Feb 2025 - Present", "Jan 2020 - Dec 2022")
+    const monthYearRangePattern = /(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)[.,]?\s*['']?\d{2,4}\s*[-–—to]+\s*(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)[.,]?\s*['']?\d{2,4}|(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)[.,]?\s*['']?\d{2,4}\s*[-–—to]+\s*(?:Present|Current|Now|Ongoing)/i;
+    const monthYearRangeMatch = text.match(monthYearRangePattern);
+    if (monthYearRangeMatch) return monthYearRangeMatch[0].trim();
+
+    // Pattern 2: Single Month-Year with Present (e.g., "Feb 2025 Present")
+    const monthYearPresentPattern = /(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)[.,]?\s*['']?\d{2,4}\s+(?:Present|Current|Now|Ongoing)/i;
+    const monthYearPresentMatch = text.match(monthYearPresentPattern);
+    if (monthYearPresentMatch) return monthYearPresentMatch[0].trim();
+
+    // Pattern 3: Year ranges (e.g., "2020 - 2022", "2020 - Present")
+    const yearRangePattern = /\b(19|20)\d{2}\s*[-–—to]+\s*(?:(19|20)\d{2}|Present|Current|Now|Ongoing)\b/i;
+    const yearRangeMatch = text.match(yearRangePattern);
+    if (yearRangeMatch) return yearRangeMatch[0].trim();
+
+    // Pattern 4: Multiple month-year dates (e.g., "Jan 2020 Feb 2022")
+    const multipleDatesPattern = /(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)[.,]?\s*['']?\d{2,4}(?:\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)[.,]?\s*['']?\d{2,4})+/i;
+    const multipleDatesMatch = text.match(multipleDatesPattern);
+    if (multipleDatesMatch) return multipleDatesMatch[0].trim();
+
+    // Pattern 5: Single year (fallback)
+    const singleYearPattern = /\b(19|20)\d{2}\b/;
+    const singleYearMatch = text.match(singleYearPattern);
+    if (singleYearMatch) return singleYearMatch[0].trim();
+
+    return '';
   },
 
   isBold(item) {

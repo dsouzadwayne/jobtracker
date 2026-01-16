@@ -55,15 +55,58 @@ const ResumeParser = {
         linkedIn: result.profile.linkedin,
         portfolio: result.profile.url
       },
-      workHistory: result.workExperiences.map(exp => ({
-        company: exp.company,
-        title: exp.jobTitle,
-        location: '',
-        startDate: exp.startDate || '',
-        endDate: exp.endDate || '',
-        current: exp.current || false,
-        description: Array.isArray(exp.descriptions) ? exp.descriptions.join('\n') : ''
-      })),
+      workHistory: result.workExperiences.map(exp => {
+        console.log('[ResumeParser] Mapping work experience:', {
+          jobTitle: exp.jobTitle,
+          company: exp.company,
+          mappedTitle: exp.jobTitle
+        });
+        // Smart bullet point handling:
+        // 1. Join all descriptions and strip existing bullet characters
+        // 2. Split by action verbs to find logical bullet points
+        // 3. Re-add bullet markers properly
+        let description = '';
+        if (Array.isArray(exp.descriptions) && exp.descriptions.length > 0) {
+          // Join all descriptions into one string, stripping bullet characters
+          const bulletChars = /[•⋅∙🞄⦁⚫●⬤⚬○■□►▸\-\*]/g;
+          let fullText = exp.descriptions
+            .map(d => d.replace(bulletChars, ' ').trim())
+            .join(' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+          // Action verbs that typically start resume bullet points
+          const actionVerbPattern = /(Achieved|Administered|Analyzed|Applied|Assisted|Automated|Built|Collaborated|Completed|Conducted|Coordinated|Created|Delivered|Designed|Developed|Directed|Enhanced|Established|Executed|Generated|Implemented|Improved|Increased|Initiated|Launched|Led|Leveraged|Maintained|Managed|Mentored|Organized|Oversaw|Performed|Planned|Prepared|Presented|Produced|Reduced|Resolved|Revamped|Rigorously|Spearheaded|Streamlined|Supervised|Supported|Tagged|Trained|Transformed|Utilized|Worked|Conceptualized|Developing)/g;
+
+          // Find all positions where action verbs start
+          const matches = [...fullText.matchAll(actionVerbPattern)];
+
+          if (matches.length > 0) {
+            const bulletPoints = [];
+            for (let i = 0; i < matches.length; i++) {
+              const start = matches[i].index;
+              const end = i < matches.length - 1 ? matches[i + 1].index : fullText.length;
+              const point = fullText.slice(start, end).trim();
+              if (point.length > 10) { // Skip very short fragments
+                bulletPoints.push(point);
+              }
+            }
+            description = bulletPoints.map(b => '• ' + b).join('\n');
+          } else {
+            // No action verbs found, just use the text as-is
+            description = fullText;
+          }
+        }
+        return {
+          company: exp.company,
+          title: exp.jobTitle,
+          location: '',
+          startDate: exp.startDate || '',
+          endDate: exp.endDate || '',
+          current: exp.current || false,
+          description: description
+        };
+      }),
       education: result.education.map(edu => ({
         school: edu.school,
         degree: edu.degree,

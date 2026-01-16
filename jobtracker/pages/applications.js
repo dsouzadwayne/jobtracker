@@ -362,7 +362,7 @@ function createExpandedDetails(app) {
       </div>` : ''}
       ${app.notes ? `<div class="app-notes">
         <div class="app-notes-label">Notes</div>
-        ${escapeHtml(app.notes)}
+        <div class="app-notes-content">${formatJobDescription(app.notes)}</div>
       </div>` : ''}
       ${app.statusHistory && app.statusHistory.length > 1 ? `
         <div class="status-history">

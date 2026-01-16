@@ -434,16 +434,6 @@ input[type="time"] {
   opacity: 1;
 }
 
-[data-theme="dark"] ::-webkit-calendar-picker-indicator {
-  filter: invert(1);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) ::-webkit-calendar-picker-indicator {
-    filter: invert(1);
-  }
-}
-
 label {
   display: block;
   font-size: var(--font-size-xs);

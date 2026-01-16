@@ -391,6 +391,40 @@ const JobTrackerFieldMatcher = {
       profilePath: 'coverLetters.default',
       requiresSelection: true,  // Indicates this field needs user selection during autofill
       textarea: true
+    },
+
+    // Skills
+    skills: {
+      patterns: [/\bskills?\b/i, /competenc/i, /expertise/i, /proficienc/i],
+      profilePath: 'skills',
+      formatter: 'skillsAll'
+    },
+    technicalSkills: {
+      patterns: [/technical.?skills?/i, /programming/i, /technologies/i, /tech.?stack/i, /coding/i],
+      profilePath: 'skills.languages',
+      formatter: 'arrayJoin'
+    },
+    frameworks: {
+      patterns: [/frameworks?/i, /libraries/i],
+      profilePath: 'skills.frameworks',
+      formatter: 'arrayJoin'
+    },
+    tools: {
+      patterns: [/tools?/i, /software/i, /platforms?/i],
+      profilePath: 'skills.tools',
+      formatter: 'arrayJoin'
+    },
+    softSkills: {
+      patterns: [/soft.?skills?/i, /interpersonal/i, /leadership.?skills/i],
+      profilePath: 'skills.soft',
+      formatter: 'arrayJoin'
+    },
+
+    // Q&A - uses keyword matching against stored questions
+    customQA: {
+      patterns: [/question|answer|screening|additional.?info/i],
+      profilePath: 'customQA',
+      matcher: 'keywordQA'  // Match field context against Q&A question text
     }
   },
 
@@ -729,6 +763,13 @@ const JobTrackerFieldMatcher = {
         .map(path => this.getValueFromProfile(path, profile))
         .filter(Boolean)
         .join(' ');
+    } else if (config.formatter === 'arrayJoin') {
+      // Handle array fields (skills categories)
+      const arr = this.getValueFromProfile(config.profilePath, profile);
+      value = Array.isArray(arr) ? arr.join(', ') : '';
+    } else if (config.formatter === 'skillsAll') {
+      // Handle combined skills
+      value = this.formatAllSkills(profile.skills);
     } else {
       value = this.getValueFromProfile(config.profilePath, profile);
     }
@@ -745,6 +786,20 @@ const JobTrackerFieldMatcher = {
       certainty,
       profilePath: config.profilePath
     };
+  },
+
+  /**
+   * Format all skills into a single comma-separated string
+   */
+  formatAllSkills(skills) {
+    if (!skills) return '';
+    const all = [
+      ...(skills.languages || []),
+      ...(skills.frameworks || []),
+      ...(skills.tools || []),
+      ...(skills.soft || [])
+    ];
+    return all.join(', ');
   },
 
   /**
