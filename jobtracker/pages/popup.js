@@ -115,6 +115,15 @@ const elements = {
   openDashboardBtn: document.getElementById('open-dashboard-btn')
 };
 
+// BroadcastChannel for cross-page real-time updates
+const applicationChannel = new BroadcastChannel('jobtracker-applications');
+applicationChannel.onmessage = async (event) => {
+  if (event.data.type === 'DATA_CHANGED') {
+    await loadStats();
+    await loadRecentApplications();
+  }
+};
+
 // Initialize popup
 document.addEventListener('DOMContentLoaded', async () => {
   await ThemeManager.init();

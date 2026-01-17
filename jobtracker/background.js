@@ -7,6 +7,10 @@
 // Import the database module (ES module)
 import { JobTrackerDB } from './lib/database.js';
 import { JobTrackerIntelligence } from './lib/intelligence/index.js';
+import { aiService } from './lib/ai-service.js';
+
+// BroadcastChannel for cross-page communication
+const applicationChannel = new BroadcastChannel('jobtracker-applications');
 
 // Message types
 const MessageTypes = {
@@ -43,7 +47,36 @@ const MessageTypes = {
   GET_INSIGHTS: 'GET_INSIGHTS',
   GET_RECOMMENDATIONS: 'GET_RECOMMENDATIONS',
   GET_GOAL_PROGRESS: 'GET_GOAL_PROGRESS',
-  SAVE_GOALS: 'SAVE_GOALS'
+  SAVE_GOALS: 'SAVE_GOALS',
+
+  // CRM Enhancement - Interviews (Phase B)
+  GET_INTERVIEWS: 'GET_INTERVIEWS',
+  GET_INTERVIEWS_BY_APP: 'GET_INTERVIEWS_BY_APP',
+  GET_UPCOMING_INTERVIEWS: 'GET_UPCOMING_INTERVIEWS',
+  ADD_INTERVIEW: 'ADD_INTERVIEW',
+  UPDATE_INTERVIEW: 'UPDATE_INTERVIEW',
+  DELETE_INTERVIEW: 'DELETE_INTERVIEW',
+
+  // CRM Enhancement - Tasks (Phase C)
+  GET_TASKS: 'GET_TASKS',
+  GET_TASKS_BY_APP: 'GET_TASKS_BY_APP',
+  GET_UPCOMING_TASKS: 'GET_UPCOMING_TASKS',
+  ADD_TASK: 'ADD_TASK',
+  UPDATE_TASK: 'UPDATE_TASK',
+  DELETE_TASK: 'DELETE_TASK',
+
+  // CRM Enhancement - Activities (Phase C)
+  GET_ACTIVITIES: 'GET_ACTIVITIES',
+  GET_ACTIVITIES_BY_APP: 'GET_ACTIVITIES_BY_APP',
+  ADD_ACTIVITY: 'ADD_ACTIVITY',
+  DELETE_ACTIVITY: 'DELETE_ACTIVITY',
+
+  // CRM Enhancement - Tags & Deadlines (Phase A)
+  GET_ALL_TAGS: 'GET_ALL_TAGS',
+  GET_EXPIRING_APPLICATIONS: 'GET_EXPIRING_APPLICATIONS',
+
+  // AI Features
+  AI_EXTRACT_JOB: 'AI_EXTRACT_JOB'
 };
 
 // Alarm name for badge clear
@@ -108,6 +141,60 @@ function validatePayload(type, payload) {
       }
       break;
 
+    // CRM Enhancement validations
+    case MessageTypes.ADD_INTERVIEW:
+    case MessageTypes.UPDATE_INTERVIEW:
+      if (!payload || typeof payload !== 'object') {
+        return { valid: false, error: 'Interview payload must be an object' };
+      }
+      if (type === MessageTypes.ADD_INTERVIEW && !payload.applicationId) {
+        return { valid: false, error: 'Interview must have applicationId' };
+      }
+      if (type === MessageTypes.UPDATE_INTERVIEW && !payload.id) {
+        return { valid: false, error: 'Interview update requires id' };
+      }
+      break;
+
+    case MessageTypes.DELETE_INTERVIEW:
+      if (!payload || !payload.id) {
+        return { valid: false, error: 'Delete requires interview id' };
+      }
+      break;
+
+    case MessageTypes.ADD_TASK:
+    case MessageTypes.UPDATE_TASK:
+      if (!payload || typeof payload !== 'object') {
+        return { valid: false, error: 'Task payload must be an object' };
+      }
+      if (type === MessageTypes.ADD_TASK && !payload.title) {
+        return { valid: false, error: 'Task must have a title' };
+      }
+      if (type === MessageTypes.UPDATE_TASK && !payload.id) {
+        return { valid: false, error: 'Task update requires id' };
+      }
+      break;
+
+    case MessageTypes.DELETE_TASK:
+      if (!payload || !payload.id) {
+        return { valid: false, error: 'Delete requires task id' };
+      }
+      break;
+
+    case MessageTypes.ADD_ACTIVITY:
+      if (!payload || typeof payload !== 'object') {
+        return { valid: false, error: 'Activity payload must be an object' };
+      }
+      if (!payload.applicationId || !payload.type) {
+        return { valid: false, error: 'Activity must have applicationId and type' };
+      }
+      break;
+
+    case MessageTypes.DELETE_ACTIVITY:
+      if (!payload || !payload.id) {
+        return { valid: false, error: 'Delete requires activity id' };
+      }
+      break;
+
     // Read-only operations don't need payload validation
     case MessageTypes.GET_PROFILE:
     case MessageTypes.GET_PROFILE_FOR_FILL:
@@ -122,6 +209,16 @@ function validatePayload(type, payload) {
     case MessageTypes.GET_INSIGHTS:
     case MessageTypes.GET_RECOMMENDATIONS:
     case MessageTypes.GET_GOAL_PROGRESS:
+    case MessageTypes.GET_INTERVIEWS:
+    case MessageTypes.GET_INTERVIEWS_BY_APP:
+    case MessageTypes.GET_UPCOMING_INTERVIEWS:
+    case MessageTypes.GET_TASKS:
+    case MessageTypes.GET_TASKS_BY_APP:
+    case MessageTypes.GET_UPCOMING_TASKS:
+    case MessageTypes.GET_ACTIVITIES:
+    case MessageTypes.GET_ACTIVITIES_BY_APP:
+    case MessageTypes.GET_ALL_TAGS:
+    case MessageTypes.GET_EXPIRING_APPLICATIONS:
       break;
 
     default:
@@ -231,16 +328,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         case MessageTypes.ADD_APPLICATION: {
           response = await JobTrackerDB.addApplication(payload);
+          applicationChannel.postMessage({ type: 'DATA_CHANGED', action: 'add' });
           break;
         }
 
         case MessageTypes.UPDATE_APPLICATION: {
           response = await JobTrackerDB.updateApplication(payload);
+          applicationChannel.postMessage({ type: 'DATA_CHANGED', action: 'update' });
           break;
         }
 
         case MessageTypes.DELETE_APPLICATION: {
           response = await JobTrackerDB.deleteApplication(payload.id);
+          applicationChannel.postMessage({ type: 'DATA_CHANGED', action: 'delete' });
           break;
         }
 
@@ -269,6 +369,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               dateApplied: new Date().toISOString()
             });
             response = { success: true, application: newApp };
+            applicationChannel.postMessage({ type: 'DATA_CHANGED', action: 'add' });
 
             // Notify user if enabled
             if (settings.detection.notifyOnDetection) {
@@ -349,6 +450,164 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         }
 
+        // ==================== CRM ENHANCEMENT: Interviews ====================
+        case MessageTypes.GET_INTERVIEWS: {
+          response = await JobTrackerDB.getAllInterviews();
+          break;
+        }
+
+        case MessageTypes.GET_INTERVIEWS_BY_APP: {
+          response = await JobTrackerDB.getInterviewsByApplication(payload.applicationId);
+          break;
+        }
+
+        case MessageTypes.GET_UPCOMING_INTERVIEWS: {
+          const limit = payload?.limit || 10;
+          response = await JobTrackerDB.getUpcomingInterviews(limit);
+          break;
+        }
+
+        case MessageTypes.ADD_INTERVIEW: {
+          response = await JobTrackerDB.addInterview(payload);
+          applicationChannel.postMessage({ type: 'DATA_CHANGED', action: 'interview_add' });
+          break;
+        }
+
+        case MessageTypes.UPDATE_INTERVIEW: {
+          response = await JobTrackerDB.updateInterview(payload);
+          applicationChannel.postMessage({ type: 'DATA_CHANGED', action: 'interview_update' });
+          break;
+        }
+
+        case MessageTypes.DELETE_INTERVIEW: {
+          response = await JobTrackerDB.deleteInterview(payload.id);
+          applicationChannel.postMessage({ type: 'DATA_CHANGED', action: 'interview_delete' });
+          break;
+        }
+
+        // ==================== CRM ENHANCEMENT: Tasks ====================
+        case MessageTypes.GET_TASKS: {
+          response = await JobTrackerDB.getAllTasks();
+          break;
+        }
+
+        case MessageTypes.GET_TASKS_BY_APP: {
+          response = await JobTrackerDB.getTasksByApplication(payload.applicationId);
+          break;
+        }
+
+        case MessageTypes.GET_UPCOMING_TASKS: {
+          const limit = payload?.limit || 10;
+          response = await JobTrackerDB.getUpcomingTasks(limit);
+          break;
+        }
+
+        case MessageTypes.ADD_TASK: {
+          response = await JobTrackerDB.addTask(payload);
+          applicationChannel.postMessage({ type: 'DATA_CHANGED', action: 'task_add' });
+          break;
+        }
+
+        case MessageTypes.UPDATE_TASK: {
+          response = await JobTrackerDB.updateTask(payload);
+          applicationChannel.postMessage({ type: 'DATA_CHANGED', action: 'task_update' });
+          break;
+        }
+
+        case MessageTypes.DELETE_TASK: {
+          response = await JobTrackerDB.deleteTask(payload.id);
+          applicationChannel.postMessage({ type: 'DATA_CHANGED', action: 'task_delete' });
+          break;
+        }
+
+        // ==================== CRM ENHANCEMENT: Activities ====================
+        case MessageTypes.GET_ACTIVITIES: {
+          response = await JobTrackerDB.getAllActivities();
+          break;
+        }
+
+        case MessageTypes.GET_ACTIVITIES_BY_APP: {
+          response = await JobTrackerDB.getActivitiesByApplication(payload.applicationId);
+          break;
+        }
+
+        case MessageTypes.ADD_ACTIVITY: {
+          response = await JobTrackerDB.addActivity(payload);
+          break;
+        }
+
+        case MessageTypes.DELETE_ACTIVITY: {
+          response = await JobTrackerDB.deleteActivity(payload.id);
+          break;
+        }
+
+        // ==================== CRM ENHANCEMENT: Tags & Deadlines ====================
+        case MessageTypes.GET_ALL_TAGS: {
+          response = await JobTrackerDB.getAllTags();
+          break;
+        }
+
+        case MessageTypes.GET_EXPIRING_APPLICATIONS: {
+          const days = payload?.days || 3;
+          response = await JobTrackerDB.getExpiringApplications(days);
+          break;
+        }
+
+        // AI Features - ML extraction for job tracking
+        case MessageTypes.AI_EXTRACT_JOB: {
+          // Extract job info using ML - always enabled for tracking unsupported sites
+          const text = payload?.text || '';
+          if (!text) {
+            response = { success: false, error: 'No text provided' };
+            break;
+          }
+
+          try {
+            // First try fast regex-based extraction
+            const extracted = extractJobInfoFromText(text);
+
+            // If company or position is missing, use ML model (NER)
+            if (!extracted.company || !extracted.position) {
+              console.log('JobTracker: Regex extraction incomplete, using ML model...');
+
+              try {
+                // Parse job posting with ML (init handled internally via singleton)
+                const mlResult = await aiService.parseJobPosting(text, true);
+
+                // Fill in missing fields from ML extraction
+                if (!extracted.company && mlResult.company) {
+                  extracted.company = mlResult.company;
+                  console.log('JobTracker: ML extracted company:', extracted.company);
+                }
+
+                if (!extracted.location && mlResult.location) {
+                  extracted.location = mlResult.location;
+                }
+
+                // Try to get position from skills/entities context if still missing
+                if (!extracted.position && mlResult.suggestedTags?.length > 0) {
+                  // Use tags as hints for position type
+                  extracted.suggestedTags = mlResult.suggestedTags;
+                }
+
+                // Add any skills found
+                if (mlResult.skills) {
+                  extracted.skills = mlResult.skills;
+                }
+
+              } catch (mlError) {
+                console.log('JobTracker: ML extraction failed, using regex only:', mlError.message);
+              }
+            }
+
+            response = { success: true, data: extracted };
+          } catch (error) {
+            console.log('JobTracker: Extraction error:', error);
+            response = { success: false, error: error.message };
+          }
+          break;
+        }
+
         default:
           response = { error: 'Unknown message type' };
       }
@@ -362,5 +621,110 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   return true; // Keep message channel open for async response
 });
+
+/**
+ * Extract job info from text using regex patterns
+ * Used for AI-assisted job extraction on unsupported sites
+ */
+function extractJobInfoFromText(text) {
+  const result = {
+    company: '',
+    position: '',
+    location: '',
+    salary: '',
+    jobType: '',
+    remote: ''
+  };
+
+  // Salary patterns
+  const salaryPatterns = [
+    /\$[\d,]+(?:k|K)?(?:\s*[-–to]+\s*\$?[\d,]+(?:k|K)?)?(?:\s*(?:per\s+)?(?:year|yr|annually|annual|pa|p\.a\.))?/gi,
+    /(?:salary|compensation|pay|package)[:\s]*\$?[\d,]+\s*[-–to]+\s*\$?[\d,]+/gi,
+    /£[\d,]+(?:k|K)?(?:\s*[-–to]+\s*£?[\d,]+(?:k|K)?)?/gi,
+    /€[\d,]+(?:k|K)?(?:\s*[-–to]+\s*€?[\d,]+(?:k|K)?)?/gi,
+    /(?:USD|EUR|GBP|INR)\s*[\d,]+(?:\s*[-–to]+\s*[\d,]+)?/gi
+  ];
+
+  for (const pattern of salaryPatterns) {
+    const match = text.match(pattern);
+    if (match) {
+      result.salary = match[0].trim();
+      break;
+    }
+  }
+
+  // Job type patterns
+  const jobTypeMatch = text.match(/\b(full[- ]?time|part[- ]?time|contract|freelance|internship|temporary|permanent)\b/i);
+  if (jobTypeMatch) {
+    result.jobType = jobTypeMatch[1].toLowerCase().replace(/[- ]/g, '-');
+  }
+
+  // Remote patterns
+  const remotePatterns = [
+    /\b(fully\s+remote|100%\s+remote|remote\s+only)\b/i,
+    /\b(hybrid|remote|on[- ]?site|in[- ]?office|work\s+from\s+home|wfh)\b/i
+  ];
+
+  for (const pattern of remotePatterns) {
+    const match = text.match(pattern);
+    if (match) {
+      const value = match[1].toLowerCase();
+      if (value.includes('remote') || value.includes('wfh') || value.includes('work from home')) {
+        result.remote = 'remote';
+      } else if (value.includes('hybrid')) {
+        result.remote = 'hybrid';
+      } else if (value.includes('site') || value.includes('office')) {
+        result.remote = 'onsite';
+      }
+      break;
+    }
+  }
+
+  // Location patterns - look for common location formats
+  const locationPatterns = [
+    /(?:location|based in|located in|office)[:\s]+([A-Z][a-zA-Z\s,]+(?:,\s*[A-Z]{2})?)/i,
+    /([A-Z][a-z]+(?:,\s*[A-Z]{2})?)\s*(?:\||-|–)\s*(?:remote|hybrid|on-?site)/i
+  ];
+
+  for (const pattern of locationPatterns) {
+    const match = text.match(pattern);
+    if (match && match[1]) {
+      result.location = match[1].trim();
+      break;
+    }
+  }
+
+  // Try to extract company name - look for common patterns
+  const companyPatterns = [
+    /(?:company|employer|organization|about\s+us)[:\s]+([A-Z][A-Za-z0-9\s&.,]+?)(?:\s+is|\s+was|\.|,|\n)/i,
+    /(?:join|work(?:ing)?\s+(?:at|for|with))\s+([A-Z][A-Za-z0-9\s&.]+?)(?:\s+as|\s+and|,|\.|\!)/i,
+    /([A-Z][A-Za-z0-9\s&.]+?)\s+is\s+(?:hiring|looking|seeking|recruiting)/i
+  ];
+
+  for (const pattern of companyPatterns) {
+    const match = text.match(pattern);
+    if (match && match[1] && match[1].length < 50) {
+      result.company = match[1].trim();
+      break;
+    }
+  }
+
+  // Try to extract position/title
+  const positionPatterns = [
+    /(?:position|role|title|job)[:\s]+([A-Z][A-Za-z0-9\s\-\/&]+?)(?:\s+at|\s+in|,|\.|\n)/i,
+    /(?:hiring|seeking|looking\s+for)\s+(?:a|an)?\s*([A-Z][A-Za-z0-9\s\-\/&]+?)(?:\s+to|\s+who|,|\.)/i,
+    /^([A-Z][A-Za-z0-9\s\-\/&]+?)\s+(?:position|role|opportunity|opening)/im
+  ];
+
+  for (const pattern of positionPatterns) {
+    const match = text.match(pattern);
+    if (match && match[1] && match[1].length < 80) {
+      result.position = match[1].trim();
+      break;
+    }
+  }
+
+  return result;
+}
 
 console.log('JobTracker: Background service worker loaded');

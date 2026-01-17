@@ -239,6 +239,90 @@ const ResumeParser = {
       pdfjs: typeof pdfjsLib !== 'undefined',
       mammoth: typeof mammoth !== 'undefined'
     };
+  },
+
+  /**
+   * Enhance parsed resume with AI
+   * Uses ML for better entity extraction and skill identification
+   * @param {Object} parsedData - Result from parse()
+   * @param {Object} aiService - AI service instance
+   * @returns {Promise<Object>} - Enhanced resume data
+   */
+  async enhanceWithAI(parsedData, aiService) {
+    if (!aiService || !parsedData.raw) {
+      return parsedData;
+    }
+
+    try {
+      console.log('[ResumeParser] Enhancing with AI...');
+
+      const text = parsedData.raw;
+      const aiResult = await aiService.parseResume(text, true);
+
+      // Merge AI extractions with existing data
+      const enhanced = { ...parsedData };
+
+      // Enhance personal info with NER results
+      if (aiResult.entities) {
+        // Use AI-detected name if not already found
+        if (!enhanced.extracted.personal?.firstName && aiResult.entities.persons?.length > 0) {
+          const nameParts = this.splitName(aiResult.entities.persons[0]);
+          enhanced.extracted.personal = enhanced.extracted.personal || {};
+          enhanced.extracted.personal.firstName = nameParts.firstName;
+          enhanced.extracted.personal.lastName = nameParts.lastName;
+        }
+
+        // Add AI-detected emails
+        if (aiResult.emails?.length > 0 && !enhanced.extracted.personal?.email) {
+          enhanced.extracted.personal = enhanced.extracted.personal || {};
+          enhanced.extracted.personal.email = aiResult.emails[0];
+        }
+
+        // Add AI-detected phones
+        if (aiResult.phones?.length > 0 && !enhanced.extracted.personal?.phone) {
+          enhanced.extracted.personal = enhanced.extracted.personal || {};
+          enhanced.extracted.personal.phone = aiResult.phones[0];
+        }
+
+        // Add AI-detected LinkedIn
+        if (aiResult.linkedin && !enhanced.extracted.personal?.linkedIn) {
+          enhanced.extracted.personal = enhanced.extracted.personal || {};
+          enhanced.extracted.personal.linkedIn = aiResult.linkedin;
+        }
+      }
+
+      // Enhance skills with AI extraction
+      if (aiResult.skills) {
+        enhanced.extracted.skills = enhanced.extracted.skills || {};
+
+        // Merge AI skills with existing skills
+        for (const [category, skills] of Object.entries(aiResult.skills)) {
+          if (!enhanced.extracted.skills[category]) {
+            enhanced.extracted.skills[category] = [];
+          }
+          // Add unique skills
+          for (const skill of skills) {
+            if (!enhanced.extracted.skills[category].includes(skill)) {
+              enhanced.extracted.skills[category].push(skill);
+            }
+          }
+        }
+      }
+
+      // Add suggested tags
+      if (aiResult.suggestedTags?.length > 0) {
+        enhanced.suggestedTags = aiResult.suggestedTags;
+      }
+
+      // Re-normalize with enhanced data
+      enhanced.normalized = ResumeDataNormalizer.normalize(enhanced.extracted);
+
+      console.log('[ResumeParser] AI enhancement complete');
+      return enhanced;
+    } catch (error) {
+      console.warn('[ResumeParser] AI enhancement failed:', error);
+      return parsedData; // Return original if AI fails
+    }
   }
 };
 

@@ -254,9 +254,30 @@
   async function handleIApplied() {
     if (hasApplied) return;
 
-    const jobInfo = extractJobInfo();
+    // Try standard extraction first
+    let jobInfo = extractJobInfo();
 
-    // If extraction failed, show quick add modal
+    // If on unsupported site and extraction failed, try AI extraction
+    if (jobInfo.platform === 'other' && (!jobInfo.company || !jobInfo.position)) {
+      // Check if AI extractor is available
+      if (typeof window.__jobTrackerAIExtract === 'function') {
+        try {
+          const aiJobInfo = await window.__jobTrackerAIExtract();
+          if (aiJobInfo) {
+            // Merge AI results with existing (AI results fill in gaps)
+            for (const [key, value] of Object.entries(aiJobInfo)) {
+              if (value && !jobInfo[key]) {
+                jobInfo[key] = value;
+              }
+            }
+          }
+        } catch (error) {
+          console.log('JobTracker: AI extraction failed:', error);
+        }
+      }
+    }
+
+    // If extraction still failed, show quick add modal
     if (!jobInfo.company && !jobInfo.position) {
       const result = await showQuickAddModal(jobInfo);
       if (!result) return; // User cancelled
@@ -417,20 +438,53 @@
             <button class="jobtracker-quick-add-close">&times;</button>
           </div>
           <div class="jobtracker-quick-add-body">
-            <div class="jobtracker-quick-add-field">
-              <label for="jt-company">Company</label>
-              <input type="text" id="jt-company" placeholder="e.g., Google" value="${escapeHtml(prefill.company || '')}">
+            <div class="jobtracker-quick-add-row">
+              <div class="jobtracker-quick-add-field">
+                <label for="jt-company">Company</label>
+                <input type="text" id="jt-company" placeholder="e.g., Google" value="${escapeHtml(prefill.company || '')}">
+              </div>
+              <div class="jobtracker-quick-add-field">
+                <label for="jt-position">Position</label>
+                <input type="text" id="jt-position" placeholder="e.g., Software Engineer" value="${escapeHtml(prefill.position || '')}">
+              </div>
             </div>
-            <div class="jobtracker-quick-add-field">
-              <label for="jt-position">Position</label>
-              <input type="text" id="jt-position" placeholder="e.g., Software Engineer" value="${escapeHtml(prefill.position || '')}">
+            <div class="jobtracker-quick-add-row">
+              <div class="jobtracker-quick-add-field">
+                <label for="jt-location">Location <span class="jobtracker-optional-label">(optional)</span></label>
+                <input type="text" id="jt-location" placeholder="e.g., San Francisco, CA" value="${escapeHtml(prefill.location || '')}">
+              </div>
+              <div class="jobtracker-quick-add-field">
+                <label for="jt-salary">Salary <span class="jobtracker-optional-label">(optional)</span></label>
+                <input type="text" id="jt-salary" placeholder="e.g., $100k - $150k" value="${escapeHtml(prefill.salary || '')}">
+              </div>
+            </div>
+            <div class="jobtracker-quick-add-row">
+              <div class="jobtracker-quick-add-field">
+                <label for="jt-jobtype">Job Type <span class="jobtracker-optional-label">(optional)</span></label>
+                <select id="jt-jobtype">
+                  <option value="">Select...</option>
+                  <option value="full-time" ${prefill.jobType === 'full-time' ? 'selected' : ''}>Full-time</option>
+                  <option value="part-time" ${prefill.jobType === 'part-time' ? 'selected' : ''}>Part-time</option>
+                  <option value="contract" ${prefill.jobType === 'contract' ? 'selected' : ''}>Contract</option>
+                  <option value="internship" ${prefill.jobType === 'internship' ? 'selected' : ''}>Internship</option>
+                </select>
+              </div>
+              <div class="jobtracker-quick-add-field">
+                <label for="jt-remote">Remote <span class="jobtracker-optional-label">(optional)</span></label>
+                <select id="jt-remote">
+                  <option value="">Select...</option>
+                  <option value="remote" ${prefill.remote === 'remote' ? 'selected' : ''}>Remote</option>
+                  <option value="hybrid" ${prefill.remote === 'hybrid' ? 'selected' : ''}>Hybrid</option>
+                  <option value="onsite" ${prefill.remote === 'onsite' ? 'selected' : ''}>On-site</option>
+                </select>
+              </div>
             </div>
             <div class="jobtracker-quick-add-field">
               <label for="jt-description">
                 Job Description
                 <span class="jobtracker-optional-label">(optional)</span>
               </label>
-              <textarea id="jt-description" placeholder="Paste or auto-extracted job description..." rows="4">${escapeHtml(prefill.jobDescription || '')}</textarea>
+              <textarea id="jt-description" placeholder="Paste or auto-extracted job description..." rows="3">${escapeHtml(prefill.jobDescription || '')}</textarea>
             </div>
           </div>
           <div class="jobtracker-quick-add-footer">
@@ -464,6 +518,10 @@
       const saveData = () => {
         const company = companyInput.value.trim();
         const position = positionInput.value.trim();
+        const location = quickAddModal.querySelector('#jt-location')?.value.trim() || '';
+        const salary = quickAddModal.querySelector('#jt-salary')?.value.trim() || '';
+        const jobType = quickAddModal.querySelector('#jt-jobtype')?.value || '';
+        const remote = quickAddModal.querySelector('#jt-remote')?.value || '';
         const jobDescription = descriptionInput.value.trim();
 
         if (!company && !position) {
@@ -473,7 +531,7 @@
 
         quickAddModal.remove();
         quickAddModal = null;
-        resolve({ company, position, jobDescription });
+        resolve({ company, position, location, salary, jobType, remote, jobDescription });
       };
 
       quickAddModal.querySelector('.jobtracker-quick-add-close').addEventListener('click', closeModal);
@@ -537,6 +595,24 @@
   // Track current application
   async function trackCurrentApplication(status = 'saved') {
     let jobInfo = extractJobInfo();
+
+    // If on unsupported site, try AI extraction
+    if (jobInfo.platform === 'other' && (!jobInfo.company || !jobInfo.position)) {
+      if (typeof window.__jobTrackerAIExtract === 'function') {
+        try {
+          const aiJobInfo = await window.__jobTrackerAIExtract();
+          if (aiJobInfo) {
+            for (const [key, value] of Object.entries(aiJobInfo)) {
+              if (value && !jobInfo[key]) {
+                jobInfo[key] = value;
+              }
+            }
+          }
+        } catch (error) {
+          console.log('JobTracker: AI extraction failed:', error);
+        }
+      }
+    }
 
     if (!jobInfo.company && !jobInfo.position) {
       const result = await showQuickAddModal(jobInfo);

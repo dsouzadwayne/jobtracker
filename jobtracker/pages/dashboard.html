@@ -48,9 +48,31 @@
           </svg>
           <span>Profile</span>
         </a>
+        <a href="#" class="nav-item" data-view="supported-sites">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="2" y1="12" x2="22" y2="12"></line>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+          </svg>
+          <span>Supported Sites</span>
+        </a>
       </nav>
 
       <div class="sidebar-footer">
+        <div class="ai-toggle-container" id="ai-toggle-container">
+          <label class="toggle-switch" title="Enable AI features for smart tag suggestions and enhanced parsing">
+            <input type="checkbox" id="ai-toggle">
+            <span class="toggle-slider"></span>
+          </label>
+          <span class="toggle-label">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z"></path>
+              <circle cx="8" cy="14" r="1"></circle>
+              <circle cx="16" cy="14" r="1"></circle>
+            </svg>
+            AI
+          </span>
+        </div>
         <button class="theme-toggle" id="theme-toggle" title="Toggle theme" aria-label="Toggle dark/light theme">
           <svg class="icon-light" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <circle cx="12" cy="12" r="5"></circle>
@@ -293,6 +315,56 @@
           </div>
         </div>
 
+        <!-- CRM Enhancement: Widgets Panel -->
+        <div class="crm-widgets-panel hidden" id="crm-widgets-panel">
+          <!-- Upcoming Interviews Widget -->
+          <div class="crm-widget" id="upcoming-interviews-widget">
+            <div class="widget-header">
+              <h4>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="16" y1="2" x2="16" y2="6"></line>
+                  <line x1="8" y1="2" x2="8" y2="6"></line>
+                  <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+                Upcoming Interviews
+              </h4>
+            </div>
+            <div class="widget-content" id="upcoming-interviews-list">
+              <!-- Interviews will be rendered by JS -->
+              <div class="widget-empty">
+                <p>No upcoming interviews scheduled</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tasks Widget -->
+          <div class="crm-widget" id="tasks-widget">
+            <div class="widget-header">
+              <h4>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M9 11l3 3L22 4"></path>
+                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                </svg>
+                Tasks
+              </h4>
+              <button class="btn-sm btn-secondary" id="add-task-btn">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                Add
+              </button>
+            </div>
+            <div class="widget-content" id="tasks-list">
+              <!-- Tasks will be rendered by JS -->
+              <div class="widget-empty">
+                <p>No pending tasks</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Date Range Filter (Phase 3) -->
         <div class="date-range-filter hidden" id="date-range-filter">
           <div class="filter-presets">
@@ -383,6 +455,11 @@
         </div>
       </section>
 
+      <!-- CRM Enhancement: Tag Filter -->
+      <div class="tag-filter-container hidden" id="tag-filter-container">
+        <!-- Tag chips will be rendered by JS -->
+      </div>
+
       <!-- Applications List -->
       <section class="applications-section">
         <div id="applications-list" class="applications-grid">
@@ -429,6 +506,157 @@
           </button>
         </div>
       </section>
+
+      <!-- Supported Sites Section -->
+      <section class="supported-sites-section hidden" id="supported-sites-section" aria-label="Supported job sites">
+        <div class="section-header">
+          <h2>Supported Sites</h2>
+          <p class="section-description">JobTracker supports autofill on these job platforms</p>
+        </div>
+
+        <div class="sites-grid" id="sites-grid">
+          <div class="site-card">
+            <div class="site-logo" style="background-color: #0077b5;">
+              <span>in</span>
+            </div>
+            <div class="site-info">
+              <h4>LinkedIn</h4>
+              <p>linkedin.com</p>
+              <div class="site-features">
+                <span class="feature-tag">Autofill</span>
+                <span class="feature-tag">Auto-detect</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="site-card">
+            <div class="site-logo" style="background-color: #2164f3;">
+              <span>in</span>
+            </div>
+            <div class="site-info">
+              <h4>Indeed</h4>
+              <p>indeed.com</p>
+              <div class="site-features">
+                <span class="feature-tag">Autofill</span>
+                <span class="feature-tag">Auto-detect</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="site-card">
+            <div class="site-logo" style="background-color: #0caa41;">
+              <span>G</span>
+            </div>
+            <div class="site-info">
+              <h4>Glassdoor</h4>
+              <p>glassdoor.com</p>
+              <div class="site-features">
+                <span class="feature-tag">Autofill</span>
+                <span class="feature-tag">Auto-detect</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="site-card">
+            <div class="site-logo" style="background-color: #0875e1;">
+              <span>W</span>
+            </div>
+            <div class="site-info">
+              <h4>Workday</h4>
+              <p>myworkdayjobs.com</p>
+              <div class="site-features">
+                <span class="feature-tag">Autofill</span>
+                <span class="feature-tag">Auto-detect</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="site-card">
+            <div class="site-logo" style="background-color: #3ab549;">
+              <span>GH</span>
+            </div>
+            <div class="site-info">
+              <h4>Greenhouse</h4>
+              <p>boards.greenhouse.io</p>
+              <div class="site-features">
+                <span class="feature-tag">Autofill</span>
+                <span class="feature-tag">ATS</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="site-card">
+            <div class="site-logo" style="background-color: #1a1a1a;">
+              <span>L</span>
+            </div>
+            <div class="site-info">
+              <h4>Lever</h4>
+              <p>jobs.lever.co</p>
+              <div class="site-features">
+                <span class="feature-tag">Autofill</span>
+                <span class="feature-tag">ATS</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="site-card">
+            <div class="site-logo" style="background-color: #00a0df;">
+              <span>iC</span>
+            </div>
+            <div class="site-info">
+              <h4>iCIMS</h4>
+              <p>*.icims.com</p>
+              <div class="site-features">
+                <span class="feature-tag">Autofill</span>
+                <span class="feature-tag">ATS</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="site-card">
+            <div class="site-logo" style="background-color: #10b981;">
+              <span>SR</span>
+            </div>
+            <div class="site-info">
+              <h4>SmartRecruiters</h4>
+              <p>jobs.smartrecruiters.com</p>
+              <div class="site-features">
+                <span class="feature-tag">Autofill</span>
+                <span class="feature-tag">ATS</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="site-card">
+            <div class="site-logo" style="background-color: #4285f4;">
+              <span>N</span>
+            </div>
+            <div class="site-info">
+              <h4>Naukri</h4>
+              <p>naukri.com (India)</p>
+              <div class="site-features">
+                <span class="feature-tag">Autofill</span>
+                <span class="feature-tag">Regional</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="site-card site-card-generic">
+            <div class="site-logo" style="background-color: #6b7280;">
+              <span>+</span>
+            </div>
+            <div class="site-info">
+              <h4>Other Sites</h4>
+              <p>Generic form detection</p>
+              <div class="site-features">
+                <span class="feature-tag">Basic Autofill</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
     </main>
 
     <!-- Details Panel (visible on large screens when app selected) -->
@@ -536,6 +764,19 @@
           <textarea id="app-notes" rows="3" placeholder="Any notes about this application..."></textarea>
         </div>
 
+        <!-- CRM Enhancement: Tags and Deadline -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="app-tags">Tags</label>
+            <input type="text" id="app-tags" placeholder="e.g., Dream Job, Remote, Startup (comma-separated)">
+            <small class="form-hint">Separate multiple tags with commas</small>
+          </div>
+          <div class="form-group">
+            <label for="app-deadline">Application Deadline</label>
+            <input type="date" id="app-deadline">
+          </div>
+        </div>
+
         <div class="form-actions">
           <button type="button" class="btn-cancel" id="cancel-btn">Cancel</button>
           <button type="button" class="btn-danger hidden" id="delete-btn">Delete</button>
@@ -600,9 +841,160 @@
     </div>
   </div>
 
+  <!-- CRM Enhancement: Interview Modal -->
+  <div id="interview-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="interview-modal-title">
+    <div class="modal-content modal-md">
+      <div class="modal-header">
+        <h3 id="interview-modal-title">Schedule Interview</h3>
+        <button class="close-btn" id="close-interview-modal" aria-label="Close modal">&times;</button>
+      </div>
+      <form id="interview-form">
+        <input type="hidden" id="interview-id">
+        <input type="hidden" id="interview-app-id">
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="interview-round">Round</label>
+            <input type="number" id="interview-round" min="1" max="10" value="1">
+          </div>
+          <div class="form-group">
+            <label for="interview-type">Interview Type</label>
+            <select id="interview-type">
+              <option value="">Select type...</option>
+              <option value="Phone Screen">Phone Screen</option>
+              <option value="Technical">Technical</option>
+              <option value="Behavioral">Behavioral</option>
+              <option value="System Design">System Design</option>
+              <option value="Onsite">Onsite</option>
+              <option value="Final">Final</option>
+              <option value="HR">HR</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="interview-date">Date & Time *</label>
+            <input type="datetime-local" id="interview-date" required>
+          </div>
+          <div class="form-group">
+            <label for="interview-duration">Duration (mins)</label>
+            <input type="number" id="interview-duration" min="15" max="480" value="60" step="15">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="interview-location">Location / Meeting Link</label>
+          <input type="text" id="interview-location" placeholder="e.g., Zoom, Google Meet URL, or address">
+        </div>
+
+        <div class="form-group">
+          <label for="interview-notes">Notes</label>
+          <textarea id="interview-notes" rows="2" placeholder="Interviewer names, preparation notes, etc."></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="interview-outcome">Outcome</label>
+          <select id="interview-outcome">
+            <option value="Pending">Pending</option>
+            <option value="Passed">Passed</option>
+            <option value="Failed">Failed</option>
+            <option value="Cancelled">Cancelled</option>
+          </select>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn-cancel" id="cancel-interview-btn">Cancel</button>
+          <button type="submit" class="btn-primary">Save Interview</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- CRM Enhancement: Task Modal (Enhanced with Planify-inspired features) -->
+  <div id="task-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="task-modal-title">
+    <div class="modal-content modal-md">
+      <div class="modal-header">
+        <h3 id="task-modal-title">Add Task</h3>
+        <button class="close-btn" id="close-task-modal" aria-label="Close modal">&times;</button>
+      </div>
+      <form id="task-form">
+        <input type="hidden" id="task-id">
+        <input type="hidden" id="task-app-id">
+
+        <div class="form-group">
+          <label for="task-title">Task Title *</label>
+          <input type="text" id="task-title" required placeholder="e.g., Follow up on application">
+        </div>
+
+        <div class="form-group">
+          <label for="task-description">Description</label>
+          <textarea id="task-description" rows="2" placeholder="Additional details..."></textarea>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="task-type">Task Type</label>
+            <select id="task-type">
+              <option value="general">General</option>
+              <option value="follow_up">Follow-up</option>
+              <option value="interview_prep">Interview Prep</option>
+              <option value="application">Application</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="task-priority">Priority</label>
+            <select id="task-priority">
+              <option value="4">Low</option>
+              <option value="3" selected>Normal</option>
+              <option value="2">High</option>
+              <option value="1">Urgent</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="task-due-date">Due Date</label>
+            <input type="date" id="task-due-date">
+          </div>
+          <div class="form-group">
+            <label for="task-due-time">Due Time</label>
+            <input type="time" id="task-due-time">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="task-reminder-type">Reminder</label>
+          <select id="task-reminder-type">
+            <option value="">No reminder</option>
+            <option value="0">At due time</option>
+            <option value="-15">15 minutes before</option>
+            <option value="-30">30 minutes before</option>
+            <option value="-60">1 hour before</option>
+            <option value="-1440">1 day before</option>
+            <option value="custom">Custom date/time</option>
+          </select>
+        </div>
+
+        <div class="form-group hidden" id="task-custom-reminder-group">
+          <label for="task-reminder-date">Custom Reminder Time</label>
+          <input type="datetime-local" id="task-reminder-date">
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn-cancel" id="cancel-task-btn">Cancel</button>
+          <button type="submit" class="btn-primary">Save Task</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script src="../lib/chart.min.js"></script>
   <script src="../lib/heatmap.lib.js"></script>
   <script src="heatmap.js"></script>
-  <script src="dashboard.js"></script>
+  <!-- Modular dashboard scripts -->
+  <script type="module" src="dashboard/index.js"></script>
 </body>
 </html>

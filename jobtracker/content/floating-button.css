@@ -270,7 +270,7 @@
 
 .jobtracker-quick-add-modal {
   width: 90%;
-  max-width: 25rem;
+  max-width: 32rem;
   background: #FDFCFB;
   border-radius: 1rem;
   box-shadow: 0 24px 48px rgba(26, 25, 23, 0.25);
@@ -327,6 +327,17 @@
   padding: 1.5rem;
 }
 
+.jobtracker-quick-add-row {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.jobtracker-quick-add-row .jobtracker-quick-add-field {
+  flex: 1;
+  margin-bottom: 0;
+}
+
 .jobtracker-quick-add-field {
   margin-bottom: 1rem;
 }
@@ -363,6 +374,30 @@
 
 .jobtracker-quick-add-field input::placeholder {
   color: #A8A5A0;
+}
+
+.jobtracker-quick-add-field select {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: #FDFCFB;
+  border: 1px solid #D9D7D4;
+  border-radius: 0.625rem;
+  font-size: 0.9375rem;
+  color: #2A2826;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  box-sizing: border-box;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235C5955' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  padding-right: 2.5rem;
+}
+
+.jobtracker-quick-add-field select:focus {
+  outline: none;
+  border-color: #6B9080;
+  box-shadow: 0 0 0 3px rgba(107, 144, 128, 0.15);
 }
 
 .jobtracker-quick-add-field textarea {
@@ -569,6 +604,18 @@
     color: #6B6863;
   }
 
+  .jobtracker-quick-add-field select {
+    background-color: #242321;
+    border-color: #3D3B38;
+    color: #F5F4F2;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23A8A5A0' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  }
+
+  .jobtracker-quick-add-field select:focus {
+    border-color: #7BA090;
+    box-shadow: 0 0 0 3px rgba(123, 160, 144, 0.2);
+  }
+
   .jobtracker-quick-add-field textarea {
     background: #242321;
     border-color: #3D3B38;
@@ -664,5 +711,14 @@
 
   .jobtracker-quick-add-footer {
     flex-direction: column;
+  }
+
+  .jobtracker-quick-add-row {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .jobtracker-quick-add-row .jobtracker-quick-add-field {
+    margin-bottom: 1rem;
   }
 }

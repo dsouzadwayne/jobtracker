@@ -5,7 +5,7 @@
 
 const JobTrackerDB = {
   DB_NAME: 'JobTrackerDB',
-  DB_VERSION: 1,
+  DB_VERSION: 2,
   db: null,
 
   // Object store names
@@ -13,7 +13,10 @@ const JobTrackerDB = {
     APPLICATIONS: 'applications',
     PROFILE: 'profile',
     SETTINGS: 'settings',
-    META: 'meta'
+    META: 'meta',
+    INTERVIEWS: 'interviews',
+    TASKS: 'tasks',
+    ACTIVITIES: 'activities'
   },
 
   /**
@@ -38,6 +41,7 @@ const JobTrackerDB = {
 
       request.onupgradeneeded = (event) => {
         const db = event.target.result;
+        const oldVersion = event.oldVersion;
 
         // Applications store with indexes
         if (!db.objectStoreNames.contains(this.STORES.APPLICATIONS)) {
@@ -46,6 +50,14 @@ const JobTrackerDB = {
           appStore.createIndex('status', 'status', { unique: false });
           appStore.createIndex('dateApplied', 'dateApplied', { unique: false });
           appStore.createIndex('platform', 'platform', { unique: false });
+          appStore.createIndex('deadline', 'deadline', { unique: false });
+        } else if (oldVersion < 2) {
+          // Add deadline index to existing applications store
+          const transaction = event.target.transaction;
+          const appStore = transaction.objectStore(this.STORES.APPLICATIONS);
+          if (!appStore.indexNames.contains('deadline')) {
+            appStore.createIndex('deadline', 'deadline', { unique: false });
+          }
         }
 
         // Profile store (single record)
@@ -61,6 +73,31 @@ const JobTrackerDB = {
         // Meta store for migration flags etc.
         if (!db.objectStoreNames.contains(this.STORES.META)) {
           db.createObjectStore(this.STORES.META, { keyPath: 'id' });
+        }
+
+        // Interviews store (CRM Enhancement - Phase B)
+        if (!db.objectStoreNames.contains(this.STORES.INTERVIEWS)) {
+          const interviewStore = db.createObjectStore(this.STORES.INTERVIEWS, { keyPath: 'id' });
+          interviewStore.createIndex('applicationId', 'applicationId', { unique: false });
+          interviewStore.createIndex('scheduledDate', 'scheduledDate', { unique: false });
+          interviewStore.createIndex('outcome', 'outcome', { unique: false });
+        }
+
+        // Tasks store (CRM Enhancement - Phase C)
+        if (!db.objectStoreNames.contains(this.STORES.TASKS)) {
+          const taskStore = db.createObjectStore(this.STORES.TASKS, { keyPath: 'id' });
+          taskStore.createIndex('applicationId', 'applicationId', { unique: false });
+          taskStore.createIndex('dueDate', 'dueDate', { unique: false });
+          taskStore.createIndex('completed', 'completed', { unique: false });
+          taskStore.createIndex('reminderDate', 'reminderDate', { unique: false });
+        }
+
+        // Activities store (CRM Enhancement - Phase C)
+        if (!db.objectStoreNames.contains(this.STORES.ACTIVITIES)) {
+          const activityStore = db.createObjectStore(this.STORES.ACTIVITIES, { keyPath: 'id' });
+          activityStore.createIndex('applicationId', 'applicationId', { unique: false });
+          activityStore.createIndex('type', 'type', { unique: false });
+          activityStore.createIndex('timestamp', 'timestamp', { unique: false });
         }
 
         console.log('JobTracker: Database schema created/upgraded');
@@ -172,6 +209,10 @@ const JobTrackerDB = {
     const app = {
       ...application,
       id: application.id || this.generateId(),
+      // CRM Enhancement: Initialize tags and deadline
+      tags: application.tags || [],
+      deadline: application.deadline || null,
+      deadlineAlert: application.deadlineAlert !== false,
       meta: {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -189,7 +230,17 @@ const JobTrackerDB = {
       const store = transaction.objectStore(this.STORES.APPLICATIONS);
       const request = store.add(app);
 
-      request.onsuccess = () => resolve({ success: true, application: app });
+      request.onsuccess = () => {
+        // Create initial activity entry
+        this.addActivity({
+          applicationId: app.id,
+          type: 'application_created',
+          title: `Application added`,
+          description: `Applied to ${app.position} at ${app.company}`,
+          metadata: { status: app.status }
+        });
+        resolve({ success: true, application: app });
+      };
       request.onerror = () => reject(request.error);
     });
   },
@@ -210,6 +261,8 @@ const JobTrackerDB = {
     const updated = {
       ...existing,
       ...application,
+      // Ensure tags is always an array
+      tags: application.tags || existing.tags || [],
       meta: {
         ...existing.meta,
         updatedAt: new Date().toISOString()
@@ -231,7 +284,19 @@ const JobTrackerDB = {
       const store = transaction.objectStore(this.STORES.APPLICATIONS);
       const request = store.put(updated);
 
-      request.onsuccess = () => resolve({ success: true, application: updated });
+      request.onsuccess = () => {
+        // Create activity for status change
+        if (application.status && application.status !== oldStatus) {
+          this.addActivity({
+            applicationId: updated.id,
+            type: 'status_change',
+            title: `Status changed to ${application.status}`,
+            description: application.statusNote || `Changed from ${oldStatus} to ${application.status}`,
+            metadata: { oldStatus, newStatus: application.status }
+          });
+        }
+        resolve({ success: true, application: updated });
+      };
       request.onerror = () => reject(request.error);
     });
   },
@@ -426,15 +491,46 @@ const JobTrackerDB = {
     const dailyCounts = {};
     const now = new Date();
     const start = startDate || new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
-    const end = endDate || now;
+    // Set end to end of today (local time) to include all applications dated "today"
+    // This handles timezone differences when dates are stored as UTC midnight
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+    const end = endDate || todayEnd;
+
+    // Helper to extract date key from dateApplied string or Date
+    // Must match the heatmap renderer's local date format (YYYY-MM-DD)
+    const getDateKey = (dateValue) => {
+      if (!dateValue) return null;
+
+      // If it's a string that looks like an ISO date (starts with YYYY-MM-DD)
+      if (typeof dateValue === 'string') {
+        // Extract YYYY-MM-DD from start of string (handles "2026-01-18" or "2026-01-18T...")
+        const match = dateValue.match(/^(\d{4}-\d{2}-\d{2})/);
+        if (match) {
+          return match[1];
+        }
+      }
+
+      // For Date objects or other formats, parse and use UTC date components
+      // (since dates are typically stored as UTC midnight)
+      const date = new Date(dateValue);
+      if (isNaN(date.getTime())) return null;
+
+      // Use UTC methods to avoid timezone shifting
+      const year = date.getUTCFullYear();
+      const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(date.getUTCDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
 
     applications.forEach(app => {
-      const appDate = new Date(app.dateApplied || app.meta?.createdAt);
-      if (isNaN(appDate.getTime())) return;
+      const dateSource = app.dateApplied || app.meta?.createdAt;
+      const dateKey = getDateKey(dateSource);
+      if (!dateKey) return;
 
       // Check if date is within range
+      const appDate = new Date(dateSource);
       if (appDate >= start && appDate <= end) {
-        const dateKey = appDate.toISOString().split('T')[0];
         dailyCounts[dateKey] = (dailyCounts[dateKey] || 0) + 1;
       }
     });
@@ -527,6 +623,450 @@ const JobTrackerDB = {
       const appDate = new Date(app.dateApplied || app.meta?.createdAt);
       return appDate >= startDate;
     });
+  },
+
+  // ==================== INTERVIEWS (CRM Phase B) ====================
+
+  /**
+   * Get all interviews
+   */
+  async getAllInterviews() {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.INTERVIEWS], 'readonly');
+      const store = transaction.objectStore(this.STORES.INTERVIEWS);
+      const request = store.getAll();
+
+      request.onsuccess = () => {
+        const interviews = request.result.sort((a, b) => {
+          const dateA = new Date(a.scheduledDate);
+          const dateB = new Date(b.scheduledDate);
+          return dateA - dateB;
+        });
+        resolve(interviews);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Get interviews for a specific application
+   */
+  async getInterviewsByApplication(applicationId) {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.INTERVIEWS], 'readonly');
+      const store = transaction.objectStore(this.STORES.INTERVIEWS);
+      const index = store.index('applicationId');
+      const request = index.getAll(applicationId);
+
+      request.onsuccess = () => {
+        const interviews = request.result.sort((a, b) => a.round - b.round);
+        resolve(interviews);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Get upcoming interviews (future scheduled dates)
+   */
+  async getUpcomingInterviews(limit = 10) {
+    const interviews = await this.getAllInterviews();
+    const now = new Date();
+    return interviews
+      .filter(i => new Date(i.scheduledDate) >= now && i.outcome === 'Pending')
+      .slice(0, limit);
+  },
+
+  /**
+   * Add interview
+   */
+  async addInterview(interview) {
+    await this.init();
+
+    const interviewData = {
+      ...interview,
+      id: interview.id || this.generateId(),
+      outcome: interview.outcome || 'Pending',
+      createdAt: new Date().toISOString()
+    };
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.INTERVIEWS], 'readwrite');
+      const store = transaction.objectStore(this.STORES.INTERVIEWS);
+      const request = store.add(interviewData);
+
+      request.onsuccess = () => {
+        // Also create an activity entry
+        this.addActivity({
+          applicationId: interviewData.applicationId,
+          type: 'interview_scheduled',
+          title: `Interview scheduled: ${interviewData.type || 'Round ' + interviewData.round}`,
+          description: `Scheduled for ${new Date(interviewData.scheduledDate).toLocaleDateString()}`,
+          metadata: { interviewId: interviewData.id }
+        });
+        resolve({ success: true, interview: interviewData });
+      };
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Update interview
+   */
+  async updateInterview(interview) {
+    await this.init();
+
+    const existing = await this.getInterview(interview.id);
+    if (!existing) {
+      throw new Error('Interview not found');
+    }
+
+    const updated = {
+      ...existing,
+      ...interview,
+      updatedAt: new Date().toISOString()
+    };
+
+    // Check if outcome changed
+    const outcomeChanged = existing.outcome !== updated.outcome;
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.INTERVIEWS], 'readwrite');
+      const store = transaction.objectStore(this.STORES.INTERVIEWS);
+      const request = store.put(updated);
+
+      request.onsuccess = () => {
+        if (outcomeChanged) {
+          this.addActivity({
+            applicationId: updated.applicationId,
+            type: 'interview_outcome',
+            title: `Interview outcome: ${updated.outcome}`,
+            description: `${updated.type || 'Round ' + updated.round} - ${updated.outcome}`,
+            metadata: { interviewId: updated.id, outcome: updated.outcome }
+          });
+        }
+        resolve({ success: true, interview: updated });
+      };
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Get single interview
+   */
+  async getInterview(id) {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.INTERVIEWS], 'readonly');
+      const store = transaction.objectStore(this.STORES.INTERVIEWS);
+      const request = store.get(id);
+
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Delete interview
+   */
+  async deleteInterview(id) {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.INTERVIEWS], 'readwrite');
+      const store = transaction.objectStore(this.STORES.INTERVIEWS);
+      const request = store.delete(id);
+
+      request.onsuccess = () => resolve({ success: true });
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  // ==================== TASKS (CRM Phase C) ====================
+
+  /**
+   * Get all tasks
+   */
+  async getAllTasks() {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.TASKS], 'readonly');
+      const store = transaction.objectStore(this.STORES.TASKS);
+      const request = store.getAll();
+
+      request.onsuccess = () => {
+        const tasks = request.result.sort((a, b) => {
+          const dateA = new Date(a.dueDate || '9999-12-31');
+          const dateB = new Date(b.dueDate || '9999-12-31');
+          return dateA - dateB;
+        });
+        resolve(tasks);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Get tasks for a specific application
+   */
+  async getTasksByApplication(applicationId) {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.TASKS], 'readonly');
+      const store = transaction.objectStore(this.STORES.TASKS);
+      const index = store.index('applicationId');
+      const request = index.getAll(applicationId);
+
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Get upcoming/overdue tasks
+   */
+  async getUpcomingTasks(limit = 10) {
+    const tasks = await this.getAllTasks();
+    return tasks
+      .filter(t => !t.completed)
+      .slice(0, limit);
+  },
+
+  /**
+   * Get tasks due for reminder
+   */
+  async getTasksForReminder() {
+    const tasks = await this.getAllTasks();
+    const now = new Date();
+    return tasks.filter(t => {
+      if (t.completed) return false;
+      if (!t.reminderDate) return false;
+      const reminderDate = new Date(t.reminderDate);
+      return reminderDate <= now;
+    });
+  },
+
+  /**
+   * Add task
+   */
+  async addTask(task) {
+    await this.init();
+
+    const taskData = {
+      ...task,
+      id: task.id || this.generateId(),
+      completed: false,
+      completedAt: null,
+      createdAt: new Date().toISOString()
+    };
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.TASKS], 'readwrite');
+      const store = transaction.objectStore(this.STORES.TASKS);
+      const request = store.add(taskData);
+
+      request.onsuccess = () => {
+        // Create activity if linked to application
+        if (taskData.applicationId) {
+          this.addActivity({
+            applicationId: taskData.applicationId,
+            type: 'task_created',
+            title: `Task created: ${taskData.title}`,
+            description: taskData.dueDate ? `Due: ${new Date(taskData.dueDate).toLocaleDateString()}` : '',
+            metadata: { taskId: taskData.id }
+          });
+        }
+        resolve({ success: true, task: taskData });
+      };
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Update task
+   */
+  async updateTask(task) {
+    await this.init();
+
+    const existing = await this.getTask(task.id);
+    if (!existing) {
+      throw new Error('Task not found');
+    }
+
+    const wasCompleted = existing.completed;
+    const updated = {
+      ...existing,
+      ...task,
+      updatedAt: new Date().toISOString()
+    };
+
+    // If task just completed, set completedAt
+    if (task.completed && !wasCompleted) {
+      updated.completedAt = new Date().toISOString();
+    }
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.TASKS], 'readwrite');
+      const store = transaction.objectStore(this.STORES.TASKS);
+      const request = store.put(updated);
+
+      request.onsuccess = () => {
+        if (task.completed && !wasCompleted && updated.applicationId) {
+          this.addActivity({
+            applicationId: updated.applicationId,
+            type: 'task_completed',
+            title: `Task completed: ${updated.title}`,
+            description: '',
+            metadata: { taskId: updated.id }
+          });
+        }
+        resolve({ success: true, task: updated });
+      };
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Get single task
+   */
+  async getTask(id) {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.TASKS], 'readonly');
+      const store = transaction.objectStore(this.STORES.TASKS);
+      const request = store.get(id);
+
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Delete task
+   */
+  async deleteTask(id) {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.TASKS], 'readwrite');
+      const store = transaction.objectStore(this.STORES.TASKS);
+      const request = store.delete(id);
+
+      request.onsuccess = () => resolve({ success: true });
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  // ==================== ACTIVITIES (CRM Phase C) ====================
+
+  /**
+   * Get all activities
+   */
+  async getAllActivities() {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.ACTIVITIES], 'readonly');
+      const store = transaction.objectStore(this.STORES.ACTIVITIES);
+      const request = store.getAll();
+
+      request.onsuccess = () => {
+        const activities = request.result.sort((a, b) => {
+          return new Date(b.timestamp) - new Date(a.timestamp);
+        });
+        resolve(activities);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Get activities for a specific application
+   */
+  async getActivitiesByApplication(applicationId) {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.ACTIVITIES], 'readonly');
+      const store = transaction.objectStore(this.STORES.ACTIVITIES);
+      const index = store.index('applicationId');
+      const request = index.getAll(applicationId);
+
+      request.onsuccess = () => {
+        const activities = request.result.sort((a, b) => {
+          return new Date(b.timestamp) - new Date(a.timestamp);
+        });
+        resolve(activities);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Add activity
+   */
+  async addActivity(activity) {
+    await this.init();
+
+    const activityData = {
+      ...activity,
+      id: activity.id || this.generateId(),
+      timestamp: activity.timestamp || new Date().toISOString(),
+      metadata: activity.metadata || {}
+    };
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.ACTIVITIES], 'readwrite');
+      const store = transaction.objectStore(this.STORES.ACTIVITIES);
+      const request = store.add(activityData);
+
+      request.onsuccess = () => resolve({ success: true, activity: activityData });
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Delete activity
+   */
+  async deleteActivity(id) {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.ACTIVITIES], 'readwrite');
+      const store = transaction.objectStore(this.STORES.ACTIVITIES);
+      const request = store.delete(id);
+
+      request.onsuccess = () => resolve({ success: true });
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  // ==================== CRM HELPERS ====================
+
+  /**
+   * Get applications with deadlines expiring soon (within days)
+   */
+  async getExpiringApplications(days = 3) {
+    const applications = await this.getAllApplications();
+    const now = new Date();
+    const threshold = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+
+    return applications.filter(app => {
+      if (!app.deadline) return false;
+      const deadline = new Date(app.deadline);
+      return deadline >= now && deadline <= threshold;
+    });
+  },
+
+  /**
+   * Get all unique tags from applications
+   */
+  async getAllTags() {
+    const applications = await this.getAllApplications();
+    const tagSet = new Set();
+    applications.forEach(app => {
+      if (app.tags && Array.isArray(app.tags)) {
+        app.tags.forEach(tag => tagSet.add(tag));
+      }
+    });
+    return Array.from(tagSet).sort();
   },
 
   // ==================== PROFILE ====================
@@ -648,6 +1188,11 @@ const JobTrackerDB = {
         weekly: { target: 0, enabled: false },
         monthly: { target: 0, enabled: false },
         updatedAt: null
+      },
+      ai: {
+        enabled: false,           // Disabled by default - user must opt-in
+        autoSuggestTags: true,    // When AI enabled, auto-suggest tags
+        enhanceResumeParsing: true // When AI enabled, enhance resume parsing
       }
     };
   },
