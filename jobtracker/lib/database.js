@@ -253,28 +253,280 @@ const JobTrackerDB = {
 
   /**
    * Get application statistics
+   * @param {Object} options - Optional filtering options
+   * @param {number|Object} options.dateRange - Date range filter (number of days or {start, end})
    */
-  async getApplicationStats() {
-    const applications = await this.getAllApplications();
+  async getApplicationStats(options = {}) {
+    let applications = await this.getAllApplications();
+
+    // Apply date range filter if provided
+    if (options.dateRange) {
+      applications = this.filterByDateRange(applications, options.dateRange);
+    }
+
     const stats = {
       total: applications.length,
       byStatus: {},
+      byPlatform: {},
+      weeklyTrend: [],
       thisWeek: 0,
-      thisMonth: 0
+      thisMonth: 0,
+      interviewRate: 0,
+      offerRate: 0,
+      avgDaysToInterview: null,
+      weekOverWeekChange: 0,
+      // Phase 3 additions
+      funnelData: null,
+      dailyCounts: {},
+      timeInStatus: null
     };
 
     const now = new Date();
     const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
     const monthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
 
+    // Initialize weekly buckets for last 8 weeks
+    for (let i = 7; i >= 0; i--) {
+      const weekStart = new Date(now - i * 7 * 24 * 60 * 60 * 1000);
+      stats.weeklyTrend.push({
+        week: weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        count: 0
+      });
+    }
+
     applications.forEach(app => {
+      // Status counts
       stats.byStatus[app.status] = (stats.byStatus[app.status] || 0) + 1;
+
+      // Platform counts
+      const platform = app.platform || 'other';
+      stats.byPlatform[platform] = (stats.byPlatform[platform] || 0) + 1;
+
       const appliedDate = new Date(app.dateApplied || app.meta?.createdAt);
       if (appliedDate >= weekAgo) stats.thisWeek++;
       if (appliedDate >= monthAgo) stats.thisMonth++;
+
+      // Weekly trend
+      const weeksAgo = Math.floor((now - appliedDate) / (7 * 24 * 60 * 60 * 1000));
+      if (weeksAgo >= 0 && weeksAgo <= 7) {
+        stats.weeklyTrend[7 - weeksAgo].count++;
+      }
     });
 
+    // Calculate interview and offer rates
+    if (stats.total > 0) {
+      stats.interviewRate = Math.round(((stats.byStatus.interview || 0) / stats.total) * 100);
+      stats.offerRate = Math.round(((stats.byStatus.offer || 0) / stats.total) * 100);
+    }
+
+    // Calculate week-over-week change from weeklyTrend
+    const thisWeekCount = stats.weeklyTrend[7]?.count || 0;
+    const lastWeekCount = stats.weeklyTrend[6]?.count || 0;
+    stats.weekOverWeekChange = thisWeekCount - lastWeekCount;
+
+    // Calculate average days to interview
+    stats.avgDaysToInterview = this.calculateAvgDaysToInterview(applications);
+
+    // Phase 3: Calculate funnel data
+    stats.funnelData = this.calculateFunnelData(applications);
+
+    // Phase 3: Calculate daily counts for heatmap
+    stats.dailyCounts = this.calculateDailyCounts(applications);
+
+    // Phase 3: Calculate time in status
+    stats.timeInStatus = this.calculateTimeInStatus(applications);
+
     return stats;
+  },
+
+  /**
+   * Calculate average days from application to interview
+   */
+  calculateAvgDaysToInterview(applications) {
+    const daysArray = [];
+
+    applications.forEach(app => {
+      if (!app.statusHistory || app.statusHistory.length < 2) return;
+
+      const appliedEntry = app.statusHistory.find(h => h.status === 'applied');
+      const interviewEntry = app.statusHistory.find(h => h.status === 'interview');
+
+      if (appliedEntry && interviewEntry) {
+        const appliedDate = new Date(appliedEntry.date);
+        const interviewDate = new Date(interviewEntry.date);
+        const days = Math.floor((interviewDate - appliedDate) / (1000 * 60 * 60 * 24));
+        if (days >= 0) daysArray.push(days);
+      }
+    });
+
+    if (daysArray.length === 0) return null;
+    return Math.round(daysArray.reduce((a, b) => a + b, 0) / daysArray.length);
+  },
+
+  /**
+   * Calculate funnel data - count apps reaching each stage
+   */
+  calculateFunnelData(applications) {
+    const funnel = {
+      saved: 0,
+      applied: 0,
+      screening: 0,
+      interview: 0,
+      offer: 0,
+      appliedToScreening: 0,
+      screeningToInterview: 0,
+      interviewToOffer: 0
+    };
+
+    // Status progression order (for determining "reached" status)
+    const statusOrder = ['saved', 'applied', 'screening', 'interview', 'offer'];
+
+    applications.forEach(app => {
+      // Get highest status reached from statusHistory or current status
+      let highestStatusIndex = 0;
+
+      if (app.statusHistory && app.statusHistory.length > 0) {
+        app.statusHistory.forEach(entry => {
+          const idx = statusOrder.indexOf(entry.status);
+          if (idx > highestStatusIndex) highestStatusIndex = idx;
+        });
+      } else {
+        // Fall back to current status
+        const idx = statusOrder.indexOf(app.status);
+        if (idx >= 0) highestStatusIndex = idx;
+      }
+
+      // Count apps that reached each stage
+      for (let i = 0; i <= highestStatusIndex; i++) {
+        const status = statusOrder[i];
+        if (funnel[status] !== undefined) {
+          funnel[status]++;
+        }
+      }
+    });
+
+    // Calculate conversion rates
+    if (funnel.applied > 0) {
+      funnel.appliedToScreening = Math.round((funnel.screening / funnel.applied) * 100);
+    }
+    if (funnel.screening > 0) {
+      funnel.screeningToInterview = Math.round((funnel.interview / funnel.screening) * 100);
+    }
+    if (funnel.interview > 0) {
+      funnel.interviewToOffer = Math.round((funnel.offer / funnel.interview) * 100);
+    }
+
+    return funnel;
+  },
+
+  /**
+   * Calculate daily counts for heatmap (last 365 days)
+   */
+  calculateDailyCounts(applications, startDate = null, endDate = null) {
+    const dailyCounts = {};
+    const now = new Date();
+    const start = startDate || new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+    const end = endDate || now;
+
+    applications.forEach(app => {
+      const appDate = new Date(app.dateApplied || app.meta?.createdAt);
+      if (isNaN(appDate.getTime())) return;
+
+      // Check if date is within range
+      if (appDate >= start && appDate <= end) {
+        const dateKey = appDate.toISOString().split('T')[0];
+        dailyCounts[dateKey] = (dailyCounts[dateKey] || 0) + 1;
+      }
+    });
+
+    return dailyCounts;
+  },
+
+  /**
+   * Calculate average time spent in each status
+   */
+  calculateTimeInStatus(applications) {
+    const timeInStatus = {
+      saved: null,
+      applied: null,
+      screening: null,
+      interview: null
+    };
+
+    const daysAccumulator = {
+      saved: [],
+      applied: [],
+      screening: [],
+      interview: []
+    };
+
+    const statusOrder = ['saved', 'applied', 'screening', 'interview', 'offer', 'rejected', 'withdrawn'];
+
+    applications.forEach(app => {
+      if (!app.statusHistory || app.statusHistory.length < 2) return;
+
+      // Sort status history by date
+      const sortedHistory = [...app.statusHistory].sort((a, b) =>
+        new Date(a.date) - new Date(b.date)
+      );
+
+      for (let i = 0; i < sortedHistory.length - 1; i++) {
+        const current = sortedHistory[i];
+        const next = sortedHistory[i + 1];
+        const status = current.status;
+
+        if (daysAccumulator[status] !== undefined) {
+          const days = Math.floor(
+            (new Date(next.date) - new Date(current.date)) / (1000 * 60 * 60 * 24)
+          );
+          if (days >= 0) {
+            daysAccumulator[status].push(days);
+          }
+        }
+      }
+    });
+
+    // Calculate averages
+    for (const status of Object.keys(timeInStatus)) {
+      const days = daysAccumulator[status];
+      if (days.length > 0) {
+        timeInStatus[status] = Math.round(days.reduce((a, b) => a + b, 0) / days.length);
+      }
+    }
+
+    return timeInStatus;
+  },
+
+  /**
+   * Filter applications by date range
+   */
+  filterByDateRange(applications, dateRange) {
+    if (!dateRange || dateRange === 'all') return applications;
+
+    const now = new Date();
+    let startDate;
+
+    if (typeof dateRange === 'number') {
+      // Preset: number of days
+      startDate = new Date(now.getTime() - dateRange * 24 * 60 * 60 * 1000);
+    } else if (dateRange.start && dateRange.end) {
+      // Custom range
+      startDate = new Date(dateRange.start);
+      const endDate = new Date(dateRange.end);
+      endDate.setHours(23, 59, 59, 999);
+
+      return applications.filter(app => {
+        const appDate = new Date(app.dateApplied || app.meta?.createdAt);
+        return appDate >= startDate && appDate <= endDate;
+      });
+    }
+
+    if (!startDate) return applications;
+
+    return applications.filter(app => {
+      const appDate = new Date(app.dateApplied || app.meta?.createdAt);
+      return appDate >= startDate;
+    });
   },
 
   // ==================== PROFILE ====================
@@ -391,7 +643,12 @@ const JobTrackerDB = {
       },
       ui: { theme: 'system', floatingButtonPosition: 'bottom-right', dashboardView: 'cards' },
       data: { autoBackup: false, backupInterval: 7 },
-      customFieldRules: []
+      customFieldRules: [],
+      goals: {
+        weekly: { target: 0, enabled: false },
+        monthly: { target: 0, enabled: false },
+        updatedAt: null
+      }
     };
   },
 
@@ -618,6 +875,83 @@ const JobTrackerDB = {
     }
 
     return { success: true };
+  },
+
+  // ==================== PHASE 4: INTELLIGENCE LAYER ====================
+
+  /**
+   * Get goal progress for weekly/monthly targets
+   */
+  async getGoalProgress() {
+    const settings = await this.getSettings();
+    const goals = settings.goals || this.getDefaultSettings().goals;
+    const applications = await this.getAllApplications();
+
+    const now = new Date();
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - now.getDay()); // Start of week (Sunday)
+    weekStart.setHours(0, 0, 0, 0);
+
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    // Count applications this week and month
+    let weeklyCount = 0;
+    let monthlyCount = 0;
+
+    applications.forEach(app => {
+      const appDate = new Date(app.dateApplied || app.meta?.createdAt);
+      if (isNaN(appDate.getTime())) return;
+
+      if (appDate >= weekStart) {
+        weeklyCount++;
+      }
+      if (appDate >= monthStart) {
+        monthlyCount++;
+      }
+    });
+
+    return {
+      weekly: {
+        current: weeklyCount,
+        target: goals.weekly.target,
+        enabled: goals.weekly.enabled,
+        percentage: goals.weekly.target > 0
+          ? Math.min(100, Math.round((weeklyCount / goals.weekly.target) * 100))
+          : 0,
+        completed: goals.weekly.target > 0 && weeklyCount >= goals.weekly.target
+      },
+      monthly: {
+        current: monthlyCount,
+        target: goals.monthly.target,
+        enabled: goals.monthly.enabled,
+        percentage: goals.monthly.target > 0
+          ? Math.min(100, Math.round((monthlyCount / goals.monthly.target) * 100))
+          : 0,
+        completed: goals.monthly.target > 0 && monthlyCount >= goals.monthly.target
+      }
+    };
+  },
+
+  /**
+   * Save goal settings
+   */
+  async saveGoals(goals) {
+    const settings = await this.getSettings();
+    settings.goals = {
+      ...settings.goals,
+      ...goals,
+      updatedAt: new Date().toISOString()
+    };
+    await this.saveSettings(settings);
+    return { success: true };
+  },
+
+  /**
+   * Get goals from settings
+   */
+  async getGoals() {
+    const settings = await this.getSettings();
+    return settings.goals || this.getDefaultSettings().goals;
   }
 };
 

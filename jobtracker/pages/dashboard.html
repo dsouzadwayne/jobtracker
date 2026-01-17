@@ -175,7 +175,181 @@
               <dt class="stat-label">Offers</dt>
             </div>
           </div>
+          <!-- Phase 2 Metrics (only visible in Statistics view) -->
+          <div class="stat-card stat-card-phase2">
+            <div class="stat-icon stat-icon-interview-rate" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+              </svg>
+            </div>
+            <div class="stat-content">
+              <dd class="stat-value" id="stat-interview-rate">0%</dd>
+              <dt class="stat-label">Interview Rate</dt>
+            </div>
+          </div>
+          <div class="stat-card stat-card-phase2">
+            <div class="stat-icon stat-icon-offer-rate" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 20V10"></path>
+                <path d="M18 20V4"></path>
+                <path d="M6 20v-4"></path>
+              </svg>
+            </div>
+            <div class="stat-content">
+              <dd class="stat-value" id="stat-offer-rate">0%</dd>
+              <dt class="stat-label">Offer Rate</dt>
+            </div>
+          </div>
+          <div class="stat-card stat-card-phase2">
+            <div class="stat-icon stat-icon-avg-days" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+              </svg>
+            </div>
+            <div class="stat-content">
+              <dd class="stat-value" id="stat-avg-days">--</dd>
+              <dt class="stat-label">Avg Days to Interview</dt>
+            </div>
+          </div>
+          <div class="stat-card stat-card-phase2">
+            <div class="stat-icon stat-icon-wow" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+                <polyline points="17 6 23 6 23 12"></polyline>
+              </svg>
+            </div>
+            <div class="stat-content">
+              <dd class="stat-value" id="stat-wow">+0</dd>
+              <dt class="stat-label">vs Last Week</dt>
+            </div>
+          </div>
         </dl>
+
+        <!-- Activity Heatmap (Statistics view only) -->
+        <div class="heatmap-section" id="heatmap-section">
+          <h3 class="heatmap-title">Activity Heatmap</h3>
+          <div class="activity-heatmap-container" id="activity-heatmap"></div>
+        </div>
+
+        <!-- Intelligence Panel (Phase 4) -->
+        <div class="intelligence-panel hidden" id="intelligence-panel">
+          <!-- Goal Card with progress ring -->
+          <div class="goal-card" id="goal-card">
+            <div class="goal-card-header">
+              <h4>Application Goals</h4>
+              <button class="goal-settings-btn" id="goal-settings-btn" title="Set Goals" aria-label="Configure application goals">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="3"></circle>
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                </svg>
+              </button>
+            </div>
+            <div class="goal-progress-container" id="goal-progress-container">
+              <!-- Progress ring and stats will be rendered by JS -->
+              <div class="goal-empty-state">
+                <p>Set weekly or monthly goals to track your progress</p>
+                <button class="btn-secondary btn-sm" id="goal-setup-btn">Set Goals</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Insights Card -->
+          <div class="insights-card" id="insights-card">
+            <div class="insights-card-header">
+              <h4>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="16" x2="12" y2="12"></line>
+                  <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                </svg>
+                Insights
+              </h4>
+            </div>
+            <div class="insights-list" id="insights-list">
+              <!-- Insights will be rendered by JS -->
+              <div class="insights-empty">
+                <p>Add more applications to see insights</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recommendations Card -->
+          <div class="recommendations-card" id="recommendations-card">
+            <div class="recommendations-card-header">
+              <h4>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                </svg>
+                Recommendations
+              </h4>
+            </div>
+            <div class="recommendations-list" id="recommendations-list">
+              <!-- Recommendations will be rendered by JS -->
+              <div class="recommendations-empty">
+                <p>Great job! No recommendations at this time.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Date Range Filter (Phase 3) -->
+        <div class="date-range-filter hidden" id="date-range-filter">
+          <div class="filter-presets">
+            <button class="preset-btn active" data-range="all">All Time</button>
+            <button class="preset-btn" data-range="7">Last 7 Days</button>
+            <button class="preset-btn" data-range="30">Last 30 Days</button>
+            <button class="preset-btn" data-range="90">Last 90 Days</button>
+            <button class="preset-btn" data-range="custom">Custom</button>
+          </div>
+          <div class="custom-range hidden" id="custom-range">
+            <input type="date" id="date-start" aria-label="Start date">
+            <span class="range-separator">to</span>
+            <input type="date" id="date-end" aria-label="End date">
+            <button class="btn-secondary" id="apply-range">Apply</button>
+          </div>
+        </div>
+
+        <!-- Charts Section (visible in expanded stats view) -->
+        <div class="charts-section hidden" id="charts-section">
+          <div class="charts-grid">
+            <div class="chart-card">
+              <h3 class="chart-title">Status Distribution</h3>
+              <div class="chart-container">
+                <canvas id="status-chart"></canvas>
+              </div>
+            </div>
+            <div class="chart-card">
+              <h3 class="chart-title">Applications Over Time</h3>
+              <div class="chart-container chart-container-wide">
+                <canvas id="timeline-chart"></canvas>
+              </div>
+            </div>
+            <div class="chart-card">
+              <h3 class="chart-title">Job Platforms</h3>
+              <div class="chart-container">
+                <canvas id="platform-chart"></canvas>
+              </div>
+            </div>
+
+            <!-- Application Funnel (Phase 3) -->
+            <div class="chart-card">
+              <h3 class="chart-title">Application Funnel</h3>
+              <div class="chart-container chart-container-tall">
+                <canvas id="funnel-chart"></canvas>
+              </div>
+              <div class="funnel-conversions" id="funnel-conversions"></div>
+            </div>
+
+            <!-- Time-in-Status (Phase 3) -->
+            <div class="chart-card">
+              <h3 class="chart-title">Avg. Time in Each Status</h3>
+              <div class="chart-container">
+                <canvas id="time-status-chart"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- Filters -->
@@ -374,6 +548,61 @@
   <!-- Mobile Sidebar Overlay -->
   <div class="sidebar-overlay hidden" id="sidebar-overlay"></div>
 
+  <!-- Goal Settings Modal (Phase 4) -->
+  <div id="goal-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="goal-modal-title">
+    <div class="modal-content modal-sm">
+      <div class="modal-header">
+        <h3 id="goal-modal-title">Set Application Goals</h3>
+        <button class="close-btn" id="close-goal-modal" aria-label="Close modal">&times;</button>
+      </div>
+      <form id="goal-form">
+        <div class="goal-form-section">
+          <div class="goal-toggle-row">
+            <label class="goal-label" for="weekly-goal-enabled">
+              <span class="goal-label-text">Weekly Goal</span>
+              <span class="goal-label-desc">Track applications per week</span>
+            </label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="weekly-goal-enabled" name="weekly-enabled">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="goal-input-row" id="weekly-goal-input-row">
+            <label for="weekly-goal" class="sr-only">Weekly target</label>
+            <input type="number" id="weekly-goal" name="weekly-target" min="1" max="100" placeholder="e.g., 10">
+            <span class="goal-unit">apps/week</span>
+          </div>
+        </div>
+
+        <div class="goal-form-section">
+          <div class="goal-toggle-row">
+            <label class="goal-label" for="monthly-goal-enabled">
+              <span class="goal-label-text">Monthly Goal</span>
+              <span class="goal-label-desc">Track applications per month</span>
+            </label>
+            <label class="toggle-switch">
+              <input type="checkbox" id="monthly-goal-enabled" name="monthly-enabled">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="goal-input-row" id="monthly-goal-input-row">
+            <label for="monthly-goal" class="sr-only">Monthly target</label>
+            <input type="number" id="monthly-goal" name="monthly-target" min="1" max="500" placeholder="e.g., 40">
+            <span class="goal-unit">apps/month</span>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn-cancel" id="cancel-goal-btn">Cancel</button>
+          <button type="submit" class="btn-primary">Save Goals</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="../lib/chart.min.js"></script>
+  <script src="../lib/heatmap.lib.js"></script>
+  <script src="heatmap.js"></script>
   <script src="dashboard.js"></script>
 </body>
 </html>
