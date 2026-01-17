@@ -42,6 +42,12 @@ const ThemeManager = {
     } else {
       root.setAttribute('data-theme', theme);
     }
+    // Re-render charts with new theme colors (with slight delay to let CSS variables update)
+    setTimeout(() => {
+      if (currentPage === 'stats' && typeof updateStats === 'function') {
+        updateStats();
+      }
+    }, 50);
   },
 
   async toggleTheme() {
@@ -78,7 +84,12 @@ const MessageTypes = {
   DELETE_APPLICATION: 'DELETE_APPLICATION',
   GET_APPLICATION_STATS: 'GET_APPLICATION_STATS',
   GET_SETTINGS: 'GET_SETTINGS',
-  SAVE_SETTINGS: 'SAVE_SETTINGS'
+  SAVE_SETTINGS: 'SAVE_SETTINGS',
+  // Intelligence (Phase 4)
+  GET_INSIGHTS: 'GET_INSIGHTS',
+  GET_RECOMMENDATIONS: 'GET_RECOMMENDATIONS',
+  GET_GOAL_PROGRESS: 'GET_GOAL_PROGRESS',
+  SAVE_GOALS: 'SAVE_GOALS'
 };
 
 // State
@@ -95,6 +106,39 @@ let isSubmitting = false; // Track form submission state
 let keyboardShortcutHandler = null;
 let escapeKeyHandler = null;
 
+// Chart instances
+let statusChart = null;
+let timelineChart = null;
+let platformChart = null;
+let funnelChart = null;
+let timeStatusChart = null;
+
+// Phase 3: Date range state
+let currentDateRange = null; // null = all time, number = days, or {start, end}
+
+// Status colors matching existing CSS
+const STATUS_COLORS = {
+  saved: '#6b7280',
+  applied: '#3b82f6',
+  screening: '#f59e0b',
+  interview: '#8b5cf6',
+  offer: '#10b981',
+  rejected: '#ef4444',
+  withdrawn: '#9ca3af'
+};
+
+const PLATFORM_COLORS = {
+  linkedin: '#0077b5',
+  indeed: '#2164f3',
+  glassdoor: '#0caa41',
+  greenhouse: '#3ab549',
+  lever: '#1a1a1a',
+  workday: '#0875e1',
+  icims: '#00a0df',
+  smartrecruiters: '#10b981',
+  other: '#6b7280'
+};
+
 // DOM Elements - initialized after DOM is ready
 let elements = {};
 
@@ -107,6 +151,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     statWeek: document.getElementById('stat-week'),
     statInterviews: document.getElementById('stat-interviews'),
     statOffers: document.getElementById('stat-offers'),
+    statInterviewRate: document.getElementById('stat-interview-rate'),
+    statOfferRate: document.getElementById('stat-offer-rate'),
+    statAvgDays: document.getElementById('stat-avg-days'),
+    statWow: document.getElementById('stat-wow'),
 
     // List
     list: document.getElementById('applications-list'),
@@ -156,7 +204,40 @@ document.addEventListener('DOMContentLoaded', async () => {
     statsSection: document.getElementById('stats-section'),
     filtersSection: document.querySelector('.filters-section'),
     applicationsSection: document.querySelector('.applications-section'),
-    headerTitle: document.querySelector('.header-left h1')
+    headerTitle: document.querySelector('.header-left h1'),
+
+    // Phase 3: Date range filter
+    dateRangeFilter: document.getElementById('date-range-filter'),
+    customRange: document.getElementById('custom-range'),
+    dateStart: document.getElementById('date-start'),
+    dateEnd: document.getElementById('date-end'),
+    applyRangeBtn: document.getElementById('apply-range'),
+
+    // Phase 3: New chart containers
+    funnelConversions: document.getElementById('funnel-conversions'),
+
+    // Phase 4: Intelligence panel
+    intelligencePanel: document.getElementById('intelligence-panel'),
+    goalCard: document.getElementById('goal-card'),
+    goalProgressContainer: document.getElementById('goal-progress-container'),
+    goalSettingsBtn: document.getElementById('goal-settings-btn'),
+    goalSetupBtn: document.getElementById('goal-setup-btn'),
+    insightsCard: document.getElementById('insights-card'),
+    insightsList: document.getElementById('insights-list'),
+    recommendationsCard: document.getElementById('recommendations-card'),
+    recommendationsList: document.getElementById('recommendations-list'),
+
+    // Phase 4: Goal modal
+    goalModal: document.getElementById('goal-modal'),
+    goalForm: document.getElementById('goal-form'),
+    closeGoalModal: document.getElementById('close-goal-modal'),
+    cancelGoalBtn: document.getElementById('cancel-goal-btn'),
+    weeklyGoalEnabled: document.getElementById('weekly-goal-enabled'),
+    weeklyGoal: document.getElementById('weekly-goal'),
+    weeklyGoalInputRow: document.getElementById('weekly-goal-input-row'),
+    monthlyGoalEnabled: document.getElementById('monthly-goal-enabled'),
+    monthlyGoal: document.getElementById('monthly-goal'),
+    monthlyGoalInputRow: document.getElementById('monthly-goal-input-row')
   };
 
   await ThemeManager.init();
@@ -167,6 +248,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupKeyboardShortcuts();
   initViewToggle();
   setupNavigation();
+  initDateRangeFilter();
+  setupIntelligencePanel();
   checkUrlParams();
 });
 
@@ -228,12 +311,31 @@ async function loadApplications() {
 // Update stats
 async function updateStats() {
   try {
-    const stats = await chrome.runtime.sendMessage({ type: MessageTypes.GET_APPLICATION_STATS });
+    const message = {
+      type: MessageTypes.GET_APPLICATION_STATS,
+      payload: currentDateRange ? { dateRange: currentDateRange } : {}
+    };
+    const stats = await chrome.runtime.sendMessage(message);
     if (stats) {
       elements.statTotal.textContent = stats.total || 0;
       elements.statWeek.textContent = stats.thisWeek || 0;
       elements.statInterviews.textContent = stats.byStatus?.interview || 0;
       elements.statOffers.textContent = stats.byStatus?.offer || 0;
+
+      // Phase 2 metrics
+      elements.statInterviewRate.textContent = `${stats.interviewRate || 0}%`;
+      elements.statOfferRate.textContent = `${stats.offerRate || 0}%`;
+      elements.statAvgDays.textContent = stats.avgDaysToInterview !== null
+        ? `${stats.avgDaysToInterview}d`
+        : '--';
+
+      // Week-over-week with +/- indicator
+      const wow = stats.weekOverWeekChange || 0;
+      elements.statWow.textContent = wow >= 0 ? `+${wow}` : `${wow}`;
+      elements.statWow.className = 'stat-value' + (wow > 0 ? ' wow-positive' : wow < 0 ? ' wow-negative' : '');
+
+      // Initialize charts with stats data (only when in stats view)
+      initCharts(stats);
     }
   } catch (error) {
     console.error('Error loading stats:', error);
@@ -1142,6 +1244,450 @@ function formatJobDescription(text) {
   return formatted;
 }
 
+// ==================== CHARTS ====================
+
+// Get theme-aware text color
+function getChartTextColor() {
+  return getComputedStyle(document.documentElement).getPropertyValue('--text-secondary').trim() || '#6b7280';
+}
+
+// Initialize charts
+function initCharts(stats) {
+  const chartsSection = document.getElementById('charts-section');
+  if (!chartsSection) return;
+
+  // Only show charts when there's data and in stats view
+  if (stats.total === 0 || currentPage !== 'stats') {
+    chartsSection.classList.add('hidden');
+    return;
+  }
+  chartsSection.classList.remove('hidden');
+
+  renderStatusChart(stats.byStatus);
+  renderTimelineChart(stats.weeklyTrend);
+  renderPlatformChart(stats.byPlatform);
+
+  // Phase 3 charts
+  renderFunnelChart(stats.funnelData);
+  renderHeatmap(stats.dailyCounts);
+  renderTimeStatusChart(stats.timeInStatus);
+}
+
+// Status Distribution Donut Chart
+function renderStatusChart(byStatus) {
+  const ctx = document.getElementById('status-chart');
+  if (!ctx) return;
+
+  const labels = Object.keys(byStatus).map(s => s.charAt(0).toUpperCase() + s.slice(1));
+  const data = Object.values(byStatus);
+  const colors = Object.keys(byStatus).map(s => STATUS_COLORS[s] || '#6b7280');
+
+  if (statusChart) statusChart.destroy();
+
+  statusChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: colors,
+        borderWidth: 0,
+        hoverOffset: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '60%',
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            padding: 16,
+            usePointStyle: true,
+            font: { size: 12 },
+            color: getChartTextColor()
+          }
+        }
+      }
+    }
+  });
+}
+
+// Applications Timeline Line Chart
+function renderTimelineChart(weeklyTrend) {
+  const ctx = document.getElementById('timeline-chart');
+  if (!ctx) return;
+
+  const labels = weeklyTrend.map(w => w.week);
+  const data = weeklyTrend.map(w => w.count);
+  const textColor = getChartTextColor();
+
+  if (timelineChart) timelineChart.destroy();
+
+  timelineChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Applications',
+        data,
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 4,
+        pointHoverRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            stepSize: 1,
+            color: textColor
+          },
+          grid: {
+            color: 'rgba(128, 128, 128, 0.1)'
+          }
+        },
+        x: {
+          ticks: {
+            color: textColor
+          },
+          grid: {
+            color: 'rgba(128, 128, 128, 0.1)'
+          }
+        }
+      },
+      plugins: {
+        legend: { display: false }
+      }
+    }
+  });
+}
+
+// Platform Distribution Bar Chart
+function renderPlatformChart(byPlatform) {
+  const ctx = document.getElementById('platform-chart');
+  if (!ctx) return;
+
+  // Sort by count descending
+  const sorted = Object.entries(byPlatform)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6); // Top 6 platforms
+
+  const labels = sorted.map(([p]) => p.charAt(0).toUpperCase() + p.slice(1));
+  const data = sorted.map(([, count]) => count);
+  const colors = sorted.map(([p]) => PLATFORM_COLORS[p] || '#6b7280');
+  const textColor = getChartTextColor();
+
+  if (platformChart) platformChart.destroy();
+
+  platformChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: colors,
+        borderRadius: 4,
+        maxBarThickness: 40
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      indexAxis: 'y',
+      scales: {
+        x: {
+          beginAtZero: true,
+          ticks: {
+            stepSize: 1,
+            color: textColor
+          },
+          grid: {
+            color: 'rgba(128, 128, 128, 0.1)'
+          }
+        },
+        y: {
+          ticks: {
+            color: textColor
+          },
+          grid: {
+            display: false
+          }
+        }
+      },
+      plugins: {
+        legend: { display: false }
+      }
+    }
+  });
+}
+
+// ==================== PHASE 3: ADVANCED ANALYTICS ====================
+
+// Initialize date range filter
+function initDateRangeFilter() {
+  const presetBtns = document.querySelectorAll('.preset-btn');
+
+  presetBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const range = btn.dataset.range;
+
+      // Update active state
+      presetBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      // Handle custom range
+      if (range === 'custom') {
+        elements.customRange?.classList.remove('hidden');
+        // Set default dates
+        const now = new Date();
+        const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        if (elements.dateEnd) elements.dateEnd.value = now.toISOString().split('T')[0];
+        if (elements.dateStart) elements.dateStart.value = monthAgo.toISOString().split('T')[0];
+      } else {
+        elements.customRange?.classList.add('hidden');
+        applyDateRange(range === 'all' ? null : parseInt(range));
+      }
+    });
+  });
+
+  // Apply custom range button
+  elements.applyRangeBtn?.addEventListener('click', () => {
+    const start = elements.dateStart?.value;
+    const end = elements.dateEnd?.value;
+    if (start && end) {
+      applyDateRange({ start, end });
+    }
+  });
+}
+
+// Apply date range filter
+async function applyDateRange(range) {
+  currentDateRange = range;
+  await updateStats();
+  // Refresh intelligence panel with new date range
+  await loadIntelligencePanel();
+}
+
+// Application Funnel Chart (Horizontal Bar)
+function renderFunnelChart(funnelData) {
+  const ctx = document.getElementById('funnel-chart');
+  if (!ctx) return;
+
+  if (!funnelData) {
+    // Show empty state
+    return;
+  }
+
+  const labels = ['Saved', 'Applied', 'Screening', 'Interview', 'Offer'];
+  const data = [
+    funnelData.saved,
+    funnelData.applied,
+    funnelData.screening,
+    funnelData.interview,
+    funnelData.offer
+  ];
+  const textColor = getChartTextColor();
+
+  // Gradient colors from light to dark
+  const colors = [
+    'rgba(59, 130, 246, 0.3)',
+    'rgba(59, 130, 246, 0.45)',
+    'rgba(59, 130, 246, 0.6)',
+    'rgba(59, 130, 246, 0.8)',
+    'rgba(59, 130, 246, 1)'
+  ];
+
+  if (funnelChart) funnelChart.destroy();
+
+  funnelChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: colors,
+        borderRadius: 4,
+        maxBarThickness: 35
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      indexAxis: 'y',
+      scales: {
+        x: {
+          beginAtZero: true,
+          ticks: {
+            stepSize: 1,
+            color: textColor
+          },
+          grid: {
+            color: 'rgba(128, 128, 128, 0.1)'
+          }
+        },
+        y: {
+          ticks: {
+            color: textColor
+          },
+          grid: {
+            display: false
+          }
+        }
+      },
+      plugins: {
+        legend: { display: false }
+      }
+    }
+  });
+
+  // Render conversion rates
+  renderFunnelConversions(funnelData);
+}
+
+// Render funnel conversion rates
+function renderFunnelConversions(funnelData) {
+  const container = elements.funnelConversions;
+  if (!container) return;
+
+  container.innerHTML = `
+    <div class="conversion-item">
+      <div class="conversion-rate">${funnelData.appliedToScreening}%</div>
+      <div class="conversion-label">Applied → Screening</div>
+    </div>
+    <div class="conversion-item">
+      <div class="conversion-rate">${funnelData.screeningToInterview}%</div>
+      <div class="conversion-label">Screening → Interview</div>
+    </div>
+    <div class="conversion-item">
+      <div class="conversion-rate">${funnelData.interviewToOffer}%</div>
+      <div class="conversion-label">Interview → Offer</div>
+    </div>
+  `;
+}
+
+// Calendar Heatmap - delegates to HeatmapRenderer module
+function renderHeatmap(dailyCounts) {
+  if (window.HeatmapRenderer) {
+    window.HeatmapRenderer.render('#activity-heatmap', dailyCounts);
+  }
+}
+
+// Time-in-Status Chart
+function renderTimeStatusChart(timeInStatus) {
+  const ctx = document.getElementById('time-status-chart');
+  if (!ctx) return;
+
+  // Check if we have any data
+  const hasData = timeInStatus &&
+    Object.values(timeInStatus).some(v => v !== null);
+
+  if (!hasData) {
+    // Show empty state in the canvas container
+    const container = ctx.parentElement;
+    if (container && !container.querySelector('.time-status-empty')) {
+      ctx.style.display = 'none';
+      const emptyState = document.createElement('div');
+      emptyState.className = 'time-status-empty';
+      emptyState.innerHTML = `
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="12" r="10"></circle>
+          <polyline points="12 6 12 12 16 14"></polyline>
+        </svg>
+        <p>Not enough status history<br>to calculate time data</p>
+      `;
+      container.appendChild(emptyState);
+    }
+    return;
+  }
+
+  // Remove empty state if it exists
+  const container = ctx.parentElement;
+  const emptyState = container?.querySelector('.time-status-empty');
+  if (emptyState) emptyState.remove();
+  ctx.style.display = 'block';
+
+  const labels = ['Saved', 'Applied', 'Screening', 'Interview'];
+  const data = [
+    timeInStatus.saved || 0,
+    timeInStatus.applied || 0,
+    timeInStatus.screening || 0,
+    timeInStatus.interview || 0
+  ];
+  const textColor = getChartTextColor();
+
+  // Status-specific colors
+  const colors = [
+    STATUS_COLORS.saved,
+    STATUS_COLORS.applied,
+    STATUS_COLORS.screening,
+    STATUS_COLORS.interview
+  ];
+
+  if (timeStatusChart) timeStatusChart.destroy();
+
+  timeStatusChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Days',
+        data,
+        backgroundColor: colors,
+        borderRadius: 4,
+        maxBarThickness: 40
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      indexAxis: 'y',
+      scales: {
+        x: {
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: 'Average Days',
+            color: textColor
+          },
+          ticks: {
+            color: textColor
+          },
+          grid: {
+            color: 'rgba(128, 128, 128, 0.1)'
+          }
+        },
+        y: {
+          ticks: {
+            color: textColor
+          },
+          grid: {
+            display: false
+          }
+        }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              const value = context.raw;
+              return value !== null ? `${value} day${value !== 1 ? 's' : ''}` : 'No data';
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
 // ==================== VIEW TOGGLE ====================
 
 // Initialize view toggle
@@ -1351,6 +1897,15 @@ function switchPage(page) {
     document.getElementById('export-btn')?.classList.add('hidden');
     document.getElementById('add-btn')?.classList.add('hidden');
     elements.appCount?.classList.add('hidden');
+
+    // Show date range filter
+    elements.dateRangeFilter?.classList.remove('hidden');
+
+    // Show charts and refresh them
+    updateStats();
+
+    // Load intelligence panel
+    loadIntelligencePanel();
   } else {
     // Show applications view
     elements.headerTitle.textContent = 'Applications';
@@ -1363,6 +1918,11 @@ function switchPage(page) {
     document.getElementById('export-btn')?.classList.remove('hidden');
     document.getElementById('add-btn')?.classList.remove('hidden');
     elements.appCount?.classList.remove('hidden');
+
+    // Hide date range filter, charts section, and intelligence panel
+    elements.dateRangeFilter?.classList.add('hidden');
+    document.getElementById('charts-section')?.classList.add('hidden');
+    elements.intelligencePanel?.classList.add('hidden');
   }
 
   // Close mobile sidebar after navigation
@@ -1407,6 +1967,313 @@ function closeDetailsPanel() {
   selectedAppId = null;
   document.querySelectorAll('.app-card').forEach(card => card.classList.remove('selected'));
   hideDetailsOverlay();
+}
+
+// ==================== PHASE 4: INTELLIGENCE PANEL ====================
+
+// State for goal display
+let currentGoalType = 'weekly'; // 'weekly' or 'monthly'
+
+// Setup intelligence panel event listeners
+function setupIntelligencePanel() {
+  // Goal settings button
+  elements.goalSettingsBtn?.addEventListener('click', openGoalModal);
+  elements.goalSetupBtn?.addEventListener('click', openGoalModal);
+
+  // Goal modal
+  elements.closeGoalModal?.addEventListener('click', closeGoalModal);
+  elements.cancelGoalBtn?.addEventListener('click', closeGoalModal);
+  elements.goalModal?.addEventListener('click', (e) => {
+    if (e.target === elements.goalModal) closeGoalModal();
+  });
+  elements.goalForm?.addEventListener('submit', handleGoalSubmit);
+
+  // Toggle input rows based on checkbox state
+  elements.weeklyGoalEnabled?.addEventListener('change', (e) => {
+    elements.weeklyGoalInputRow?.classList.toggle('enabled', e.target.checked);
+  });
+  elements.monthlyGoalEnabled?.addEventListener('change', (e) => {
+    elements.monthlyGoalInputRow?.classList.toggle('enabled', e.target.checked);
+  });
+}
+
+// Load intelligence panel data
+async function loadIntelligencePanel() {
+  if (currentPage !== 'stats') return;
+
+  try {
+    const [insights, recommendations, goalProgress] = await Promise.all([
+      chrome.runtime.sendMessage({ type: MessageTypes.GET_INSIGHTS, payload: { dateRange: currentDateRange } }),
+      chrome.runtime.sendMessage({ type: MessageTypes.GET_RECOMMENDATIONS }),
+      chrome.runtime.sendMessage({ type: MessageTypes.GET_GOAL_PROGRESS })
+    ]);
+
+    renderInsights(insights || []);
+    renderRecommendations(recommendations || []);
+    renderGoalProgress(goalProgress);
+
+    // Show the panel
+    elements.intelligencePanel?.classList.remove('hidden');
+  } catch (error) {
+    console.error('Error loading intelligence panel:', error);
+  }
+}
+
+// Render insights
+function renderInsights(insights) {
+  if (!elements.insightsList) return;
+
+  if (!insights || insights.length === 0) {
+    elements.insightsList.innerHTML = `
+      <div class="insights-empty">
+        <p>Add more applications to see insights</p>
+      </div>
+    `;
+    return;
+  }
+
+  elements.insightsList.innerHTML = insights.map(insight => `
+    <div class="insight-item insight-${insight.type}">
+      <div class="insight-icon">
+        ${getInsightIcon(insight.icon)}
+      </div>
+      <div class="insight-message">${escapeHtml(insight.message)}</div>
+    </div>
+  `).join('');
+}
+
+// Get SVG icon for insight type
+function getInsightIcon(iconName) {
+  const icons = {
+    'trending-up': '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>',
+    'trending-down': '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"></polyline><polyline points="17 18 23 18 23 12"></polyline></svg>',
+    'calendar': '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>',
+    'alert-circle': '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>',
+    'clock': '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>'
+  };
+  return icons[iconName] || icons['alert-circle'];
+}
+
+// Render recommendations
+function renderRecommendations(recommendations) {
+  if (!elements.recommendationsList) return;
+
+  if (!recommendations || recommendations.length === 0) {
+    elements.recommendationsList.innerHTML = `
+      <div class="recommendations-empty">
+        <p>Great job! No recommendations at this time.</p>
+      </div>
+    `;
+    return;
+  }
+
+  elements.recommendationsList.innerHTML = recommendations.map(rec => `
+    <div class="recommendation-item rec-${rec.type}">
+      <div class="recommendation-header">
+        <div class="recommendation-icon">
+          ${getRecommendationIcon(rec.icon)}
+        </div>
+        <div class="recommendation-content">
+          <h5 class="recommendation-title">${escapeHtml(rec.title)}</h5>
+          <p class="recommendation-message">${escapeHtml(rec.message)}</p>
+        </div>
+      </div>
+      ${rec.action ? `
+        <div class="recommendation-action">
+          <button class="recommendation-action-btn" data-action="${escapeHtml(rec.action.type)}">
+            ${escapeHtml(rec.action.label)}
+          </button>
+        </div>
+      ` : ''}
+    </div>
+  `).join('');
+
+  // Add event listeners for action buttons
+  elements.recommendationsList.querySelectorAll('.recommendation-action-btn').forEach(btn => {
+    btn.addEventListener('click', () => handleRecommendationAction(btn.dataset.action));
+  });
+}
+
+// Get SVG icon for recommendation type
+function getRecommendationIcon(iconName) {
+  const icons = {
+    'plus-circle': '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>',
+    'mail': '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>',
+    'target': '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg>',
+    'check-circle': '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>',
+    'award': '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg>'
+  };
+  return icons[iconName] || icons['target'];
+}
+
+// Handle recommendation action button click
+function handleRecommendationAction(actionType) {
+  switch (actionType) {
+    case 'add_application':
+      openModal();
+      break;
+    case 'filter_screening':
+      // Switch to applications view and filter by screening
+      switchPage('applications');
+      elements.filterStatus.value = 'screening';
+      applyFilters();
+      break;
+    default:
+      console.log('Unknown action:', actionType);
+  }
+}
+
+// Render goal progress
+function renderGoalProgress(progress) {
+  if (!elements.goalProgressContainer || !progress) return;
+
+  const hasWeeklyGoal = progress.weekly.enabled && progress.weekly.target > 0;
+  const hasMonthlyGoal = progress.monthly.enabled && progress.monthly.target > 0;
+
+  if (!hasWeeklyGoal && !hasMonthlyGoal) {
+    elements.goalProgressContainer.innerHTML = `
+      <div class="goal-empty-state">
+        <p>Set weekly or monthly goals to track your progress</p>
+        <button class="btn-secondary btn-sm" id="goal-setup-btn-inner">Set Goals</button>
+      </div>
+    `;
+    document.getElementById('goal-setup-btn-inner')?.addEventListener('click', openGoalModal);
+    return;
+  }
+
+  // Determine which goal to show (prefer weekly if both enabled)
+  const activeGoal = hasWeeklyGoal ? progress.weekly : progress.monthly;
+  const goalLabel = hasWeeklyGoal ? 'This Week' : 'This Month';
+
+  // Calculate circumference for SVG ring (radius = 42)
+  const circumference = 2 * Math.PI * 42;
+  const offset = circumference - (activeGoal.percentage / 100) * circumference;
+
+  elements.goalProgressContainer.innerHTML = `
+    ${(hasWeeklyGoal && hasMonthlyGoal) ? `
+      <div class="goal-type-selector">
+        <button class="goal-type-btn ${currentGoalType === 'weekly' ? 'active' : ''}" data-type="weekly">Weekly</button>
+        <button class="goal-type-btn ${currentGoalType === 'monthly' ? 'active' : ''}" data-type="monthly">Monthly</button>
+      </div>
+    ` : ''}
+    <div class="goal-progress-ring-container">
+      <div class="goal-progress-ring">
+        <svg viewBox="0 0 100 100">
+          <circle class="ring-bg" cx="50" cy="50" r="42"></circle>
+          <circle class="ring-progress ${activeGoal.completed ? 'completed' : ''}" cx="50" cy="50" r="42"
+            stroke-dasharray="${circumference}"
+            stroke-dashoffset="${offset}"></circle>
+        </svg>
+        <div class="goal-progress-center">
+          <div class="goal-progress-value">${activeGoal.percentage}%</div>
+          <div class="goal-progress-label">${goalLabel}</div>
+        </div>
+      </div>
+      <div class="goal-stats">
+        <div class="goal-stat-row">
+          <span class="label">Current</span>
+          <span class="value ${activeGoal.completed ? 'completed' : ''}">${activeGoal.current} apps</span>
+        </div>
+        <div class="goal-stat-row">
+          <span class="label">Target</span>
+          <span class="value">${activeGoal.target} apps</span>
+        </div>
+        <div class="goal-stat-row">
+          <span class="label">Remaining</span>
+          <span class="value">${Math.max(0, activeGoal.target - activeGoal.current)} apps</span>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Add event listeners for goal type toggle
+  elements.goalProgressContainer.querySelectorAll('.goal-type-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentGoalType = btn.dataset.type;
+      // Re-render with new goal type
+      const newActiveGoal = currentGoalType === 'weekly' ? progress.weekly : progress.monthly;
+      const newLabel = currentGoalType === 'weekly' ? 'This Week' : 'This Month';
+      const newCircumference = 2 * Math.PI * 42;
+      const newOffset = newCircumference - (newActiveGoal.percentage / 100) * newCircumference;
+
+      // Update active button
+      elements.goalProgressContainer.querySelectorAll('.goal-type-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.type === currentGoalType);
+      });
+
+      // Update ring
+      const ringProgress = elements.goalProgressContainer.querySelector('.ring-progress');
+      const progressValue = elements.goalProgressContainer.querySelector('.goal-progress-value');
+      const progressLabel = elements.goalProgressContainer.querySelector('.goal-progress-label');
+      const statsValues = elements.goalProgressContainer.querySelectorAll('.goal-stat-row .value');
+
+      if (ringProgress) {
+        ringProgress.style.strokeDashoffset = newOffset;
+        ringProgress.classList.toggle('completed', newActiveGoal.completed);
+      }
+      if (progressValue) progressValue.textContent = `${newActiveGoal.percentage}%`;
+      if (progressLabel) progressLabel.textContent = newLabel;
+      if (statsValues[0]) {
+        statsValues[0].textContent = `${newActiveGoal.current} apps`;
+        statsValues[0].classList.toggle('completed', newActiveGoal.completed);
+      }
+      if (statsValues[1]) statsValues[1].textContent = `${newActiveGoal.target} apps`;
+      if (statsValues[2]) statsValues[2].textContent = `${Math.max(0, newActiveGoal.target - newActiveGoal.current)} apps`;
+    });
+  });
+}
+
+// Open goal modal
+async function openGoalModal() {
+  try {
+    const settings = await chrome.runtime.sendMessage({ type: MessageTypes.GET_SETTINGS });
+    const goals = settings?.goals || { weekly: { target: 0, enabled: false }, monthly: { target: 0, enabled: false } };
+
+    // Populate form
+    elements.weeklyGoalEnabled.checked = goals.weekly.enabled;
+    elements.weeklyGoal.value = goals.weekly.target || '';
+    elements.weeklyGoalInputRow.classList.toggle('enabled', goals.weekly.enabled);
+
+    elements.monthlyGoalEnabled.checked = goals.monthly.enabled;
+    elements.monthlyGoal.value = goals.monthly.target || '';
+    elements.monthlyGoalInputRow.classList.toggle('enabled', goals.monthly.enabled);
+
+    elements.goalModal?.classList.remove('hidden');
+    elements.weeklyGoal.focus();
+  } catch (error) {
+    console.error('Error opening goal modal:', error);
+  }
+}
+
+// Close goal modal
+function closeGoalModal() {
+  elements.goalModal?.classList.add('hidden');
+}
+
+// Handle goal form submission
+async function handleGoalSubmit(e) {
+  e.preventDefault();
+
+  const goals = {
+    weekly: {
+      enabled: elements.weeklyGoalEnabled.checked,
+      target: parseInt(elements.weeklyGoal.value) || 0
+    },
+    monthly: {
+      enabled: elements.monthlyGoalEnabled.checked,
+      target: parseInt(elements.monthlyGoal.value) || 0
+    }
+  };
+
+  try {
+    await chrome.runtime.sendMessage({ type: MessageTypes.SAVE_GOALS, payload: goals });
+    closeGoalModal();
+    // Refresh intelligence panel
+    await loadIntelligencePanel();
+  } catch (error) {
+    console.error('Error saving goals:', error);
+    showNotification('Failed to save goals. Please try again.', 'error');
+  }
 }
 
 // Make functions available globally for inline onclick handlers

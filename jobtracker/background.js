@@ -6,6 +6,7 @@
 
 // Import the database module (ES module)
 import { JobTrackerDB } from './lib/database.js';
+import { JobTrackerIntelligence } from './lib/intelligence/index.js';
 
 // Message types
 const MessageTypes = {
@@ -36,7 +37,13 @@ const MessageTypes = {
   // Data
   EXPORT_DATA: 'EXPORT_DATA',
   IMPORT_DATA: 'IMPORT_DATA',
-  CLEAR_ALL_DATA: 'CLEAR_ALL_DATA'
+  CLEAR_ALL_DATA: 'CLEAR_ALL_DATA',
+
+  // Intelligence (Phase 4)
+  GET_INSIGHTS: 'GET_INSIGHTS',
+  GET_RECOMMENDATIONS: 'GET_RECOMMENDATIONS',
+  GET_GOAL_PROGRESS: 'GET_GOAL_PROGRESS',
+  SAVE_GOALS: 'SAVE_GOALS'
 };
 
 // Alarm name for badge clear
@@ -95,6 +102,12 @@ function validatePayload(type, payload) {
       }
       break;
 
+    case MessageTypes.SAVE_GOALS:
+      if (!payload || typeof payload !== 'object') {
+        return { valid: false, error: 'Goals payload must be an object' };
+      }
+      break;
+
     // Read-only operations don't need payload validation
     case MessageTypes.GET_PROFILE:
     case MessageTypes.GET_PROFILE_FOR_FILL:
@@ -106,6 +119,9 @@ function validatePayload(type, payload) {
     case MessageTypes.TRIGGER_AUTOFILL:
     case MessageTypes.FORM_DETECTED:
     case MessageTypes.SUBMISSION_DETECTED:
+    case MessageTypes.GET_INSIGHTS:
+    case MessageTypes.GET_RECOMMENDATIONS:
+    case MessageTypes.GET_GOAL_PROGRESS:
       break;
 
     default:
@@ -229,7 +245,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case MessageTypes.GET_APPLICATION_STATS: {
-          response = await JobTrackerDB.getApplicationStats();
+          // Phase 3: Support date range filtering
+          const options = payload || {};
+          response = await JobTrackerDB.getApplicationStats(options);
           break;
         }
 
@@ -302,6 +320,32 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           } else {
             response = { error: 'No active tab found' };
           }
+          break;
+        }
+
+        // Intelligence operations (Phase 4)
+        case MessageTypes.GET_INSIGHTS: {
+          const apps = await JobTrackerDB.getAllApplications();
+          const options = payload || {};
+          response = JobTrackerIntelligence.generateInsights(apps, options);
+          break;
+        }
+
+        case MessageTypes.GET_RECOMMENDATIONS: {
+          const apps = await JobTrackerDB.getAllApplications();
+          const goals = await JobTrackerDB.getGoals();
+          const goalProgress = await JobTrackerDB.getGoalProgress();
+          response = JobTrackerIntelligence.getRecommendations(apps, goals, goalProgress);
+          break;
+        }
+
+        case MessageTypes.GET_GOAL_PROGRESS: {
+          response = await JobTrackerDB.getGoalProgress();
+          break;
+        }
+
+        case MessageTypes.SAVE_GOALS: {
+          response = await JobTrackerDB.saveGoals(payload);
           break;
         }
 
