@@ -34,7 +34,7 @@ export async function loadTags() {
     setAllTags(tags);
     renderTagFilter();
   } catch (error) {
-    console.error('Error loading tags:', error);
+    console.log('Error loading tags:', error);
     setAllTags([]);
   }
 }
@@ -103,7 +103,7 @@ export async function loadUpcomingInterviews() {
     setUpcomingInterviews(interviews);
     renderUpcomingInterviews();
   } catch (error) {
-    console.error('Error loading upcoming interviews:', error);
+    console.log('Error loading upcoming interviews:', error);
     setUpcomingInterviews([]);
   }
 }
@@ -221,7 +221,7 @@ async function handleInterviewSubmit(e) {
       if (app) showDetailsPanelCallback?.(app);
     }
   } catch (error) {
-    console.error('Error saving interview:', error);
+    console.log('Error saving interview:', error);
     showNotification('Failed to save interview. Please try again.', 'error');
   }
 }
@@ -260,7 +260,7 @@ export async function loadUpcomingTasks() {
     setUpcomingTasks(tasks);
     renderUpcomingTasks();
   } catch (error) {
-    console.error('Error loading upcoming tasks:', error);
+    console.log('Error loading upcoming tasks:', error);
     setUpcomingTasks([]);
   }
 }
@@ -348,7 +348,7 @@ export async function completeTask(taskId) {
     await loadUpcomingTasks();
     showNotification('Task completed!', 'success');
   } catch (error) {
-    console.error('Error completing task:', error);
+    console.log('Error completing task:', error);
     showNotification('Failed to complete task.', 'error');
   }
 }
@@ -535,7 +535,7 @@ async function handleTaskSubmit(e) {
       if (app) showDetailsPanelCallback?.(app);
     }
   } catch (error) {
-    console.error('Error saving task:', error);
+    console.log('Error saving task:', error);
     showNotification('Failed to save task. Please try again.', 'error');
   }
 }
@@ -551,7 +551,7 @@ export async function loadActivityTimeline(applicationId) {
     }) || [];
     return activities;
   } catch (error) {
-    console.error('Error loading activities:', error);
+    console.log('Error loading activities:', error);
     return [];
   }
 }

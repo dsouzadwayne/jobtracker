@@ -5,7 +5,7 @@
 
 const JobTrackerDB = {
   DB_NAME: 'JobTrackerDB',
-  DB_VERSION: 2,
+  DB_VERSION: 3,
   db: null,
 
   // Object store names
@@ -16,7 +16,8 @@ const JobTrackerDB = {
     META: 'meta',
     INTERVIEWS: 'interviews',
     TASKS: 'tasks',
-    ACTIVITIES: 'activities'
+    ACTIVITIES: 'activities',
+    MODELS_METADATA: 'models_metadata'
   },
 
   /**
@@ -98,6 +99,13 @@ const JobTrackerDB = {
           activityStore.createIndex('applicationId', 'applicationId', { unique: false });
           activityStore.createIndex('type', 'type', { unique: false });
           activityStore.createIndex('timestamp', 'timestamp', { unique: false });
+        }
+
+        // Models metadata store (for tracking AI model downloads)
+        if (!db.objectStoreNames.contains(this.STORES.MODELS_METADATA)) {
+          const modelsStore = db.createObjectStore(this.STORES.MODELS_METADATA, { keyPath: 'modelId' });
+          modelsStore.createIndex('downloadStatus', 'downloadStatus', { unique: false });
+          modelsStore.createIndex('downloadedAt', 'downloadedAt', { unique: false });
         }
 
         console.log('JobTracker: Database schema created/upgraded');
@@ -1497,6 +1505,171 @@ const JobTrackerDB = {
   async getGoals() {
     const settings = await this.getSettings();
     return settings.goals || this.getDefaultSettings().goals;
+  },
+
+  // ==================== MODELS METADATA ====================
+
+  /**
+   * Get model metadata by ID
+   */
+  async getModelMetadata(modelId) {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.MODELS_METADATA], 'readonly');
+      const store = transaction.objectStore(this.STORES.MODELS_METADATA);
+      const request = store.get(modelId);
+
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Set model metadata
+   */
+  async setModelMetadata(modelId, metadata) {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.MODELS_METADATA], 'readwrite');
+      const store = transaction.objectStore(this.STORES.MODELS_METADATA);
+      const data = { modelId, ...metadata };
+      const request = store.put(data);
+
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Get all models download status
+   */
+  async getModelsDownloadStatus() {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.MODELS_METADATA], 'readonly');
+      const store = transaction.objectStore(this.STORES.MODELS_METADATA);
+      const request = store.getAll();
+
+      request.onsuccess = () => {
+        const models = request.result || [];
+        const status = {
+          embeddings: models.find(m => m.modelId === 'embeddings') || { downloadStatus: 'not_started' },
+          ner: models.find(m => m.modelId === 'ner') || { downloadStatus: 'not_started' }
+        };
+        resolve(status);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Clear models metadata
+   */
+  async clearModelsMetadata() {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.MODELS_METADATA], 'readwrite');
+      const store = transaction.objectStore(this.STORES.MODELS_METADATA);
+      const request = store.clear();
+
+      request.onsuccess = () => {
+        console.log('JobTracker: Models metadata cleared');
+        resolve();
+      };
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  // ==================== DATA CLEARING METHODS ====================
+
+  /**
+   * Delete profile
+   */
+  async deleteProfile() {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.PROFILE], 'readwrite');
+      const store = transaction.objectStore(this.STORES.PROFILE);
+      const request = store.delete('main');
+
+      request.onsuccess = () => {
+        console.log('JobTracker: Profile deleted');
+        resolve();
+      };
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Clear all applications
+   */
+  async clearAllApplications() {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.APPLICATIONS], 'readwrite');
+      const store = transaction.objectStore(this.STORES.APPLICATIONS);
+      const request = store.clear();
+
+      request.onsuccess = () => {
+        console.log('JobTracker: All applications cleared');
+        resolve();
+      };
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Clear all interviews
+   */
+  async clearAllInterviews() {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.INTERVIEWS], 'readwrite');
+      const store = transaction.objectStore(this.STORES.INTERVIEWS);
+      const request = store.clear();
+
+      request.onsuccess = () => {
+        console.log('JobTracker: All interviews cleared');
+        resolve();
+      };
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Clear all tasks
+   */
+  async clearAllTasks() {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.TASKS], 'readwrite');
+      const store = transaction.objectStore(this.STORES.TASKS);
+      const request = store.clear();
+
+      request.onsuccess = () => {
+        console.log('JobTracker: All tasks cleared');
+        resolve();
+      };
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Clear all activities
+   */
+  async clearAllActivities() {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.ACTIVITIES], 'readwrite');
+      const store = transaction.objectStore(this.STORES.ACTIVITIES);
+      const request = store.clear();
+
+      request.onsuccess = () => {
+        console.log('JobTracker: All activities cleared');
+        resolve();
+      };
+      request.onerror = () => reject(request.error);
+    });
   }
 };
 

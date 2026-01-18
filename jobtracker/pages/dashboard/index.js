@@ -70,7 +70,8 @@ import {
   initAI, getSmartTags, parseResumeText, parseJobText,
   matchResumeToJob, extractSkills, renderTagSuggestions,
   getAIStatus, isAIEnabled, enableAI, disableAI,
-  cleanup as cleanupAI
+  cleanup as cleanupAI, setupModelDownloadListeners,
+  setupSettingsListeners, loadStorageSizes, loadDashboardSettings
 } from './ai-features.js';
 
 // BroadcastChannel for cross-page real-time updates
@@ -114,8 +115,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     await taskManager.requestNotificationPermission();
     console.log('JobTracker: Enhanced task manager initialized');
   } catch (error) {
-    console.warn('JobTracker: Enhanced task manager initialization failed:', error);
+    console.log('JobTracker: Enhanced task manager initialization failed:', error);
   }
+
+  // Setup AI model download listeners (for progress toasts)
+  setupModelDownloadListeners();
+
+  // Setup settings page listeners
+  setupSettingsListeners();
 
   // Initialize AI features (non-blocking)
   initAI().then(initialized => {
@@ -124,7 +131,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       console.log(`JobTracker: AI features initialized (${status.mode})`);
     }
   }).catch(error => {
-    console.warn('JobTracker: AI features initialization failed:', error);
+    console.log('JobTracker: AI features initialization failed:', error);
   });
 
   // Setup UI
@@ -217,7 +224,7 @@ async function loadSettings() {
       setCurrentView(settings.ui.dashboardView);
     }
   } catch (error) {
-    console.error('Error loading settings:', error);
+    console.log('Error loading settings:', error);
   }
 }
 
@@ -228,7 +235,7 @@ async function loadApplications() {
     setApplications(apps);
     applyFilters();
   } catch (error) {
-    console.error('Error loading applications:', error);
+    console.log('Error loading applications:', error);
   }
 }
 
@@ -242,28 +249,33 @@ async function updateStats() {
     };
     const stats = await chrome.runtime.sendMessage(message);
     if (stats) {
+      // Update basic stats (always present on dashboard)
       elements.statTotal.textContent = stats.total || 0;
       elements.statWeek.textContent = stats.thisWeek || 0;
       elements.statInterviews.textContent = stats.byStatus?.interview || 0;
       elements.statOffers.textContent = stats.byStatus?.offer || 0;
 
-      // Phase 2 metrics
-      elements.statInterviewRate.textContent = `${stats.interviewRate || 0}%`;
-      elements.statOfferRate.textContent = `${stats.offerRate || 0}%`;
-      elements.statAvgDays.textContent = stats.avgDaysToInterview !== null
-        ? `${stats.avgDaysToInterview}d`
-        : '--';
-
-      // Week-over-week with +/- indicator
-      const wow = stats.weekOverWeekChange || 0;
-      elements.statWow.textContent = wow >= 0 ? `+${wow}` : `${wow}`;
-      elements.statWow.className = 'stat-value' + (wow > 0 ? ' wow-positive' : wow < 0 ? ' wow-negative' : '');
-
-      // Initialize charts with stats data (only when in stats view)
-      initCharts(stats);
+      // Phase 2 metrics are now on statistics.html page
+      // Only update if elements exist (for backward compatibility)
+      if (elements.statInterviewRate) {
+        elements.statInterviewRate.textContent = `${stats.interviewRate || 0}%`;
+      }
+      if (elements.statOfferRate) {
+        elements.statOfferRate.textContent = `${stats.offerRate || 0}%`;
+      }
+      if (elements.statAvgDays) {
+        elements.statAvgDays.textContent = stats.avgDaysToInterview !== null
+          ? `${stats.avgDaysToInterview}d`
+          : '--';
+      }
+      if (elements.statWow) {
+        const wow = stats.weekOverWeekChange || 0;
+        elements.statWow.textContent = wow >= 0 ? `+${wow}` : `${wow}`;
+        elements.statWow.className = 'stat-value' + (wow > 0 ? ' wow-positive' : wow < 0 ? ' wow-negative' : '');
+      }
     }
   } catch (error) {
-    console.error('Error loading stats:', error);
+    console.log('Error loading stats:', error);
   }
 }
 
@@ -334,7 +346,7 @@ async function deleteApplication(id) {
     await loadApplications();
     await updateStats();
   } catch (error) {
-    console.error('Error deleting application:', error);
+    console.log('Error deleting application:', error);
     const { showNotification } = await import('./utils.js');
     showNotification('Failed to delete application. Please try again.', 'error');
   }
@@ -360,41 +372,6 @@ function setupEventListeners() {
 
   // Theme toggle
   elements.themeToggle?.addEventListener('click', async () => await ThemeManager.toggleTheme());
-
-  // AI toggle
-  const aiToggle = document.getElementById('ai-toggle');
-  if (aiToggle) {
-    // Set initial state from settings
-    const settings = getCachedSettings();
-    aiToggle.checked = settings?.ai?.enabled || false;
-
-    aiToggle.addEventListener('change', async (e) => {
-      const enabled = e.target.checked;
-      const settings = getCachedSettings() || {};
-      settings.ai = settings.ai || {};
-      settings.ai.enabled = enabled;
-
-      // Save to IndexedDB
-      await chrome.runtime.sendMessage({
-        type: MessageTypes.SAVE_SETTINGS,
-        payload: settings
-      });
-      setCachedSettings(settings);
-
-      // Enable or disable AI
-      if (enabled) {
-        const initialized = await enableAI();
-        if (initialized) {
-          const { showNotification } = await import('./utils.js');
-          showNotification('AI features enabled', 'success');
-        }
-      } else {
-        disableAI();
-        const { showNotification } = await import('./utils.js');
-        showNotification('AI features disabled', 'info');
-      }
-    });
-  }
 
   // Mobile menu
   elements.mobileMenuBtn?.addEventListener('click', toggleMobileSidebar);

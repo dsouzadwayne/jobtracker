@@ -2,7 +2,8 @@
  * AI Worker - Runs ML models in background thread
  * Optimized for low-memory systems (4GB RAM)
  *
- * Uses Transformers.js with quantized models
+ * Uses Transformers.js with quantized models downloaded from Hugging Face Hub
+ * Models are cached in IndexedDB for offline use after first download
  */
 
 // Model state
@@ -12,17 +13,35 @@ let isModelLoaded = false;
 let lastUsedTime = 0;
 const MODEL_UNLOAD_TIMEOUT = 5 * 60 * 1000; // Unload after 5 min of inactivity
 
-// Model configuration - using bundled local models
-// Get the extension's base URL for local model paths
-const EXTENSION_URL = self.location.href.replace(/\/lib\/ai-worker\.js$/, '');
-const LOCAL_MODELS_PATH = `${EXTENSION_URL}/lib/models/`;
-
+// Model configuration - using Hugging Face Hub models
+// Models are downloaded on first use and cached in IndexedDB
 const MODELS = {
-  // 23MB quantized - for embeddings and similarity (bundled locally)
-  embeddings: `${LOCAL_MODELS_PATH}all-MiniLM-L6-v2`,
-  // 104MB quantized - for named entity recognition (bundled locally)
-  ner: `${LOCAL_MODELS_PATH}bert-base-NER`
+  // ~23MB quantized - for embeddings and similarity
+  embeddings: 'Xenova/all-MiniLM-L6-v2',
+  // ~109MB quantized - for named entity recognition
+  ner: 'Xenova/bert-base-NER'
 };
+
+// Model sizes for progress display
+const MODEL_SIZES = {
+  embeddings: 23,  // MB
+  ner: 109         // MB
+};
+
+// Get the extension's base URL for WASM paths
+const EXTENSION_URL = self.location.href.replace(/\/lib\/ai-worker\.js$/, '');
+
+// Suppress noisy Transformers.js warnings about content-length and dtype
+const shouldSuppress = (args) => {
+  const msg = args[0];
+  return typeof msg === 'string' && (msg.includes('content-length') || msg.includes('dtype'));
+};
+
+const originalLog = console.log;
+
+console.log = (...args) => { if (!shouldSuppress(args)) originalLog.apply(console, args); };
+console.warn = (...args) => { if (!shouldSuppress(args)) originalLog.apply(console, args); };
+console.info = (...args) => { if (!shouldSuppress(args)) originalLog.apply(console, args); };
 
 // Import Transformers.js dynamically to reduce initial load
 let pipeline = null;
@@ -38,24 +57,26 @@ async function loadTransformers() {
     pipeline = transformers.pipeline;
     env = transformers.env;
 
-    // Configure for local bundled models (fully offline)
-    env.allowLocalModels = true;
-    env.allowRemoteModels = false;  // All models bundled locally
-    env.useBrowserCache = true;     // Cache in IndexedDB for faster subsequent loads
-    env.localModelPath = LOCAL_MODELS_PATH;
+    // Configure for Hugging Face Hub downloads with IndexedDB caching
+    env.allowLocalModels = false;    // Disable local bundled models
+    env.allowRemoteModels = true;    // Enable HF Hub downloads
+    env.useBrowserCache = true;      // Cache in IndexedDB for offline use
 
-    // Configure ONNX runtime WASM paths
+    // Configure ONNX runtime WASM paths (still bundled locally)
     const wasmPaths = `${EXTENSION_URL}/lib/vendor/onnxruntime-web/`;
     env.backends.onnx.wasm.wasmPaths = wasmPaths;
 
+    // Suppress ONNX Runtime warnings (like "Unknown CPU vendor")
+    env.backends.onnx.logLevel = 'error';
+
     transformersAvailable = true;
     console.log('[AI Worker] Transformers.js loaded');
-    console.log('[AI Worker] Local models path:', LOCAL_MODELS_PATH);
+    console.log('[AI Worker] Models will download from Hugging Face Hub on first use');
     console.log('[AI Worker] WASM path:', wasmPaths);
     return true;
   } catch (error) {
-    console.warn('[AI Worker] Transformers.js not available:', error.message);
-    console.warn('[AI Worker] ML features disabled.');
+    console.log('[AI Worker] Transformers.js not available:', error.message);
+    console.log('[AI Worker] ML features disabled.');
     transformersAvailable = false;
     return false;
   }
@@ -67,35 +88,113 @@ async function loadEmbeddingsModel() {
 
   const available = await loadTransformers();
   if (!available) {
-    throw new Error('Transformers.js not available. Run setup-ai.sh to install.');
+    throw new Error('Transformers.js not available');
   }
 
-  console.log('[AI Worker] Loading embeddings model...');
+  // Check network connectivity
+  if (!navigator.onLine) {
+    throw new Error('No internet connection. AI models require initial download.');
+  }
+
+  console.log('[AI Worker] Loading embeddings model from Hugging Face...');
   const startTime = performance.now();
 
-  featureExtractor = await pipeline('feature-extraction', MODELS.embeddings, {
-    quantized: true, // Use INT8 quantized version (~4x smaller)
-    progress_callback: (progress) => {
-      if (progress.status === 'progress') {
-        self.postMessage({
-          type: 'MODEL_LOADING_PROGRESS',
-          payload: {
-            model: 'embeddings',
-            progress: Math.round(progress.progress)
+  let lastError;
+  const maxRetries = 3;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      featureExtractor = await pipeline('feature-extraction', MODELS.embeddings, {
+        dtype: 'q8', // Explicitly use INT8 quantized version (~4x smaller)
+        progress_callback: (progress) => {
+          if (progress.status === 'initiate') {
+            self.postMessage({
+              type: 'MODEL_LOADING_PROGRESS',
+              payload: {
+                model: 'embeddings',
+                status: 'initiate',
+                progress: 0,
+                file: progress.file || '',
+                size: MODEL_SIZES.embeddings
+              }
+            });
+          } else if (progress.status === 'progress') {
+            self.postMessage({
+              type: 'MODEL_LOADING_PROGRESS',
+              payload: {
+                model: 'embeddings',
+                status: 'downloading',
+                progress: Math.round(progress.progress || 0),
+                loaded: progress.loaded || 0,
+                total: progress.total || 0,
+                file: progress.file || '',
+                size: MODEL_SIZES.embeddings
+              }
+            });
+          } else if (progress.status === 'done') {
+            self.postMessage({
+              type: 'MODEL_LOADING_PROGRESS',
+              payload: {
+                model: 'embeddings',
+                status: 'done',
+                progress: 100,
+                file: progress.file || ''
+              }
+            });
+          } else if (progress.status === 'ready') {
+            self.postMessage({
+              type: 'MODEL_LOADING_COMPLETE',
+              payload: {
+                model: 'embeddings',
+                cached: true
+              }
+            });
           }
-        });
+        }
+      });
+
+      const loadTime = Math.round(performance.now() - startTime);
+      console.log(`[AI Worker] Embeddings model loaded in ${loadTime}ms`);
+
+      // Notify completion
+      self.postMessage({
+        type: 'MODEL_LOADING_COMPLETE',
+        payload: {
+          model: 'embeddings',
+          cached: true,
+          loadTime
+        }
+      });
+
+      isModelLoaded = true;
+      lastUsedTime = Date.now();
+      scheduleUnload();
+
+      return featureExtractor;
+
+    } catch (error) {
+      lastError = error;
+      console.log(`[AI Worker] Load attempt ${attempt} failed:`, error.message);
+
+      if (attempt < maxRetries) {
+        // Exponential backoff: 2s, 4s, 8s
+        const delay = Math.pow(2, attempt) * 1000;
+        console.log(`[AI Worker] Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
+    }
+  }
+
+  // All retries failed
+  self.postMessage({
+    type: 'MODEL_LOADING_ERROR',
+    payload: {
+      model: 'embeddings',
+      error: lastError.message
     }
   });
 
-  const loadTime = Math.round(performance.now() - startTime);
-  console.log(`[AI Worker] Embeddings model loaded in ${loadTime}ms`);
-
-  isModelLoaded = true;
-  lastUsedTime = Date.now();
-  scheduleUnload();
-
-  return featureExtractor;
+  throw new Error(`Failed to download embeddings model after ${maxRetries} attempts: ${lastError.message}`);
 }
 
 // Load NER model on demand (heavier, only when needed)
@@ -104,30 +203,109 @@ async function loadNERModel() {
 
   const available = await loadTransformers();
   if (!available) {
-    throw new Error('Transformers.js not available. Run setup-ai.sh to install.');
+    throw new Error('Transformers.js not available');
   }
 
-  console.log('[AI Worker] Loading NER model...');
+  // Check network connectivity
+  if (!navigator.onLine) {
+    throw new Error('No internet connection. AI models require initial download.');
+  }
 
-  nerPipeline = await pipeline('token-classification', MODELS.ner, {
-    quantized: true,
-    progress_callback: (progress) => {
-      if (progress.status === 'progress') {
-        self.postMessage({
-          type: 'MODEL_LOADING_PROGRESS',
-          payload: {
-            model: 'ner',
-            progress: Math.round(progress.progress)
+  console.log('[AI Worker] Loading NER model from Hugging Face...');
+  const startTime = performance.now();
+
+  let lastError;
+  const maxRetries = 3;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      nerPipeline = await pipeline('token-classification', MODELS.ner, {
+        dtype: 'q8',
+        progress_callback: (progress) => {
+          if (progress.status === 'initiate') {
+            self.postMessage({
+              type: 'MODEL_LOADING_PROGRESS',
+              payload: {
+                model: 'ner',
+                status: 'initiate',
+                progress: 0,
+                file: progress.file || '',
+                size: MODEL_SIZES.ner
+              }
+            });
+          } else if (progress.status === 'progress') {
+            self.postMessage({
+              type: 'MODEL_LOADING_PROGRESS',
+              payload: {
+                model: 'ner',
+                status: 'downloading',
+                progress: Math.round(progress.progress || 0),
+                loaded: progress.loaded || 0,
+                total: progress.total || 0,
+                file: progress.file || '',
+                size: MODEL_SIZES.ner
+              }
+            });
+          } else if (progress.status === 'done') {
+            self.postMessage({
+              type: 'MODEL_LOADING_PROGRESS',
+              payload: {
+                model: 'ner',
+                status: 'done',
+                progress: 100,
+                file: progress.file || ''
+              }
+            });
+          } else if (progress.status === 'ready') {
+            self.postMessage({
+              type: 'MODEL_LOADING_COMPLETE',
+              payload: {
+                model: 'ner',
+                cached: true
+              }
+            });
           }
-        });
+        }
+      });
+
+      const loadTime = Math.round(performance.now() - startTime);
+      console.log(`[AI Worker] NER model loaded in ${loadTime}ms`);
+
+      // Notify completion
+      self.postMessage({
+        type: 'MODEL_LOADING_COMPLETE',
+        payload: {
+          model: 'ner',
+          cached: true,
+          loadTime
+        }
+      });
+
+      lastUsedTime = Date.now();
+      return nerPipeline;
+
+    } catch (error) {
+      lastError = error;
+      console.log(`[AI Worker] NER load attempt ${attempt} failed:`, error.message);
+
+      if (attempt < maxRetries) {
+        const delay = Math.pow(2, attempt) * 1000;
+        console.log(`[AI Worker] Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
+    }
+  }
+
+  // All retries failed
+  self.postMessage({
+    type: 'MODEL_LOADING_ERROR',
+    payload: {
+      model: 'ner',
+      error: lastError.message
     }
   });
 
-  console.log('[AI Worker] NER model loaded');
-  lastUsedTime = Date.now();
-
-  return nerPipeline;
+  throw new Error(`Failed to download NER model after ${maxRetries} attempts: ${lastError.message}`);
 }
 
 // Unload models after inactivity to free memory
@@ -275,7 +453,7 @@ async function extractEntities(text) {
     lastUsedTime = Date.now();
     return grouped;
   } catch (error) {
-    console.error('[AI Worker] NER extraction failed:', error);
+    console.log('[AI Worker] NER extraction failed:', error);
     return null;
   }
 }
@@ -288,7 +466,7 @@ async function generateEmbeddings(text) {
     lastUsedTime = Date.now();
     return Array.from(output.data);
   } catch (error) {
-    console.error('[AI Worker] Embeddings generation failed:', error);
+    console.log('[AI Worker] Embeddings generation failed:', error);
     return null;
   }
 }
@@ -372,7 +550,7 @@ async function suggestTags(text, threshold = 0.3) {
       .slice(0, 5)
       .map(s => s.tag);
   } catch (error) {
-    console.error('[AI Worker] Tag suggestion failed:', error);
+    console.log('[AI Worker] Tag suggestion failed:', error);
     return [];
   }
 }
@@ -418,7 +596,7 @@ async function parseResume(text, useML = true) {
         result.locations = entities.locations;
       }
     } catch (error) {
-      console.warn('[AI Worker] ML extraction failed, using regex only:', error);
+      console.log('[AI Worker] ML extraction failed, using regex only:', error);
     }
   }
 
@@ -457,7 +635,7 @@ async function parseJobPosting(text, useML = true) {
         result.location = entities.locations.join(', ');
       }
     } catch (error) {
-      console.warn('[AI Worker] ML extraction failed, using regex only:', error);
+      console.log('[AI Worker] ML extraction failed, using regex only:', error);
     }
   }
 

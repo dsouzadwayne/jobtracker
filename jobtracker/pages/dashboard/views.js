@@ -69,7 +69,7 @@ export async function toggleView(view) {
       });
     }
   } catch (error) {
-    console.error('Error saving view preference:', error);
+    console.log('Error saving view preference:', error);
   }
 }
 

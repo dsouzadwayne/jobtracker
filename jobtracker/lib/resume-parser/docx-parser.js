@@ -23,7 +23,7 @@ const ResumeDOCXParser = {
 
     if (result.messages && result.messages.length > 0) {
       // Log any warnings (but don't fail)
-      console.warn('DOCX parsing warnings:', result.messages);
+      console.log('DOCX parsing warnings:', result.messages);
     }
 
     // Clean up the text

@@ -76,7 +76,17 @@ const MessageTypes = {
   GET_EXPIRING_APPLICATIONS: 'GET_EXPIRING_APPLICATIONS',
 
   // AI Features
-  AI_EXTRACT_JOB: 'AI_EXTRACT_JOB'
+  AI_EXTRACT_JOB: 'AI_EXTRACT_JOB',
+
+  // Data Management (Model Downloads & Storage)
+  CLEAR_MODELS_METADATA: 'CLEAR_MODELS_METADATA',
+  CLEAR_PROFILE: 'CLEAR_PROFILE',
+  CLEAR_APPLICATIONS: 'CLEAR_APPLICATIONS',
+  GET_APPLICATIONS_SIZE: 'GET_APPLICATIONS_SIZE',
+  GET_PROFILE_SIZE: 'GET_PROFILE_SIZE',
+  GET_APPLICATIONS_COUNT: 'GET_APPLICATIONS_COUNT',
+  GET_MODELS_STATUS: 'GET_MODELS_STATUS',
+  SET_MODEL_METADATA: 'SET_MODEL_METADATA'
 };
 
 // Alarm name for badge clear
@@ -219,6 +229,14 @@ function validatePayload(type, payload) {
     case MessageTypes.GET_ACTIVITIES_BY_APP:
     case MessageTypes.GET_ALL_TAGS:
     case MessageTypes.GET_EXPIRING_APPLICATIONS:
+    case MessageTypes.CLEAR_MODELS_METADATA:
+    case MessageTypes.CLEAR_PROFILE:
+    case MessageTypes.CLEAR_APPLICATIONS:
+    case MessageTypes.GET_APPLICATIONS_SIZE:
+    case MessageTypes.GET_PROFILE_SIZE:
+    case MessageTypes.GET_APPLICATIONS_COUNT:
+    case MessageTypes.GET_MODELS_STATUS:
+    case MessageTypes.SET_MODEL_METADATA:
       break;
 
     default:
@@ -292,7 +310,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Validate payload
   const validation = validatePayload(type, payload);
   if (!validation.valid) {
-    console.warn('JobTracker: Message validation failed:', validation.error);
+    console.log('JobTracker: Message validation failed:', validation.error);
     sendResponse({ error: validation.error });
     return true;
   }
@@ -550,6 +568,96 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case MessageTypes.GET_EXPIRING_APPLICATIONS: {
           const days = payload?.days || 3;
           response = await JobTrackerDB.getExpiringApplications(days);
+          break;
+        }
+
+        // ==================== DATA MANAGEMENT ====================
+        case MessageTypes.CLEAR_MODELS_METADATA: {
+          try {
+            await JobTrackerDB.clearModelsMetadata();
+            response = { success: true };
+          } catch (error) {
+            response = { success: false, error: error.message };
+          }
+          break;
+        }
+
+        case MessageTypes.CLEAR_PROFILE: {
+          try {
+            await JobTrackerDB.deleteProfile();
+            response = { success: true };
+          } catch (error) {
+            response = { success: false, error: error.message };
+          }
+          break;
+        }
+
+        case MessageTypes.CLEAR_APPLICATIONS: {
+          try {
+            await JobTrackerDB.clearAllApplications();
+            await JobTrackerDB.clearAllInterviews();
+            await JobTrackerDB.clearAllTasks();
+            await JobTrackerDB.clearAllActivities();
+            applicationChannel.postMessage({ type: 'DATA_CHANGED', action: 'clear' });
+            response = { success: true };
+          } catch (error) {
+            response = { success: false, error: error.message };
+          }
+          break;
+        }
+
+        case MessageTypes.GET_APPLICATIONS_SIZE: {
+          try {
+            const apps = await JobTrackerDB.getAllApplications();
+            const size = JSON.stringify(apps).length;
+            response = { size };
+          } catch (error) {
+            response = { size: 0 };
+          }
+          break;
+        }
+
+        case MessageTypes.GET_PROFILE_SIZE: {
+          try {
+            const profile = await JobTrackerDB.getProfile();
+            const size = JSON.stringify(profile).length;
+            response = { size };
+          } catch (error) {
+            response = { size: 0 };
+          }
+          break;
+        }
+
+        case MessageTypes.GET_APPLICATIONS_COUNT: {
+          try {
+            const apps = await JobTrackerDB.getAllApplications();
+            response = { count: apps.length };
+          } catch (error) {
+            response = { count: 0 };
+          }
+          break;
+        }
+
+        case MessageTypes.GET_MODELS_STATUS: {
+          try {
+            response = await JobTrackerDB.getModelsDownloadStatus();
+          } catch (error) {
+            response = {
+              embeddings: { downloadStatus: 'not_started' },
+              ner: { downloadStatus: 'not_started' }
+            };
+          }
+          break;
+        }
+
+        case MessageTypes.SET_MODEL_METADATA: {
+          try {
+            const { modelId, ...metadata } = payload;
+            await JobTrackerDB.setModelMetadata(modelId, metadata);
+            response = { success: true };
+          } catch (error) {
+            response = { success: false, error: error.message };
+          }
           break;
         }
 

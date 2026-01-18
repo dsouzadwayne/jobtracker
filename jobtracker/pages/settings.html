@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings - JobTracker</title>
+  <link rel="stylesheet" href="../common.css">
+  <link rel="stylesheet" href="settings.css">
+</head>
+<body>
+  <div class="dashboard">
+    <!-- Sidebar -->
+    <aside class="dashboard-sidebar" id="dashboard-sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+          </svg>
+          <span class="logo-text">JobTracker</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav" aria-label="Main navigation">
+        <a href="dashboard.html" class="nav-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+          <span>Applications</span>
+        </a>
+        <a href="statistics.html" class="nav-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="18" y1="20" x2="18" y2="10"></line>
+            <line x1="12" y1="20" x2="12" y2="4"></line>
+            <line x1="6" y1="20" x2="6" y2="14"></line>
+          </svg>
+          <span>Statistics</span>
+        </a>
+        <a href="profile.html" class="nav-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+          <span>Profile</span>
+        </a>
+        <a href="supported-sites.html" class="nav-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="2" y1="12" x2="22" y2="12"></line>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+          </svg>
+          <span>Supported Sites</span>
+        </a>
+        <a href="settings.html" class="nav-item active" aria-current="page">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          <span>Settings</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button class="theme-toggle" id="theme-toggle" title="Toggle theme" aria-label="Toggle dark/light theme">
+          <svg class="icon-light" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <svg class="icon-dark" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="dashboard-main">
+      <!-- Header -->
+      <header class="dashboard-header">
+        <div class="header-left">
+          <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="dashboard-sidebar">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+          </button>
+          <h1>Settings</h1>
+        </div>
+      </header>
+
+      <!-- Settings Section -->
+      <section class="settings-section" aria-label="Settings">
+        <!-- Appearance -->
+        <div class="settings-group">
+          <h2>Appearance</h2>
+          <p class="settings-description">Customize how JobTracker looks.</p>
+
+          <div class="settings-card">
+            <div class="setting-row">
+              <div class="setting-info">
+                <h4>Theme</h4>
+                <p>Choose your preferred color scheme</p>
+              </div>
+              <div class="theme-selector" id="theme-selector">
+                <button type="button" class="theme-option" data-theme="light">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="5"></circle>
+                    <line x1="12" y1="1" x2="12" y2="3"></line>
+                    <line x1="12" y1="21" x2="12" y2="23"></line>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                    <line x1="1" y1="12" x2="3" y2="12"></line>
+                    <line x1="21" y1="12" x2="23" y2="12"></line>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                  </svg>
+                  Light
+                </button>
+                <button type="button" class="theme-option" data-theme="dark">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                  </svg>
+                  Dark
+                </button>
+                <button type="button" class="theme-option active" data-theme="system">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                    <line x1="8" y1="21" x2="16" y2="21"></line>
+                    <line x1="12" y1="17" x2="12" y2="21"></line>
+                  </svg>
+                  System
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Autofill Settings -->
+        <div class="settings-group">
+          <h2>Autofill</h2>
+          <p class="settings-description">Configure how form autofill works on job sites.</p>
+
+          <div class="settings-card">
+            <div class="setting-row">
+              <div class="setting-info">
+                <h4>Enable Autofill</h4>
+                <p>Automatically fill job application forms</p>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="setting-autofill-enabled" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-row">
+              <div class="setting-info">
+                <h4>Floating Button</h4>
+                <p>Show quick-fill button on job sites</p>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="setting-floating-btn" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-row">
+              <div class="setting-info">
+                <h4>Fill Delay</h4>
+                <p>Wait before filling (helps with slow-loading forms)</p>
+              </div>
+              <div class="delay-control">
+                <input type="range" id="setting-autofill-delay" min="0" max="3000" step="500" value="0">
+                <span id="delay-value">0s</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Custom Field Rules -->
+        <div class="settings-group">
+          <h2>Custom Field Rules</h2>
+          <p class="settings-description">Map specific form fields to your profile data.</p>
+
+          <div class="settings-card">
+            <div id="custom-rules-list" class="custom-rules-list"></div>
+            <div id="rules-empty" class="rules-empty">
+              <p>No custom rules defined. Add rules to handle specific form fields.</p>
+            </div>
+            <button class="btn-secondary" id="add-rule-btn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              Add Custom Rule
+            </button>
+          </div>
+        </div>
+
+        <!-- AI Features Section -->
+        <div class="settings-group">
+          <h2>AI Features</h2>
+          <p class="settings-description">Enable AI-powered features like smart tag suggestions and resume parsing.</p>
+
+          <div class="settings-card">
+            <div class="setting-row">
+              <div class="setting-info">
+                <h4>Enable AI Features</h4>
+                <p>Use machine learning for enhanced functionality</p>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="setting-ai-enabled">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-row">
+              <div class="setting-info">
+                <h4>Auto-suggest Tags</h4>
+                <p>Automatically suggest tags based on job descriptions</p>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="setting-ai-tags" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-row">
+              <div class="setting-info">
+                <h4>Enhanced Resume Parsing</h4>
+                <p>Use ML to better extract information from resumes</p>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="setting-ai-resume" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- AI Models -->
+          <h3 class="settings-subheading">AI Models</h3>
+          <p class="settings-description">Download models for offline AI features. Models are only used when AI is enabled.</p>
+
+          <div class="settings-card ai-models-section" id="ai-models-card">
+            <div class="models-list">
+              <div class="model-card">
+                <div class="model-info">
+                  <span class="model-icon">&#129302;</span>
+                  <div class="model-details">
+                    <h3>Embeddings Model</h3>
+                    <p class="model-name">all-MiniLM-L6-v2</p>
+                    <p class="model-purpose">For semantic search and tag suggestions</p>
+                  </div>
+                </div>
+                <div class="model-status">
+                  <span class="model-size">23 MB</span>
+                  <span class="status-badge not-downloaded" id="embeddings-status">Not Downloaded</span>
+                </div>
+              </div>
+
+              <div class="model-card">
+                <div class="model-info">
+                  <span class="model-icon">&#128218;</span>
+                  <div class="model-details">
+                    <h3>NER Model</h3>
+                    <p class="model-name">bert-base-NER</p>
+                    <p class="model-purpose">For extracting names, companies, skills from text</p>
+                  </div>
+                </div>
+                <div class="model-status">
+                  <span class="model-size">109 MB</span>
+                  <span class="status-badge not-downloaded" id="ner-status">Not Downloaded</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="models-actions">
+              <button class="btn-primary" id="preload-models-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                Download All Models (132 MB)
+              </button>
+              <button class="btn-secondary" id="clear-models-btn">Clear Cache</button>
+            </div>
+
+            <p class="cache-info" id="models-cache-info">Models will be cached for offline use after download</p>
+          </div>
+        </div>
+
+        <!-- Data Management -->
+        <div class="settings-group">
+          <h2>Data Management</h2>
+          <p class="settings-description">Export, import, or clear your data.</p>
+
+          <div class="settings-card data-management-section">
+            <div class="data-actions">
+              <div class="data-item">
+                <div class="data-info">
+                  <h3>Export Data</h3>
+                  <p>Download all your data as a JSON file</p>
+                </div>
+                <button class="btn-secondary" id="settings-export-btn">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                  </svg>
+                  Export
+                </button>
+              </div>
+
+              <div class="data-item">
+                <div class="data-info">
+                  <h3>Import Data</h3>
+                  <p>Restore data from a backup file</p>
+                </div>
+                <button class="btn-secondary" id="settings-import-btn">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                  </svg>
+                  Import
+                </button>
+                <input type="file" id="settings-import-file" accept=".json" class="hidden">
+              </div>
+
+              <div class="data-item">
+                <div class="data-info">
+                  <h3>Profile Data</h3>
+                  <p>Your personal information and work history</p>
+                  <span class="data-size" id="profile-size">0 B</span>
+                </div>
+                <button class="btn-secondary btn-warning" id="clear-profile-btn">Clear</button>
+              </div>
+
+              <div class="data-item">
+                <div class="data-info">
+                  <h3>Applications</h3>
+                  <p>All tracked job applications</p>
+                  <span class="data-size" id="applications-size">0 B</span>
+                </div>
+                <button class="btn-secondary btn-warning" id="clear-applications-btn">Clear</button>
+              </div>
+
+              <div class="data-item">
+                <div class="data-info">
+                  <h3>AI Models Cache</h3>
+                  <p>Downloaded ML models for offline use</p>
+                  <span class="data-size" id="models-cache-size">Not downloaded</span>
+                </div>
+                <button class="btn-secondary btn-warning" id="clear-ai-models-btn">Clear</button>
+              </div>
+
+              <div class="data-item danger-zone">
+                <div class="data-info">
+                  <h3>Clear All Data</h3>
+                  <p>Delete everything and start fresh</p>
+                </div>
+                <button class="btn-danger-critical" id="clear-all-data-btn">Delete All</button>
+              </div>
+            </div>
+
+            <div class="total-storage">
+              <span>Total Storage Used</span>
+              <span id="total-storage-size">0 B</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Mobile Sidebar Overlay -->
+  <div class="sidebar-overlay hidden" id="sidebar-overlay"></div>
+
+  <!-- Custom Rule Modal -->
+  <div id="rule-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="rule-modal-title">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="rule-modal-title">Add Custom Rule</h3>
+        <button class="close-btn" id="close-rule-modal" aria-label="Close modal">&times;</button>
+      </div>
+      <form id="rule-form">
+        <input type="hidden" id="rule-id">
+
+        <div class="form-group">
+          <label for="rule-name">Rule Name</label>
+          <input type="text" id="rule-name" placeholder="e.g., LinkedIn Username">
+        </div>
+
+        <div class="form-group">
+          <label for="rule-pattern">Field Pattern (Regex)</label>
+          <input type="text" id="rule-pattern" required placeholder="e.g., linkedin|social.*url">
+          <span class="form-hint">Matches field name, id, label, or placeholder</span>
+          <span class="form-error hidden" id="pattern-error">Invalid regex pattern</span>
+        </div>
+
+        <div class="form-group">
+          <label for="rule-profile-path">Profile Path</label>
+          <select id="rule-profile-path">
+            <option value="personal.email">Personal Email</option>
+            <option value="personal.phone">Phone Number</option>
+            <option value="personal.firstName">First Name</option>
+            <option value="personal.lastName">Last Name</option>
+            <option value="personal.linkedIn">LinkedIn URL</option>
+            <option value="personal.github">GitHub URL</option>
+            <option value="personal.portfolio">Portfolio URL</option>
+            <option value="personal.location.city">City</option>
+            <option value="personal.location.state">State</option>
+            <option value="personal.location.country">Country</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="toggle-row">
+            <span>Enabled</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="rule-enabled" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </label>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn-cancel" id="cancel-rule-btn">Cancel</button>
+          <button type="submit" class="btn-primary">Save Rule</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script type="module" src="settings.js"></script>
+</body>
+</html>

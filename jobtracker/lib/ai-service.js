@@ -38,7 +38,7 @@ class AIService {
         };
 
         this.worker.onerror = (error) => {
-          console.error('[AI Service] Worker error:', error);
+          console.log('[AI Service] Worker error:', error);
           reject(error);
         };
 
@@ -55,7 +55,7 @@ class AIService {
 
         resolve(true);
       } catch (error) {
-        console.error('[AI Service] Failed to initialize:', error);
+        console.log('[AI Service] Failed to initialize:', error);
         reject(error);
       }
     });
@@ -69,10 +69,36 @@ class AIService {
   handleMessage(event) {
     const { type, requestId, result, error, payload } = event.data;
 
-    // Handle progress updates
+    // Handle progress updates - dispatch custom events for global listeners
     if (type === 'MODEL_LOADING_PROGRESS') {
       if (this.onModelLoadProgress) {
         this.onModelLoadProgress(payload);
+      }
+      // Dispatch global event for UI components to listen to
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('model-download-progress', {
+          detail: payload
+        }));
+      }
+      return;
+    }
+
+    // Handle model loading completion
+    if (type === 'MODEL_LOADING_COMPLETE') {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('model-download-complete', {
+          detail: payload
+        }));
+      }
+      return;
+    }
+
+    // Handle model loading errors
+    if (type === 'MODEL_LOADING_ERROR') {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('model-download-error', {
+          detail: payload
+        }));
       }
       return;
     }

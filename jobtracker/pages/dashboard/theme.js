@@ -40,7 +40,7 @@ export const ThemeManager = {
       await chrome.storage.local.set({ [STORAGE_KEY]: prefs });
       this.applyTheme(theme);
     } catch (error) {
-      console.error('Error saving theme:', error);
+      console.log('Error saving theme:', error);
     }
   },
 

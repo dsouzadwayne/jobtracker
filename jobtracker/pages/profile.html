@@ -8,32 +8,111 @@
   <link rel="stylesheet" href="profile.css">
 </head>
 <body>
-  <div class="page-container">
-    <!-- Header -->
-    <header class="page-header">
-      <div class="header-left">
-        <a href="#" id="back-btn" class="back-btn" title="Back">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="19" y1="12" x2="5" y2="12"></line>
-            <polyline points="12 19 5 12 12 5"></polyline>
-          </svg>
-        </a>
-        <h1>Profile</h1>
-      </div>
-      <div class="header-actions">
-        <button id="import-resume-btn" class="btn-primary">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+  <div class="dashboard">
+    <!-- Sidebar -->
+    <aside class="dashboard-sidebar" id="dashboard-sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
             <polyline points="14 2 14 8 20 8"></polyline>
-            <line x1="12" y1="18" x2="12" y2="12"></line>
-            <line x1="9" y1="15" x2="15" y2="15"></line>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
           </svg>
-          Import Resume
+          <span class="logo-text">JobTracker</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav" aria-label="Main navigation">
+        <a href="dashboard.html" class="nav-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+          <span>Applications</span>
+        </a>
+        <a href="statistics.html" class="nav-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="18" y1="20" x2="18" y2="10"></line>
+            <line x1="12" y1="20" x2="12" y2="4"></line>
+            <line x1="6" y1="20" x2="6" y2="14"></line>
+          </svg>
+          <span>Statistics</span>
+        </a>
+        <a href="profile.html" class="nav-item active" aria-current="page">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+          <span>Profile</span>
+        </a>
+        <a href="supported-sites.html" class="nav-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="2" y1="12" x2="22" y2="12"></line>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+          </svg>
+          <span>Supported Sites</span>
+        </a>
+        <a href="settings.html" class="nav-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          <span>Settings</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button class="theme-toggle" id="theme-toggle" title="Toggle theme" aria-label="Toggle dark/light theme">
+          <svg class="icon-light" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <svg class="icon-dark" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
         </button>
       </div>
-    </header>
+    </aside>
 
-    <!-- Tab Navigation -->
+    <!-- Main Content -->
+    <main class="dashboard-main">
+      <!-- Header -->
+      <header class="dashboard-header">
+        <div class="header-left">
+          <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="dashboard-sidebar">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+          </button>
+          <h1>Profile</h1>
+        </div>
+        <div class="header-actions">
+          <button id="import-resume-btn" class="btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="12" y1="18" x2="12" y2="12"></line>
+              <line x1="9" y1="15" x2="15" y2="15"></line>
+            </svg>
+            Import Resume
+          </button>
+        </div>
+      </header>
+
+      <!-- Tab Navigation -->
     <nav class="tab-nav">
       <button class="tab-btn active" data-tab="personal">Personal Info</button>
       <button class="tab-btn" data-tab="work">Work History</button>
@@ -41,7 +120,6 @@
       <button class="tab-btn" data-tab="skills">Skills</button>
       <button class="tab-btn" data-tab="qa">Q&A</button>
       <button class="tab-btn" data-tab="cover">Cover Letters</button>
-      <button class="tab-btn" data-tab="settings">Settings</button>
     </nav>
 
     <!-- Tab Content -->
@@ -280,157 +358,20 @@
           <p class="hint">Create cover letters for different job types or industries</p>
         </div>
       </section>
-
-      <!-- Settings Tab -->
-      <section id="tab-settings" class="tab-panel">
-        <div class="section-card">
-          <h2>Appearance</h2>
-          <div class="setting-row">
-            <div class="setting-info">
-              <label>Theme</label>
-              <p class="setting-desc">Choose your preferred color scheme</p>
-            </div>
-            <div class="theme-selector">
-              <button type="button" class="theme-option" data-theme="light" title="Light">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="5"></circle>
-                  <line x1="12" y1="1" x2="12" y2="3"></line>
-                  <line x1="12" y1="21" x2="12" y2="23"></line>
-                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-                  <line x1="1" y1="12" x2="3" y2="12"></line>
-                  <line x1="21" y1="12" x2="23" y2="12"></line>
-                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-                </svg>
-                <span>Light</span>
-              </button>
-              <button type="button" class="theme-option" data-theme="dark" title="Dark">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-                </svg>
-                <span>Dark</span>
-              </button>
-              <button type="button" class="theme-option" data-theme="system" title="System">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                  <line x1="8" y1="21" x2="16" y2="21"></line>
-                  <line x1="12" y1="17" x2="12" y2="21"></line>
-                </svg>
-                <span>System</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div class="section-card">
-          <h2>Autofill Settings</h2>
-          <div class="setting-row">
-            <div class="setting-info">
-              <label>Enable Autofill</label>
-              <p class="setting-desc">Allow JobTracker to fill forms automatically</p>
-            </div>
-            <label class="toggle">
-              <input type="checkbox" id="setting-autofill-enabled" checked>
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-          <div class="setting-row">
-            <div class="setting-info">
-              <label>Show Floating Button</label>
-              <p class="setting-desc">Display autofill button on job application pages</p>
-            </div>
-            <label class="toggle">
-              <input type="checkbox" id="setting-floating-btn" checked>
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-          <div class="setting-row">
-            <div class="setting-info">
-              <label>Autofill Delay</label>
-              <p class="setting-desc">Wait before filling (helps with dynamic forms)</p>
-            </div>
-            <div class="delay-control">
-              <input type="range" id="setting-autofill-delay" min="0" max="5000" step="500" value="0">
-              <span id="delay-value">0s</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="section-card">
-          <div class="section-header-inline">
-            <div>
-              <h2>Custom Field Rules</h2>
-              <p class="section-hint">Add regex patterns for fields that aren't auto-detected</p>
-            </div>
-            <button id="add-rule-btn" class="btn-primary btn-sm">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
-              Add Rule
-            </button>
-          </div>
-          <div id="custom-rules-list" class="entry-list"></div>
-          <div id="rules-empty" class="empty-state">
-            <p>No custom rules defined</p>
-            <p class="hint">Add a rule to match fields by regex pattern</p>
-          </div>
-        </div>
-
-        <div class="section-card">
-          <h2>Import / Export Data</h2>
-          <div class="setting-row">
-            <div class="setting-info">
-              <label>Export Profile</label>
-              <p class="setting-desc">Download your profile data as a JSON file</p>
-            </div>
-            <button id="export-btn" class="btn-secondary">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="7 10 12 15 17 10"></polyline>
-                <line x1="12" y1="15" x2="12" y2="3"></line>
-              </svg>
-              Export
-            </button>
-          </div>
-          <div class="setting-row">
-            <div class="setting-info">
-              <label>Import Profile</label>
-              <p class="setting-desc">Restore your profile data from a previously exported JSON file</p>
-            </div>
-            <button id="import-btn" class="btn-secondary">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="17 8 12 3 7 8"></polyline>
-                <line x1="12" y1="3" x2="12" y2="15"></line>
-              </svg>
-              Import
-            </button>
-          </div>
-        </div>
-
-        <div class="section-card danger-zone">
-          <h2>Danger Zone</h2>
-          <div class="setting-row">
-            <div class="setting-info">
-              <label>Clear All Data</label>
-              <p class="setting-desc">Permanently delete all your profile and application data</p>
-            </div>
-            <button id="clear-data-btn" class="btn-danger">Clear Data</button>
-          </div>
-        </div>
-      </section>
     </main>
 
-    <!-- Save indicator -->
-    <div id="save-indicator" class="save-indicator hidden">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polyline points="20 6 9 17 4 12"></polyline>
-      </svg>
-      Saved
-    </div>
+      <!-- Save indicator -->
+      <div id="save-indicator" class="save-indicator hidden">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        Saved
+      </div>
+    </main>
   </div>
+
+  <!-- Mobile Sidebar Overlay -->
+  <div class="sidebar-overlay hidden" id="sidebar-overlay"></div>
 
   <!-- Work Entry Modal -->
   <div id="work-modal" class="modal hidden">
@@ -592,79 +533,6 @@
     </div>
   </div>
 
-  <!-- Custom Rule Modal -->
-  <div id="rule-modal" class="modal hidden">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3 id="rule-modal-title">Add Custom Rule</h3>
-        <button class="close-btn" data-close="rule-modal">&times;</button>
-      </div>
-      <form id="rule-form">
-        <input type="hidden" id="rule-id">
-        <div class="form-group">
-          <label for="rule-name">Rule Name *</label>
-          <input type="text" id="rule-name" required placeholder="e.g., Company Email Field">
-        </div>
-        <div class="form-group">
-          <label for="rule-pattern">Regex Pattern *</label>
-          <input type="text" id="rule-pattern" required placeholder="e.g., applicant.*email">
-          <p class="field-hint">Case-insensitive regex to match field name/id/label</p>
-          <p id="pattern-error" class="field-error hidden">Invalid regex pattern</p>
-        </div>
-        <div class="form-group">
-          <label for="rule-profile-path">Fill With *</label>
-          <select id="rule-profile-path" required>
-            <optgroup label="Personal">
-              <option value="personal.firstName">First Name</option>
-              <option value="personal.middleName">Middle Name</option>
-              <option value="personal.lastName">Last Name</option>
-              <option value="personal.email">Email</option>
-              <option value="personal.phone">Phone</option>
-              <option value="personal.linkedIn">LinkedIn URL</option>
-              <option value="personal.github">GitHub URL</option>
-              <option value="personal.portfolio">Portfolio URL</option>
-            </optgroup>
-            <optgroup label="Address">
-              <option value="personal.address.street">Street</option>
-              <option value="personal.address.city">City</option>
-              <option value="personal.address.state">State</option>
-              <option value="personal.address.zipCode">ZIP Code</option>
-              <option value="personal.address.country">Country</option>
-            </optgroup>
-            <optgroup label="Work">
-              <option value="workHistory[0].company">Current Company</option>
-              <option value="workHistory[0].title">Current Title</option>
-            </optgroup>
-            <optgroup label="Education">
-              <option value="education[0].school">School</option>
-              <option value="education[0].degree">Degree</option>
-              <option value="education[0].field">Field of Study</option>
-            </optgroup>
-            <optgroup label="Compensation">
-              <option value="personal.currentCtc">Current CTC</option>
-              <option value="personal.expectedCtc">Expected CTC</option>
-            </optgroup>
-          </select>
-        </div>
-        <div class="setting-row" style="border: none; padding: 0;">
-          <div class="setting-info">
-            <label>Enabled</label>
-          </div>
-          <label class="toggle">
-            <input type="checkbox" id="rule-enabled" checked>
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-        <div class="form-actions">
-          <button type="button" class="btn-cancel" data-close="rule-modal">Cancel</button>
-          <button type="submit" class="btn-primary">Save</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- Hidden file input for import -->
-  <input type="file" id="import-file" accept=".json" hidden>
 
   <!-- Hidden file input for resume -->
   <input type="file" id="resume-file-input" accept=".pdf,.docx,.txt" hidden>
@@ -748,6 +616,9 @@
   <script src="../lib/resume-parser/extractors/index.js"></script>
 
   <script src="../lib/resume-parser/index.js"></script>
+
+  <!-- AI Service for resume enhancement -->
+  <script type="module" src="profile-ai.js"></script>
 
   <script src="profile.js"></script>
 </body>

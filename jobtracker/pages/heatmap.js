@@ -13,7 +13,7 @@ const HeatmapRenderer = {
   render(selector, dailyCounts) {
     const container = document.querySelector(selector);
     if (!container) {
-      console.warn('Heatmap container not found:', selector);
+      console.log('Heatmap container not found:', selector);
       return;
     }
 
@@ -76,7 +76,7 @@ const HeatmapRenderer = {
     }
 
     if (!HeatmapClass || typeof HeatmapClass !== 'function') {
-      console.error('ActivityHeatmap library not loaded. ActivityHeatmap =', ActivityHeatmap);
+      console.log('ActivityHeatmap library not loaded. ActivityHeatmap =', ActivityHeatmap);
       container.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 2rem;">Heatmap library not loaded</p>';
       return;
     }
@@ -279,7 +279,7 @@ const HeatmapRenderer = {
         observer.observe(container, { childList: true });
       }
     } catch (error) {
-      console.error('Error rendering activity heatmap:', error);
+      console.log('Error rendering activity heatmap:', error);
       // Fallback: show simple message
       container.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 2rem;">Unable to load heatmap</p>';
     }

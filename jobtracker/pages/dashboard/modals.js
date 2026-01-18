@@ -271,7 +271,7 @@ export async function handleSubmit(e) {
     await loadTagsCallback?.(); // CRM Enhancement: Reload tags
     await updateStatsCallback?.();
   } catch (error) {
-    console.error('Error saving application:', error);
+    console.log('Error saving application:', error);
     // Keep modal open and show specific error
     showFormError('Failed to save application. Please check your connection and try again.');
   } finally {

@@ -147,6 +147,45 @@
   flex-shrink: 0;
 }
 
+/* Track Button */
+.action-btn.track-btn {
+  background: linear-gradient(135deg, #10b981, #059669);
+  position: relative;
+}
+
+.action-btn.track-btn:hover {
+  background: linear-gradient(135deg, #059669, #047857);
+  box-shadow: var(--shadow);
+  transform: translateY(-1px);
+}
+
+.action-btn.track-btn:disabled {
+  opacity: 0.8;
+  cursor: wait;
+  transform: none;
+}
+
+.action-btn .btn-text,
+.action-btn .btn-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.action-btn .btn-loading.hidden,
+.action-btn .btn-text.hidden {
+  display: none;
+}
+
+.action-btn .spinner-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 /* Recent Section */
 .recent-section {
   flex: 1;

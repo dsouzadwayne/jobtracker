@@ -18,7 +18,7 @@ const PDFTextReader = {
           pdfjsLib.GlobalWorkerOptions.workerSrc = chrome.runtime.getURL('lib/vendor/pdf.worker.min.js');
         }
       } catch (e) {
-        console.warn('Could not configure PDF.js worker:', e);
+        console.log('Could not configure PDF.js worker:', e);
       }
       this._workerConfigured = true;
     }

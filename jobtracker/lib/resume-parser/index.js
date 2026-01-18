@@ -320,7 +320,7 @@ const ResumeParser = {
       console.log('[ResumeParser] AI enhancement complete');
       return enhanced;
     } catch (error) {
-      console.warn('[ResumeParser] AI enhancement failed:', error);
+      console.log('[ResumeParser] AI enhancement failed:', error);
       return parsedData; // Return original if AI fails
     }
   }

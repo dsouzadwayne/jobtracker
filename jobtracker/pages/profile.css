@@ -3,24 +3,128 @@
  * Japanese Minimalist Design (Ma)
  */
 
-.page-container {
+/* Layout */
+.dashboard {
+  display: flex;
+  min-height: 100vh;
+  background: var(--bg-primary);
+}
+
+/* Sidebar */
+.dashboard-sidebar {
+  display: none;
+  flex-direction: column;
+  width: clamp(220px, 20vw, 280px);
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.sidebar-header {
+  padding: var(--space-lg);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--text-primary);
+}
+
+.logo svg {
+  color: var(--color-primary);
+}
+
+.logo-text {
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: var(--space-md);
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-xs);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-weight: 500;
+  transition: all var(--transition-normal);
+}
+
+.nav-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.nav-item.active {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.sidebar-footer {
+  padding: var(--space-md);
+  border-top: 1px solid var(--border-color);
+}
+
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+}
+
+.theme-toggle:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.theme-toggle .icon-light { display: block; }
+.theme-toggle .icon-dark { display: none; }
+
+[data-theme="dark"] .theme-toggle .icon-light { display: none; }
+[data-theme="dark"] .theme-toggle .icon-dark { display: block; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .theme-toggle .icon-light { display: none; }
+  :root:not([data-theme="light"]) .theme-toggle .icon-dark { display: block; }
+}
+
+/* Main Content */
+.dashboard-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--space-md);
   max-width: 50rem;
   margin: 0 auto;
-  padding: var(--space-lg);
-  min-height: 100vh;
+  width: 100%;
 }
 
 /* Header */
-.page-header {
+.dashboard-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--space-md);
   margin-bottom: var(--space-xl);
-}
-
-.page-header h1 {
-  font-weight: 400;
-  letter-spacing: var(--letter-spacing-tight);
+  flex-wrap: wrap;
 }
 
 .header-left {
@@ -29,26 +133,80 @@
   gap: var(--space-md);
 }
 
-.back-btn {
+.header-left h1 {
+  font-size: clamp(1.25rem, 2vw + 0.5rem, 1.75rem);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.mobile-menu-btn {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 2.5rem;
   height: 2.5rem;
-  border-radius: var(--border-radius);
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
   color: var(--text-secondary);
-  transition: all var(--transition-base);
-}
-
-.back-btn:hover {
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  text-decoration: none;
+  cursor: pointer;
 }
 
 .header-actions {
   display: flex;
   gap: var(--space-sm);
+}
+
+/* Mobile Sidebar */
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+}
+
+/* Responsive */
+@media (min-width: 600px) {
+  .dashboard-main {
+    padding: var(--space-lg);
+  }
+}
+
+@media (min-width: 900px) {
+  .dashboard-sidebar {
+    display: flex;
+  }
+
+  .mobile-menu-btn {
+    display: none;
+  }
+
+  .sidebar-overlay {
+    display: none !important;
+  }
+
+  .dashboard-main {
+    padding: var(--space-xl);
+  }
+}
+
+/* Mobile Sidebar Open State */
+@media (max-width: 899px) {
+  .dashboard-sidebar {
+    position: fixed;
+    top: 0;
+    left: calc(-1 * clamp(220px, 80vw, 280px));
+    width: clamp(220px, 80vw, 280px);
+    height: 100vh;
+    z-index: 1000;
+    transition: left var(--transition-normal);
+  }
+
+  .dashboard-sidebar.open {
+    display: flex;
+    left: 0;
+  }
 }
 
 /* Tab Navigation */

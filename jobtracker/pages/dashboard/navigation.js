@@ -42,98 +42,45 @@ export function setNavigationCallbacks(callbacks) {
 }
 
 // Setup sidebar navigation
+// Note: Navigation now uses href links to separate pages (statistics.html, settings.html, etc.)
+// This function is kept for backward compatibility but most navigation is handled by page links
 export function setupNavigation() {
+  // Mobile sidebar closing when clicking nav links
   elements.navItems.forEach(item => {
-    item.addEventListener('click', (e) => {
-      e.preventDefault();
-      const view = item.dataset.view;
-      if (view) {
-        switchPage(view);
+    item.addEventListener('click', () => {
+      // Close mobile sidebar when navigating
+      if (window.innerWidth < 900) {
+        elements.sidebar?.classList.remove('open');
+        elements.sidebarOverlay?.classList.add('hidden');
       }
     });
   });
 }
 
-// Switch between pages (applications, stats, supported-sites, feedback)
+// Initialize applications view (the default view for dashboard.html)
+export function initializeApplicationsView() {
+  setCurrentPage('applications');
+
+  // Show applications view elements
+  elements.headerTitle.textContent = 'Applications';
+  elements.filtersSection?.classList.remove('hidden');
+  elements.applicationsSection?.classList.remove('hidden');
+
+  // Show view toggle and export buttons for applications page
+  document.querySelector('.header-right .view-toggle')?.classList.remove('hidden');
+  document.getElementById('export-btn')?.classList.remove('hidden');
+  document.getElementById('add-btn')?.classList.remove('hidden');
+  elements.appCount?.classList.remove('hidden');
+}
+
+// Switch page - kept for backward compatibility with index.js
+// Statistics, supported-sites, and settings are now separate pages with href links
 export function switchPage(page) {
-  setCurrentPage(page);
-
-  // Update nav item active state and aria-current
-  elements.navItems.forEach(item => {
-    const isActive = item.dataset.view === page;
-    item.classList.toggle('active', isActive);
-    if (isActive) {
-      item.setAttribute('aria-current', 'page');
-    } else {
-      item.removeAttribute('aria-current');
-    }
-  });
-
-  // Get section references
-  const supportedSitesSection = document.getElementById('supported-sites-section');
-
-  // Hide all main sections first
-  elements.filtersSection?.classList.add('hidden');
-  elements.applicationsSection?.classList.add('hidden');
-  elements.statsSection?.classList.remove('stats-expanded');
-  elements.detailsPanel?.classList.add('hidden');
-  supportedSitesSection?.classList.add('hidden');
-  document.getElementById('charts-section')?.classList.add('hidden');
-  elements.intelligencePanel?.classList.add('hidden');
-  document.getElementById('crm-widgets-panel')?.classList.add('hidden');
-  elements.dateRangeFilter?.classList.add('hidden');
-
-  // Hide header buttons by default
-  document.querySelector('.header-right .view-toggle')?.classList.add('hidden');
-  document.getElementById('export-btn')?.classList.add('hidden');
-  document.getElementById('add-btn')?.classList.add('hidden');
-  elements.appCount?.classList.add('hidden');
-
-  // Switch views based on page
-  switch (page) {
-    case 'stats':
-      // Show expanded stats view
-      elements.headerTitle.textContent = 'Statistics';
-      elements.statsSection?.classList.add('stats-expanded');
-      elements.dateRangeFilter?.classList.remove('hidden');
-
-      // Show charts and refresh them
-      updateStatsCallback?.();
-
-      // Load intelligence panel
-      loadIntelligencePanelCallback?.();
-
-      // CRM Enhancement: Show widgets and load data
-      document.getElementById('crm-widgets-panel')?.classList.remove('hidden');
-      loadUpcomingInterviewsCallback?.();
-      loadUpcomingTasksCallback?.();
-      break;
-
-    case 'supported-sites':
-      // Show supported sites view
-      elements.headerTitle.textContent = 'Supported Sites';
-      supportedSitesSection?.classList.remove('hidden');
-      break;
-
-    default:
-      // Show applications view (default)
-      elements.headerTitle.textContent = 'Applications';
-      elements.filtersSection?.classList.remove('hidden');
-      elements.applicationsSection?.classList.remove('hidden');
-
-      // Show view toggle and export buttons for applications page
-      document.querySelector('.header-right .view-toggle')?.classList.remove('hidden');
-      document.getElementById('export-btn')?.classList.remove('hidden');
-      document.getElementById('add-btn')?.classList.remove('hidden');
-      elements.appCount?.classList.remove('hidden');
-      break;
+  if (page === 'applications') {
+    initializeApplicationsView();
   }
-
-  // Close mobile sidebar after navigation
-  if (window.innerWidth < 900) {
-    elements.sidebar?.classList.remove('open');
-    elements.sidebarOverlay?.classList.add('hidden');
-  }
+  // Other pages (stats, supported-sites, settings) are handled by href links
+  // This function is called during initialization to set up the applications view
 }
 
 // Toggle mobile sidebar

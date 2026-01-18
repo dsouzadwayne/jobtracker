@@ -62,7 +62,7 @@ export async function loadIntelligencePanel() {
     // Show the panel
     elements.intelligencePanel?.classList.remove('hidden');
   } catch (error) {
-    console.error('Error loading intelligence panel:', error);
+    console.log('Error loading intelligence panel:', error);
   }
 }
 
@@ -291,7 +291,7 @@ async function openGoalModal() {
     elements.goalModal?.classList.remove('hidden');
     elements.weeklyGoal.focus();
   } catch (error) {
-    console.error('Error opening goal modal:', error);
+    console.log('Error opening goal modal:', error);
   }
 }
 
@@ -321,7 +321,7 @@ async function handleGoalSubmit(e) {
     // Refresh intelligence panel
     await loadIntelligencePanel();
   } catch (error) {
-    console.error('Error saving goals:', error);
+    console.log('Error saving goals:', error);
     showNotification('Failed to save goals. Please try again.', 'error');
   }
 }

@@ -290,7 +290,7 @@ export class TaskManager {
 
       console.log(`Loaded ${this.tasks.size} tasks and ${this.reminders.size} reminders`);
     } catch (error) {
-      console.error('Error loading tasks:', error);
+      console.log('Error loading tasks:', error);
     }
   }
 
@@ -336,7 +336,7 @@ export class TaskManager {
       });
       return task;
     } catch (error) {
-      console.error('Error creating task:', error);
+      console.log('Error creating task:', error);
       this.tasks.delete(task.id);
       throw error;
     }
@@ -357,7 +357,7 @@ export class TaskManager {
       });
       return task;
     } catch (error) {
-      console.error('Error updating task:', error);
+      console.log('Error updating task:', error);
       throw error;
     }
   }

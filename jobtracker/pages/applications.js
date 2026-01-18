@@ -306,10 +306,10 @@ function createAppCard(app) {
         if (['http:', 'https:'].includes(parsed.protocol)) {
           window.open(url, '_blank', 'noopener,noreferrer');
         } else {
-          console.warn('JobTracker: Invalid URL protocol blocked:', parsed.protocol);
+          console.log('JobTracker: Invalid URL protocol blocked:', parsed.protocol);
         }
       } catch (err) {
-        console.warn('JobTracker: Invalid URL:', url);
+        console.log('JobTracker: Invalid URL:', url);
       }
     });
   }

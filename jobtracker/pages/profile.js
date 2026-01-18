@@ -92,8 +92,6 @@ const ThemeManager = {
 const MessageTypes = {
   GET_PROFILE: 'GET_PROFILE',
   SAVE_PROFILE: 'SAVE_PROFILE',
-  GET_SETTINGS: 'GET_SETTINGS',
-  SAVE_SETTINGS: 'SAVE_SETTINGS',
   EXPORT_DATA: 'EXPORT_DATA',
   IMPORT_DATA: 'IMPORT_DATA',
   CLEAR_ALL_DATA: 'CLEAR_ALL_DATA'
@@ -111,39 +109,48 @@ const RECOMMENDED_SOFT_SKILLS = [
 
 // State
 let profile = null;
-let settings = null;
 let saveTimeout = null;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
   await ThemeManager.init();
   await loadProfile();
-  await loadSettings();
   setupTabs();
   setupEventListeners();
+  setupMobileSidebar();
+  setupThemeToggle();
   checkHashNavigation();
-  setupBackNavigation();
 });
 
-// Setup context-aware back navigation
-function setupBackNavigation() {
-  const backBtn = document.getElementById('back-btn');
-  const urlParams = new URLSearchParams(window.location.search);
-  const from = urlParams.get('from');
+// Setup mobile sidebar
+function setupMobileSidebar() {
+  const menuBtn = document.getElementById('mobile-menu-btn');
+  const sidebar = document.getElementById('dashboard-sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
 
-  if (from === 'dashboard') {
-    backBtn.href = 'dashboard.html';
-  } else {
-    // From popup context or direct navigation
-    backBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      // Try to use browser history if available
-      if (window.history.length > 1) {
-        window.history.back();
-      } else {
-        // Fallback to popup
-        window.location.href = 'popup.html';
-      }
+  if (!menuBtn || !sidebar) return;
+
+  menuBtn.addEventListener('click', () => {
+    sidebar.classList.toggle('open');
+    overlay?.classList.toggle('hidden');
+    menuBtn.setAttribute('aria-expanded', sidebar.classList.contains('open'));
+  });
+
+  overlay?.addEventListener('click', () => {
+    sidebar.classList.remove('open');
+    overlay.classList.add('hidden');
+    menuBtn.setAttribute('aria-expanded', 'false');
+  });
+}
+
+// Setup theme toggle button in sidebar
+function setupThemeToggle() {
+  const toggle = document.getElementById('theme-toggle');
+  if (toggle) {
+    toggle.addEventListener('click', async () => {
+      const current = await ThemeManager.getTheme();
+      const next = current === 'dark' ? 'light' : 'dark';
+      ThemeManager.setTheme(next);
     });
   }
 }
@@ -160,26 +167,6 @@ async function loadProfile() {
     renderCoverLetters();
   } catch (error) {
     console.log('Error loading profile:', error);
-  }
-}
-
-// Load settings
-async function loadSettings() {
-  try {
-    settings = await chrome.runtime.sendMessage({ type: MessageTypes.GET_SETTINGS });
-    document.getElementById('setting-autofill-enabled').checked = settings.autofill?.enabled ?? true;
-    document.getElementById('setting-floating-btn').checked = settings.autofill?.showFloatingButton ?? true;
-
-    // Load delay setting
-    const delaySlider = document.getElementById('setting-autofill-delay');
-    const delayValue = document.getElementById('delay-value');
-    delaySlider.value = settings.autofill?.delay || 0;
-    delayValue.textContent = formatDelay(delaySlider.value);
-
-    // Render custom field rules
-    renderCustomRules();
-  } catch (error) {
-    console.log('Error loading settings:', error);
   }
 }
 
@@ -296,27 +283,6 @@ function setupEventListeners() {
       }
     });
   });
-
-  // Settings
-  document.getElementById('setting-autofill-enabled').addEventListener('change', saveSettings);
-  document.getElementById('setting-floating-btn').addEventListener('change', saveSettings);
-  document.getElementById('clear-data-btn').addEventListener('click', handleClearData);
-
-  // Delay slider
-  const delaySlider = document.getElementById('setting-autofill-delay');
-  delaySlider.addEventListener('input', (e) => {
-    document.getElementById('delay-value').textContent = formatDelay(e.target.value);
-  });
-  delaySlider.addEventListener('change', saveSettings);
-
-  // Custom Field Rules
-  document.getElementById('add-rule-btn').addEventListener('click', () => openRuleModal());
-  document.getElementById('rule-form').addEventListener('submit', handleRuleSubmit);
-
-  // Import/Export
-  document.getElementById('export-btn').addEventListener('click', handleExport);
-  document.getElementById('import-btn').addEventListener('click', () => document.getElementById('import-file').click());
-  document.getElementById('import-file').addEventListener('change', handleImport);
 
   // Resume Import
   document.getElementById('import-resume-btn').addEventListener('click', () => {
@@ -1099,206 +1065,6 @@ async function setDefaultCoverLetter(id) {
   showSaveIndicator();
 }
 
-// ==================== SETTINGS ====================
-
-async function saveSettings() {
-  settings.autofill = settings.autofill || {};
-  settings.autofill.enabled = document.getElementById('setting-autofill-enabled').checked;
-  settings.autofill.showFloatingButton = document.getElementById('setting-floating-btn').checked;
-  settings.autofill.delay = parseInt(document.getElementById('setting-autofill-delay').value) || 0;
-
-  await chrome.runtime.sendMessage({ type: MessageTypes.SAVE_SETTINGS, payload: settings });
-  showSaveIndicator();
-}
-
-// ==================== CUSTOM FIELD RULES ====================
-
-function renderCustomRules() {
-  const list = document.getElementById('custom-rules-list');
-  const empty = document.getElementById('rules-empty');
-  const rules = settings?.customFieldRules || [];
-
-  list.innerHTML = '';
-
-  if (rules.length === 0) {
-    empty.classList.remove('hidden');
-    return;
-  }
-
-  empty.classList.add('hidden');
-  rules.forEach(rule => {
-    list.appendChild(createRuleCard(rule));
-  });
-}
-
-function createRuleCard(rule) {
-  const card = document.createElement('div');
-  card.className = 'entry-card';
-  card.innerHTML = `
-    <div class="entry-header">
-      <div class="entry-info">
-        <div class="entry-title">${escapeHtml(rule.name)}</div>
-        <div class="entry-subtitle"><code>${escapeHtml(rule.pattern)}</code> → ${escapeHtml(rule.profilePath)}</div>
-        <div class="entry-meta">${rule.enabled ? 'Enabled' : 'Disabled'}</div>
-      </div>
-      <div class="entry-actions">
-        <button class="edit" title="Edit" data-id="${escapeHtml(rule.id)}">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-          </svg>
-        </button>
-        <button class="delete" title="Delete" data-id="${escapeHtml(rule.id)}">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="3 6 5 6 21 6"></polyline>
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-          </svg>
-        </button>
-      </div>
-    </div>
-  `;
-
-  card.querySelector('.edit').addEventListener('click', () => openRuleModal(rule));
-  card.querySelector('.delete').addEventListener('click', () => deleteRule(rule.id));
-
-  return card;
-}
-
-function openRuleModal(rule = null) {
-  const modal = document.getElementById('rule-modal');
-  const title = document.getElementById('rule-modal-title');
-  const form = document.getElementById('rule-form');
-
-  title.textContent = rule ? 'Edit Custom Rule' : 'Add Custom Rule';
-  form.reset();
-  document.getElementById('pattern-error').classList.add('hidden');
-
-  if (rule) {
-    document.getElementById('rule-id').value = rule.id;
-    document.getElementById('rule-name').value = rule.name || '';
-    document.getElementById('rule-pattern').value = rule.pattern || '';
-    document.getElementById('rule-profile-path').value = rule.profilePath || 'personal.email';
-    document.getElementById('rule-enabled').checked = rule.enabled !== false;
-  } else {
-    document.getElementById('rule-id').value = '';
-    document.getElementById('rule-enabled').checked = true;
-  }
-
-  modal.classList.remove('hidden');
-}
-
-async function handleRuleSubmit(e) {
-  e.preventDefault();
-
-  const pattern = document.getElementById('rule-pattern').value.trim();
-
-  // Validate regex
-  try {
-    new RegExp(pattern, 'i');
-  } catch (err) {
-    document.getElementById('pattern-error').classList.remove('hidden');
-    return;
-  }
-  document.getElementById('pattern-error').classList.add('hidden');
-
-  const id = document.getElementById('rule-id').value;
-  const rule = {
-    id: id || generateId(),
-    name: document.getElementById('rule-name').value.trim(),
-    pattern: pattern,
-    profilePath: document.getElementById('rule-profile-path').value,
-    enabled: document.getElementById('rule-enabled').checked
-  };
-
-  settings.customFieldRules = settings.customFieldRules || [];
-
-  if (id) {
-    const index = settings.customFieldRules.findIndex(r => r.id === id);
-    if (index !== -1) settings.customFieldRules[index] = rule;
-  } else {
-    settings.customFieldRules.push(rule);
-  }
-
-  await chrome.runtime.sendMessage({ type: MessageTypes.SAVE_SETTINGS, payload: settings });
-  document.getElementById('rule-modal').classList.add('hidden');
-  renderCustomRules();
-  showSaveIndicator();
-}
-
-async function deleteRule(id) {
-  if (!confirm('Delete this custom rule?')) return;
-  settings.customFieldRules = settings.customFieldRules.filter(r => r.id !== id);
-  await chrome.runtime.sendMessage({ type: MessageTypes.SAVE_SETTINGS, payload: settings });
-  renderCustomRules();
-  showSaveIndicator();
-}
-
-async function handleClearData() {
-  if (!confirm('Are you sure you want to delete ALL your data? This cannot be undone.')) return;
-  if (!confirm('This will delete your profile, all applications, and settings. Continue?')) return;
-
-  try {
-    // Clear IndexedDB data via background script
-    await chrome.runtime.sendMessage({ type: MessageTypes.CLEAR_ALL_DATA });
-
-    // Optionally clear UI preferences (theme) - keep this commented to preserve theme
-    // await chrome.storage.local.remove(['jobtracker_ui_prefs']);
-
-    window.location.reload();
-  } catch (error) {
-    console.log('Error clearing data:', error);
-    alert('Failed to clear data. Please try again.');
-  }
-}
-
-// ==================== IMPORT/EXPORT ====================
-
-async function handleExport() {
-  try {
-    const data = await chrome.runtime.sendMessage({ type: MessageTypes.EXPORT_DATA });
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `jobtracker-export-${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  } catch (error) {
-    console.log('Error exporting data:', error);
-    alert('Error exporting data. Please try again.');
-  }
-}
-
-async function handleImport(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  try {
-    const text = await file.text();
-    const data = JSON.parse(text);
-
-    if (!data.version || !data.profile) {
-      throw new Error('Invalid import file format');
-    }
-
-    const merge = confirm('Do you want to merge with existing data? Click Cancel to replace all data.');
-
-    await chrome.runtime.sendMessage({
-      type: MessageTypes.IMPORT_DATA,
-      payload: { data, merge }
-    });
-
-    alert('Data imported successfully!');
-    window.location.reload();
-  } catch (error) {
-    console.log('Error importing data:', error);
-    alert('Error importing data. Please check the file format and try again.');
-  }
-
-  e.target.value = '';
-}
 
 // ==================== RESUME IMPORT ====================
 
@@ -1329,6 +1095,24 @@ async function handleResumeUpload(e) {
 
     // Parse the resume
     resumeParseResult = await ResumeParser.parse(file);
+
+    // Enhance with AI if available
+    if (typeof window.aiService !== 'undefined') {
+      try {
+        // Initialize AI service if not already done
+        if (typeof window.initAIService === 'function') {
+          await window.initAIService();
+        }
+
+        // Enhance the parsed result with AI (NER for names, skills, etc.)
+        console.log('[Profile] Enhancing resume with AI...');
+        resumeParseResult = await ResumeParser.enhanceWithAI(resumeParseResult, window.aiService);
+        console.log('[Profile] AI enhancement complete');
+      } catch (aiError) {
+        console.log('[Profile] AI enhancement failed, using regex results:', aiError.message);
+        // Continue with regex-only results
+      }
+    }
 
     // Compare with existing profile
     resumeComparison = ResumeDataNormalizer.compareWithExisting(
@@ -1730,9 +1514,4 @@ function formatDateRange(startDate, endDate, current = false) {
   if (start && end) return `${start} - ${end}`;
   if (start) return `${start} - Present`;
   return '';
-}
-
-function formatDelay(ms) {
-  const seconds = parseInt(ms) / 1000;
-  return seconds === 0 ? '0s' : `${seconds}s`;
 }

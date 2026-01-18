@@ -93,7 +93,8 @@ const MessageTypes = {
   GET_APPLICATIONS: 'GET_APPLICATIONS',
   ADD_APPLICATION: 'ADD_APPLICATION',
   GET_APPLICATION_STATS: 'GET_APPLICATION_STATS',
-  TRIGGER_AUTOFILL: 'TRIGGER_AUTOFILL'
+  TRIGGER_AUTOFILL: 'TRIGGER_AUTOFILL',
+  AI_EXTRACT_JOB: 'AI_EXTRACT_JOB'
 };
 
 // DOM Elements
@@ -104,6 +105,7 @@ const elements = {
   statOffer: document.getElementById('stat-offer'),
   recentList: document.getElementById('recent-list'),
   emptyState: document.getElementById('empty-state'),
+  trackJobBtn: document.getElementById('track-job-btn'),
   autofillBtn: document.getElementById('autofill-btn'),
   addAppBtn: document.getElementById('add-app-btn'),
   viewAllBtn: document.getElementById('view-all-btn'),
@@ -211,6 +213,9 @@ function createApplicationItem(app) {
 
 // Setup event listeners
 function setupEventListeners() {
+  // Track This Job button
+  elements.trackJobBtn.addEventListener('click', handleTrackJob);
+
   // Autofill button
   elements.autofillBtn.addEventListener('click', async () => {
     try {
@@ -357,4 +362,253 @@ function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
+}
+
+// Handle Track This Job button click
+async function handleTrackJob() {
+  const btn = elements.trackJobBtn;
+  const btnText = btn.querySelector('.btn-text');
+  const btnLoading = btn.querySelector('.btn-loading');
+
+  // Show loading state
+  btn.disabled = true;
+  btnText.classList.add('hidden');
+  btnLoading.classList.remove('hidden');
+
+  try {
+    // Get current tab
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id || !tab.url) {
+      throw new Error('No active tab found');
+    }
+
+    const pageUrl = tab.url;
+
+    // Check if we can access this page
+    if (pageUrl.startsWith('chrome://') || pageUrl.startsWith('chrome-extension://') || pageUrl.startsWith('about:')) {
+      throw new Error('Cannot scan browser pages. Please navigate to a job posting.');
+    }
+
+    let extracted = {
+      company: '',
+      position: '',
+      location: '',
+      salary: '',
+      description: ''
+    };
+    let pageText = '';
+
+    // Step 1: Try to get job info from page using content script
+    try {
+      const results = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: () => {
+          const result = {
+            company: '',
+            position: '',
+            location: '',
+            salary: '',
+            description: '',
+            pageText: ''
+          };
+
+          // Try platform-specific extractor first
+          if (typeof window.__jobTrackerExtractJob === 'function') {
+            const platformData = window.__jobTrackerExtractJob();
+            if (platformData) {
+              result.company = platformData.company || '';
+              result.position = platformData.position || '';
+              result.location = platformData.location || '';
+              result.salary = platformData.salary || '';
+              result.description = platformData.description || '';
+            }
+          }
+
+          // If still missing data, try common selectors (regex approach)
+          if (!result.company || !result.position) {
+            // Try JSON-LD first
+            try {
+              const jsonLdScripts = document.querySelectorAll('script[type="application/ld+json"]');
+              for (const script of jsonLdScripts) {
+                const data = JSON.parse(script.textContent);
+                if (data['@type'] === 'JobPosting') {
+                  if (!result.position) result.position = data.title || '';
+                  if (!result.company) result.company = data.hiringOrganization?.name || '';
+                  if (!result.location && data.jobLocation?.address) {
+                    const addr = data.jobLocation.address;
+                    result.location = addr.addressLocality || addr.name || '';
+                  }
+                  break;
+                }
+              }
+            } catch (e) {}
+
+            // Try common selectors
+            if (!result.position) {
+              const h1 = document.querySelector('h1');
+              if (h1) result.position = h1.textContent.trim().substring(0, 200);
+            }
+
+            if (!result.company) {
+              const companyEl = document.querySelector('[class*="company"], [class*="employer"], [data-company]');
+              if (companyEl) result.company = companyEl.textContent.trim().substring(0, 100);
+            }
+          }
+
+          // Get page text for AI fallback
+          result.pageText = document.body.innerText.substring(0, 30000);
+
+          return result;
+        }
+      });
+
+      const scriptResult = results?.[0]?.result;
+      if (scriptResult) {
+        extracted.company = scriptResult.company || '';
+        extracted.position = scriptResult.position || '';
+        extracted.location = scriptResult.location || '';
+        extracted.salary = scriptResult.salary || '';
+        extracted.description = scriptResult.description || '';
+        pageText = scriptResult.pageText || '';
+      }
+    } catch (scriptError) {
+      console.log('[Popup] Script execution error:', scriptError.message);
+    }
+
+    // Step 2: If company or position still blank, use AI extraction
+    if ((!extracted.company || !extracted.position) && pageText.length > 100) {
+      console.log('[Popup] Using AI to fill missing fields...');
+      try {
+        const aiResult = await chrome.runtime.sendMessage({
+          type: MessageTypes.AI_EXTRACT_JOB,
+          payload: { text: pageText }
+        });
+
+        if (aiResult?.success && aiResult.data) {
+          // Only fill in blank fields
+          if (!extracted.company && aiResult.data.company) {
+            extracted.company = aiResult.data.company;
+            console.log('[Popup] AI filled company:', extracted.company);
+          }
+          if (!extracted.position && aiResult.data.position) {
+            extracted.position = aiResult.data.position;
+            console.log('[Popup] AI filled position:', extracted.position);
+          }
+          if (!extracted.location && aiResult.data.location) {
+            extracted.location = aiResult.data.location;
+          }
+          if (!extracted.salary && aiResult.data.salary) {
+            extracted.salary = aiResult.data.salary;
+          }
+        }
+      } catch (aiError) {
+        console.log('[Popup] AI extraction failed:', aiError.message);
+      }
+    }
+
+    // Step 3: Use page title as fallback
+    if (!extracted.position) {
+      extracted.position = tab.title?.split(' - ')[0]?.substring(0, 100) || 'Job Position';
+    }
+    if (!extracted.company) {
+      // Try to get from URL
+      try {
+        const hostname = new URL(pageUrl).hostname.replace('www.', '').split('.')[0];
+        extracted.company = hostname.charAt(0).toUpperCase() + hostname.slice(1);
+      } catch (e) {
+        extracted.company = 'Unknown Company';
+      }
+    }
+
+    console.log('[Popup] Final extracted data:', extracted);
+
+    // Step 4: Save the application
+    const application = {
+      company: extracted.company,
+      position: extracted.position,
+      jobUrl: pageUrl,
+      status: 'saved',
+      dateApplied: new Date().toISOString(),
+      location: extracted.location || '',
+      salary: extracted.salary || '',
+      jobDescription: extracted.description || '',
+      platform: detectPlatformFromUrl(pageUrl),
+      autoDetected: true
+    };
+
+    const addResult = await chrome.runtime.sendMessage({
+      type: MessageTypes.ADD_APPLICATION,
+      payload: application
+    });
+
+    console.log('[Popup] Add result:', addResult);
+
+    // Check for duplicate
+    if (addResult?.duplicate) {
+      // Already tracked - show as success anyway
+      btnText.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        Already Tracked
+      `;
+      btnText.classList.remove('hidden');
+      btnLoading.classList.add('hidden');
+      btn.disabled = false;
+
+      setTimeout(() => {
+        btnText.innerHTML = `
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+            <path d="M2 17l10 5 10-5"></path>
+            <path d="M2 12l10 5 10-5"></path>
+          </svg>
+          Track This Job
+        `;
+      }, 2000);
+      return;
+    }
+
+    if (addResult?.success) {
+      // Success - update UI
+      await loadStats();
+      await loadRecentApplications();
+
+      // Show success feedback
+      btnText.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        Tracked!
+      `;
+      btnText.classList.remove('hidden');
+      btnLoading.classList.add('hidden');
+
+      // Reset after 2 seconds
+      setTimeout(() => {
+        btnText.innerHTML = `
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+            <path d="M2 17l10 5 10-5"></path>
+            <path d="M2 12l10 5 10-5"></path>
+          </svg>
+          Track This Job
+        `;
+        btn.disabled = false;
+      }, 2000);
+
+      return;
+    } else {
+      throw new Error(addResult?.error || addResult?.message || 'Failed to save application');
+    }
+
+  } catch (error) {
+    console.log('[Popup] Track job error:', error);
+    alert(error.message || 'Failed to scan page. Please try again.');
+
+    // Reset button state on error
+    btn.disabled = false;
+    btnText.classList.remove('hidden');
+    btnLoading.classList.add('hidden');
+  }
 }
