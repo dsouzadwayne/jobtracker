@@ -75,6 +75,9 @@ let applications = [];
 let filteredApplications = [];
 let expandedCardId = null;
 
+// Search instance (Fuse.js)
+let searchIndex = null;
+
 // DOM Elements
 const elements = {
   list: document.getElementById('applications-list'),
@@ -133,6 +136,13 @@ function setupBackNavigation() {
 async function loadApplications() {
   try {
     applications = await chrome.runtime.sendMessage({ type: MessageTypes.GET_APPLICATIONS }) || [];
+
+    // Initialize fuzzy search index
+    if (typeof JobTrackerSearch !== 'undefined') {
+      searchIndex = new JobTrackerSearch();
+      searchIndex.setData(applications);
+    }
+
     applyFilters();
   } catch (error) {
     console.log('Error loading applications:', error);
@@ -141,19 +151,22 @@ async function loadApplications() {
 
 // Apply filters and render
 function applyFilters() {
-  const searchTerm = elements.searchInput.value.toLowerCase();
+  const searchTerm = elements.searchInput.value.trim();
   const statusFilter = elements.filterStatus.value;
   const sortOrder = elements.filterSort.value;
 
-  // Filter
-  filteredApplications = applications.filter(app => {
-    const matchesSearch = !searchTerm ||
-      (app.company?.toLowerCase().includes(searchTerm)) ||
-      (app.position?.toLowerCase().includes(searchTerm));
+  // Use fuzzy search if available and search term exists
+  let searchResults;
+  if (searchTerm && searchIndex) {
+    searchResults = searchIndex.search(searchTerm);
+  } else {
+    searchResults = applications;
+  }
 
+  // Apply status filter
+  filteredApplications = searchResults.filter(app => {
     const matchesStatus = !statusFilter || app.status === statusFilter;
-
-    return matchesSearch && matchesStatus;
+    return matchesStatus;
   });
 
   // Sort
@@ -212,7 +225,11 @@ function createAppCard(app) {
   card.dataset.id = escapeHtml(app.id);
 
   const initial = escapeHtml((app.company || 'U')[0].toUpperCase());
-  const dateStr = formatDate(app.dateApplied || app.meta?.createdAt || new Date().toISOString());
+  const appliedDate = app.dateApplied || app.meta?.createdAt || new Date().toISOString();
+  const dateStr = formatDate(appliedDate);
+  const relativeTime = typeof JobTrackerFormat !== 'undefined'
+    ? JobTrackerFormat.formatDaysAgo(appliedDate)
+    : '';
   const statusClass = `status-${sanitizeStatus(app.status)}`;
   const isExpanded = expandedCardId === app.id;
 
@@ -231,14 +248,14 @@ function createAppCard(app) {
               </svg>
               ${escapeHtml(app.location)}
             </span>` : ''}
-            <span class="app-meta-item">
+            <span class="app-meta-item" title="${escapeHtml(dateStr)}">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
                 <line x1="16" y1="2" x2="16" y2="6"></line>
                 <line x1="8" y1="2" x2="8" y2="6"></line>
                 <line x1="3" y1="10" x2="21" y2="10"></line>
               </svg>
-              ${escapeHtml(dateStr)}
+              ${relativeTime ? escapeHtml(relativeTime) : escapeHtml(dateStr)}
             </span>
             ${app.platform && app.platform !== 'other' ? `<span class="app-meta-item">${escapeHtml(capitalizeStatus(app.platform))}</span>` : ''}
           </div>
@@ -599,8 +616,18 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-function formatDate(dateStr) {
+function formatDate(dateStr, useRelative = false) {
   if (!dateStr) return '';
+
+  // Use JobTrackerFormat if available
+  if (typeof JobTrackerFormat !== 'undefined') {
+    if (useRelative) {
+      return JobTrackerFormat.formatRelativeTime(dateStr);
+    }
+    return JobTrackerFormat.formatDate(dateStr);
+  }
+
+  // Fallback
   const date = new Date(dateStr);
   if (isNaN(date.getTime())) return dateStr;
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });

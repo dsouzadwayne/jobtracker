@@ -8,7 +8,7 @@ import {
   getCurrentView, setCurrentView, getCachedSettings, setCachedSettings,
   getFilteredApplications, getSelectedAppId
 } from './state.js';
-import { escapeHtml, formatDate, capitalizeStatus, sanitizeStatus } from './utils.js';
+import { escapeHtml, formatDate, formatDateRelative, capitalizeStatus, sanitizeStatus } from './utils.js';
 
 // References to external functions (set during initialization)
 let selectAppCallback = null;
@@ -151,7 +151,9 @@ export function createAppCard(app) {
   card.dataset.id = escapeHtml(app.id);
 
   const initial = escapeHtml((app.company || 'U')[0].toUpperCase());
-  const dateStr = formatDate(app.dateApplied || app.meta?.createdAt || new Date().toISOString());
+  const appliedDate = app.dateApplied || app.meta?.createdAt || new Date().toISOString();
+  const dateStr = formatDate(appliedDate);
+  const relativeTime = formatDateRelative(appliedDate);
   const statusClass = `status-${sanitizeStatus(app.status)}`;
 
   // CRM Enhancement: Deadline badge
@@ -171,14 +173,14 @@ export function createAppCard(app) {
     </div>
     ${tagsHtml ? `<div class="app-card-tags">${tagsHtml}</div>` : ''}
     <div class="app-card-footer">
-      <span class="app-date">
+      <span class="app-date" title="${escapeHtml(dateStr)}">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
           <line x1="16" y1="2" x2="16" y2="6"></line>
           <line x1="8" y1="2" x2="8" y2="6"></line>
           <line x1="3" y1="10" x2="21" y2="10"></line>
         </svg>
-        ${escapeHtml(dateStr)}
+        ${escapeHtml(relativeTime || dateStr)}
       </span>
       ${app.location ? `<span class="app-location">${escapeHtml(app.location)}</span>` : ''}
       ${deadlineBadge}
@@ -237,7 +239,9 @@ export function renderTable() {
 
     const tableInitial = escapeHtml((app.company || 'U')[0].toUpperCase());
     const tableStatusClass = `status-${sanitizeStatus(app.status)}`;
-    const tableDateStr = formatDate(app.dateApplied || app.meta?.createdAt || new Date().toISOString());
+    const tableAppliedDate = app.dateApplied || app.meta?.createdAt || new Date().toISOString();
+    const tableDateStr = formatDate(tableAppliedDate);
+    const tableRelativeTime = formatDateRelative(tableAppliedDate);
 
     row.innerHTML = `
       <td>
@@ -248,7 +252,7 @@ export function renderTable() {
       </td>
       <td>${escapeHtml(app.position || 'Unknown')}</td>
       <td><span class="status-badge ${tableStatusClass}">${escapeHtml(capitalizeStatus(app.status))}</span></td>
-      <td>${escapeHtml(tableDateStr)}</td>
+      <td title="${escapeHtml(tableDateStr)}">${escapeHtml(tableRelativeTime || tableDateStr)}</td>
       <td>${escapeHtml(app.location || '-')}</td>
       <td>${escapeHtml(app.salary || '-')}</td>
       <td class="table-actions">

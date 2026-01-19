@@ -1,8 +1,44 @@
 # Vendor Libraries
 
-This directory contains third-party libraries used for resume parsing.
+This directory contains third-party libraries used by JobTracker.
 
-## Required Libraries
+## Libraries
+
+### Search & Filtering
+
+#### Fuse.js
+Lightweight fuzzy-search library for searching applications.
+- **File:** `fuse.min.js`
+- **Size:** ~24KB
+- **License:** Apache 2.0
+- **URL:** https://fusejs.io/
+
+### Data & Storage
+
+#### idb
+Tiny Promise wrapper around IndexedDB by Jake Archibald.
+- **File:** `idb.min.js`
+- **Size:** ~1.2KB
+- **License:** ISC
+- **URL:** https://github.com/jakearchibald/idb
+
+#### Zod
+Runtime schema validation library.
+- **File:** `zod.min.js`
+- **Size:** ~57KB
+- **License:** MIT
+- **URL:** https://zod.dev/
+
+### Date Formatting
+
+#### Day.js
+Lightweight date manipulation library (Moment.js alternative).
+- **Files:** `dayjs.min.js`, `dayjs-relativetime.min.js`
+- **Size:** ~2KB (core) + ~1KB (plugin)
+- **License:** MIT
+- **URL:** https://day.js.org/
+
+### Resume Parsing Libraries
 
 ### 1. PDF.js (pdfjs-dist)
 

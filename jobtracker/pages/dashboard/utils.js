@@ -16,9 +16,27 @@ export function escapeHtml(str) {
 // Format date for display
 export function formatDate(dateStr) {
   if (!dateStr) return '';
+
+  // Use JobTrackerFormat if available (Day.js powered)
+  if (typeof window !== 'undefined' && window.JobTrackerFormat) {
+    return window.JobTrackerFormat.formatDate(dateStr);
+  }
+
   const date = new Date(dateStr);
   if (isNaN(date.getTime())) return dateStr;
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// Format date with relative time option
+export function formatDateRelative(dateStr, useRelative = true) {
+  if (!dateStr) return '';
+
+  // Use JobTrackerFormat if available (Day.js powered)
+  if (typeof window !== 'undefined' && window.JobTrackerFormat && useRelative) {
+    return window.JobTrackerFormat.formatDaysAgo(dateStr);
+  }
+
+  return formatDate(dateStr);
 }
 
 // Format date for input fields
@@ -114,6 +132,12 @@ export function sanitizeUrl(url) {
 
 // Get relative time string
 export function getTimeAgo(timestamp) {
+  // Use JobTrackerFormat if available (Day.js powered)
+  if (typeof window !== 'undefined' && window.JobTrackerFormat) {
+    return window.JobTrackerFormat.formatRelativeTime(timestamp);
+  }
+
+  // Fallback
   const now = new Date();
   const date = new Date(timestamp);
   const seconds = Math.floor((now - date) / 1000);

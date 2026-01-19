@@ -49,11 +49,14 @@ const ResumeParser = {
     const extractedData = {
       personal: {
         firstName: nameParts.firstName,
+        middleName: nameParts.middleName || '',
         lastName: nameParts.lastName,
         email: result.profile.email,
         phone: result.profile.phone,
         linkedIn: result.profile.linkedin,
-        portfolio: result.profile.url
+        github: result.profile.github || '',
+        portfolio: result.profile.url,
+        location: result.profile.location || ''
       },
       workHistory: result.workExperiences.map(exp => {
         console.log('[ResumeParser] Mapping work experience:', {
@@ -100,7 +103,8 @@ const ResumeParser = {
         return {
           company: exp.company,
           title: exp.jobTitle,
-          location: '',
+          location: exp.location || '',
+          employmentType: exp.employmentType || '',
           startDate: exp.startDate || '',
           endDate: exp.endDate || '',
           current: exp.current || false,
@@ -111,9 +115,10 @@ const ResumeParser = {
         school: edu.school,
         degree: edu.degree,
         field: edu.field || '',
-        startDate: '',
-        endDate: edu.date || '',
-        gpa: edu.gpa || ''
+        startDate: edu.startDate || '',
+        endDate: edu.endDate || edu.date || '',
+        gpa: edu.gpa || '',
+        honors: edu.honors || ''
       })),
       skills: result.skillsCategorized || {
         languages: [],
@@ -246,15 +251,60 @@ const ResumeParser = {
    * Uses ML for better entity extraction and skill identification
    * @param {Object} parsedData - Result from parse()
    * @param {Object} aiService - AI service instance
+   * @param {Object} fieldSettings - Per-field settings to control which fields get AI enhancement
+   * @param {Object} fieldSettings.personal - Personal info field settings
+   * @param {Object} fieldSettings.work - Work history field settings
+   * @param {Object} fieldSettings.education - Education field settings
+   * @param {Object} fieldSettings.skills - Skills field settings
+   * @param {boolean} fieldSettings.suggestedTags - Generate tag suggestions
    * @returns {Promise<Object>} - Enhanced resume data
    */
-  async enhanceWithAI(parsedData, aiService) {
+  async enhanceWithAI(parsedData, aiService, fieldSettings = {}) {
     if (!aiService || !parsedData.raw) {
       return parsedData;
     }
 
+    // Build normalized settings with defaults (backwards compatibility)
+    const settings = {
+      personal: {
+        name: fieldSettings.personal?.name ?? true,
+        email: fieldSettings.personal?.email ?? true,
+        phone: fieldSettings.personal?.phone ?? true,
+        location: fieldSettings.personal?.location ?? true,
+        links: fieldSettings.personal?.links ?? true
+      },
+      work: {
+        companies: fieldSettings.work?.companies ?? true,
+        titles: fieldSettings.work?.titles ?? true,
+        locations: fieldSettings.work?.locations ?? true,
+        dates: fieldSettings.work?.dates ?? true,
+        descriptions: fieldSettings.work?.descriptions ?? true
+      },
+      education: {
+        schools: fieldSettings.education?.schools ?? true,
+        degrees: fieldSettings.education?.degrees ?? true,
+        fields: fieldSettings.education?.fields ?? true,
+        dates: fieldSettings.education?.dates ?? true,
+        gpa: fieldSettings.education?.gpa ?? true
+      },
+      skills: {
+        languages: fieldSettings.skills?.languages ?? true,
+        frameworks: fieldSettings.skills?.frameworks ?? true,
+        tools: fieldSettings.skills?.tools ?? true,
+        soft: fieldSettings.skills?.soft ?? true
+      },
+      suggestedTags: fieldSettings.suggestedTags ?? true
+    };
+
+    // Check if any AI enhancement is actually enabled
+    const anyFieldEnabled = this.hasAnyFieldEnabled(settings);
+    if (!anyFieldEnabled) {
+      console.log('[ResumeParser] All AI fields disabled, skipping enhancement');
+      return parsedData;
+    }
+
     try {
-      console.log('[ResumeParser] Enhancing with AI...');
+      console.log('[ResumeParser] Enhancing with AI...', { enabledFields: settings });
 
       const text = parsedData.raw;
       const aiResult = await aiService.parseResume(text, true);
@@ -262,55 +312,119 @@ const ResumeParser = {
       // Merge AI extractions with existing data
       const enhanced = { ...parsedData };
 
-      // Enhance personal info with NER results
+      // ==================== PERSONAL INFO ====================
       if (aiResult.entities) {
-        // Use AI-detected name if not already found
-        if (!enhanced.extracted.personal?.firstName && aiResult.entities.persons?.length > 0) {
+        // Name extraction via NER
+        if (settings.personal.name && !enhanced.extracted.personal?.firstName && aiResult.entities.persons?.length > 0) {
           const nameParts = this.splitName(aiResult.entities.persons[0]);
           enhanced.extracted.personal = enhanced.extracted.personal || {};
           enhanced.extracted.personal.firstName = nameParts.firstName;
           enhanced.extracted.personal.lastName = nameParts.lastName;
         }
 
-        // Add AI-detected emails
-        if (aiResult.emails?.length > 0 && !enhanced.extracted.personal?.email) {
+        // Email extraction
+        if (settings.personal.email && aiResult.emails?.length > 0 && !enhanced.extracted.personal?.email) {
           enhanced.extracted.personal = enhanced.extracted.personal || {};
           enhanced.extracted.personal.email = aiResult.emails[0];
         }
 
-        // Add AI-detected phones
-        if (aiResult.phones?.length > 0 && !enhanced.extracted.personal?.phone) {
+        // Phone extraction
+        if (settings.personal.phone && aiResult.phones?.length > 0 && !enhanced.extracted.personal?.phone) {
           enhanced.extracted.personal = enhanced.extracted.personal || {};
           enhanced.extracted.personal.phone = aiResult.phones[0];
         }
 
-        // Add AI-detected LinkedIn
-        if (aiResult.linkedin && !enhanced.extracted.personal?.linkedIn) {
+        // Location extraction via NER
+        if (settings.personal.location && aiResult.entities.locations?.length > 0) {
           enhanced.extracted.personal = enhanced.extracted.personal || {};
-          enhanced.extracted.personal.linkedIn = aiResult.linkedin;
+          if (!enhanced.extracted.personal.location) {
+            enhanced.extracted.personal.location = aiResult.entities.locations[0];
+          }
+        }
+
+        // Links extraction (LinkedIn, GitHub, portfolio)
+        if (settings.personal.links) {
+          enhanced.extracted.personal = enhanced.extracted.personal || {};
+          if (aiResult.linkedin && !enhanced.extracted.personal.linkedIn) {
+            enhanced.extracted.personal.linkedIn = aiResult.linkedin;
+          }
+          if (aiResult.github && !enhanced.extracted.personal.github) {
+            enhanced.extracted.personal.github = aiResult.github;
+          }
+          if (aiResult.portfolio && !enhanced.extracted.personal.portfolio) {
+            enhanced.extracted.personal.portfolio = aiResult.portfolio;
+          }
         }
       }
 
-      // Enhance skills with AI extraction
+      // ==================== WORK HISTORY ====================
+      if (aiResult.entities?.organizations?.length > 0) {
+        // Store detected organizations for work history enhancement
+        if (settings.work.companies) {
+          enhanced.detectedOrganizations = aiResult.entities.organizations;
+        }
+      }
+
+      // Work locations via NER
+      if (settings.work.locations && aiResult.workLocations?.length > 0) {
+        enhanced.detectedWorkLocations = aiResult.workLocations;
+      }
+
+      // ==================== EDUCATION ====================
+      if (aiResult.entities?.organizations?.length > 0 && settings.education.schools) {
+        // Filter organizations that look like schools
+        enhanced.detectedSchools = aiResult.entities.organizations.filter(org =>
+          /university|college|institute|school|academy/i.test(org)
+        );
+      }
+
+      // ==================== SKILLS ====================
       if (aiResult.skills) {
         enhanced.extracted.skills = enhanced.extracted.skills || {};
 
-        // Merge AI skills with existing skills
-        for (const [category, skills] of Object.entries(aiResult.skills)) {
-          if (!enhanced.extracted.skills[category]) {
-            enhanced.extracted.skills[category] = [];
+        // Languages
+        if (settings.skills.languages && aiResult.skills.languages?.length > 0) {
+          enhanced.extracted.skills.languages = enhanced.extracted.skills.languages || [];
+          for (const skill of aiResult.skills.languages) {
+            if (!enhanced.extracted.skills.languages.includes(skill)) {
+              enhanced.extracted.skills.languages.push(skill);
+            }
           }
-          // Add unique skills
-          for (const skill of skills) {
-            if (!enhanced.extracted.skills[category].includes(skill)) {
-              enhanced.extracted.skills[category].push(skill);
+        }
+
+        // Frameworks
+        if (settings.skills.frameworks && aiResult.skills.frameworks?.length > 0) {
+          enhanced.extracted.skills.frameworks = enhanced.extracted.skills.frameworks || [];
+          for (const skill of aiResult.skills.frameworks) {
+            if (!enhanced.extracted.skills.frameworks.includes(skill)) {
+              enhanced.extracted.skills.frameworks.push(skill);
+            }
+          }
+        }
+
+        // Tools
+        if (settings.skills.tools && aiResult.skills.tools?.length > 0) {
+          enhanced.extracted.skills.tools = enhanced.extracted.skills.tools || [];
+          for (const skill of aiResult.skills.tools) {
+            if (!enhanced.extracted.skills.tools.includes(skill)) {
+              enhanced.extracted.skills.tools.push(skill);
+            }
+          }
+        }
+
+        // Soft skills
+        if (settings.skills.soft && aiResult.skills.soft?.length > 0) {
+          enhanced.extracted.skills.soft = enhanced.extracted.skills.soft || [];
+          for (const skill of aiResult.skills.soft) {
+            if (!enhanced.extracted.skills.soft.includes(skill)) {
+              enhanced.extracted.skills.soft.push(skill);
             }
           }
         }
       }
 
-      // Add suggested tags
-      if (aiResult.suggestedTags?.length > 0) {
+      // ==================== SUGGESTED TAGS ====================
+      if (settings.suggestedTags && aiResult.suggestedTags?.length > 0) {
         enhanced.suggestedTags = aiResult.suggestedTags;
       }
 
@@ -323,6 +437,25 @@ const ResumeParser = {
       console.log('[ResumeParser] AI enhancement failed:', error);
       return parsedData; // Return original if AI fails
     }
+  },
+
+  /**
+   * Check if any field in the settings is enabled
+   * @param {Object} settings - Field settings object
+   * @returns {boolean}
+   */
+  hasAnyFieldEnabled(settings) {
+    // Check personal fields
+    if (Object.values(settings.personal).some(v => v)) return true;
+    // Check work fields
+    if (Object.values(settings.work).some(v => v)) return true;
+    // Check education fields
+    if (Object.values(settings.education).some(v => v)) return true;
+    // Check skills fields
+    if (Object.values(settings.skills).some(v => v)) return true;
+    // Check suggested tags
+    if (settings.suggestedTags) return true;
+    return false;
   }
 };
 

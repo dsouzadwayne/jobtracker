@@ -110,10 +110,95 @@ const RECOMMENDED_SOFT_SKILLS = [
 // State
 let profile = null;
 let saveTimeout = null;
+let aiSettings = {
+  enabled: false,
+  enhanceResumeParsing: false,
+  resumeFields: getDefaultResumeFields()
+};
+
+// Get default resume fields settings (all enabled)
+function getDefaultResumeFields() {
+  return {
+    personal: {
+      name: true,
+      email: true,
+      phone: true,
+      location: true,
+      links: true
+    },
+    work: {
+      companies: true,
+      titles: true,
+      locations: true,
+      dates: true,
+      descriptions: true
+    },
+    education: {
+      schools: true,
+      degrees: true,
+      fields: true,
+      dates: true,
+      gpa: true
+    },
+    skills: {
+      languages: true,
+      frameworks: true,
+      tools: true,
+      soft: true
+    },
+    suggestedTags: true
+  };
+}
+
+// Load AI settings from storage
+async function loadAISettings() {
+  try {
+    const settings = await chrome.runtime.sendMessage({ type: 'GET_SETTINGS' });
+    const defaults = getDefaultResumeFields();
+
+    aiSettings = {
+      enabled: settings?.ai?.enabled ?? false,
+      enhanceResumeParsing: settings?.ai?.enhanceResumeParsing ?? false,
+      resumeFields: {
+        personal: {
+          name: settings?.ai?.resumeFields?.personal?.name ?? defaults.personal.name,
+          email: settings?.ai?.resumeFields?.personal?.email ?? defaults.personal.email,
+          phone: settings?.ai?.resumeFields?.personal?.phone ?? defaults.personal.phone,
+          location: settings?.ai?.resumeFields?.personal?.location ?? defaults.personal.location,
+          links: settings?.ai?.resumeFields?.personal?.links ?? defaults.personal.links
+        },
+        work: {
+          companies: settings?.ai?.resumeFields?.work?.companies ?? defaults.work.companies,
+          titles: settings?.ai?.resumeFields?.work?.titles ?? defaults.work.titles,
+          locations: settings?.ai?.resumeFields?.work?.locations ?? defaults.work.locations,
+          dates: settings?.ai?.resumeFields?.work?.dates ?? defaults.work.dates,
+          descriptions: settings?.ai?.resumeFields?.work?.descriptions ?? defaults.work.descriptions
+        },
+        education: {
+          schools: settings?.ai?.resumeFields?.education?.schools ?? defaults.education.schools,
+          degrees: settings?.ai?.resumeFields?.education?.degrees ?? defaults.education.degrees,
+          fields: settings?.ai?.resumeFields?.education?.fields ?? defaults.education.fields,
+          dates: settings?.ai?.resumeFields?.education?.dates ?? defaults.education.dates,
+          gpa: settings?.ai?.resumeFields?.education?.gpa ?? defaults.education.gpa
+        },
+        skills: {
+          languages: settings?.ai?.resumeFields?.skills?.languages ?? defaults.skills.languages,
+          frameworks: settings?.ai?.resumeFields?.skills?.frameworks ?? defaults.skills.frameworks,
+          tools: settings?.ai?.resumeFields?.skills?.tools ?? defaults.skills.tools,
+          soft: settings?.ai?.resumeFields?.skills?.soft ?? defaults.skills.soft
+        },
+        suggestedTags: settings?.ai?.resumeFields?.suggestedTags ?? defaults.suggestedTags
+      }
+    };
+  } catch (e) {
+    console.log('[Profile] Could not load AI settings:', e.message);
+  }
+}
 
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
   await ThemeManager.init();
+  await loadAISettings();
   await loadProfile();
   setupTabs();
   setupEventListeners();
@@ -426,11 +511,12 @@ function createCompanyGroup(companyKey, positions) {
         <div class="company-meta">${escapeHtml(dateRange)}${location ? ' · ' + escapeHtml(location) : ''}</div>
       </div>
       <div class="company-actions">
-        <button class="add-position-btn" type="button" title="Add position at ${escapeHtml(companyName)}">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <button class="add-position-btn" type="button" title="Add another role at ${escapeHtml(companyName)} (e.g., promotion)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="12" y1="5" x2="12" y2="19"></line>
             <line x1="5" y1="12" x2="19" y2="12"></line>
           </svg>
+          <span class="btn-label">Add Role</span>
         </button>
         <button class="toggle-btn" type="button" title="Toggle positions">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1096,17 +1182,18 @@ async function handleResumeUpload(e) {
     // Parse the resume
     resumeParseResult = await ResumeParser.parse(file);
 
-    // Enhance with AI if available
-    if (typeof window.aiService !== 'undefined') {
+    // Enhance with AI if enabled in settings and available
+    if (aiSettings.enabled && aiSettings.enhanceResumeParsing &&
+        typeof window.aiService !== 'undefined') {
       try {
-        // Initialize AI service if not already done
-        if (typeof window.initAIService === 'function') {
-          await window.initAIService();
-        }
-
         // Enhance the parsed result with AI (NER for names, skills, etc.)
-        console.log('[Profile] Enhancing resume with AI...');
-        resumeParseResult = await ResumeParser.enhanceWithAI(resumeParseResult, window.aiService);
+        // Pass per-field settings to control which fields get AI enhancement
+        console.log('[Profile] Enhancing resume with AI...', { fieldSettings: aiSettings.resumeFields });
+        resumeParseResult = await ResumeParser.enhanceWithAI(
+          resumeParseResult,
+          window.aiService,
+          aiSettings.resumeFields
+        );
         console.log('[Profile] AI enhancement complete');
       } catch (aiError) {
         console.log('[Profile] AI enhancement failed, using regex results:', aiError.message);

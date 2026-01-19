@@ -81,6 +81,12 @@ let applications = [];
 let settings = {};
 let goals = { weekly: null, monthly: null };
 
+// Helper to get application date (dateApplied or meta.createdAt)
+function getAppDate(app) {
+  const dateSource = app.dateApplied || app.meta?.createdAt;
+  return dateSource ? new Date(dateSource) : null;
+}
+
 // Message types
 const MessageTypes = {
   GET_APPLICATIONS: 'GET_APPLICATIONS',
@@ -96,7 +102,8 @@ const MessageTypes = {
 async function loadApplications() {
   try {
     const response = await chrome.runtime.sendMessage({ type: MessageTypes.GET_APPLICATIONS });
-    applications = response?.applications || [];
+    // Response is the array directly, not wrapped in { applications: [...] }
+    applications = Array.isArray(response) ? response : [];
     return applications;
   } catch (error) {
     console.log('Error loading applications:', error);
@@ -125,8 +132,8 @@ function calculateStats(apps, dateRange = null) {
     const start = new Date(dateRange.start);
     const end = dateRange.end ? new Date(dateRange.end) : new Date();
     filtered = apps.filter(app => {
-      const appDate = new Date(app.createdAt);
-      return appDate >= start && appDate <= end;
+      const appDate = getAppDate(app);
+      return appDate && appDate >= start && appDate <= end;
     });
   }
 
@@ -134,10 +141,13 @@ function calculateStats(apps, dateRange = null) {
   const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
 
-  const thisWeek = filtered.filter(app => new Date(app.createdAt) >= oneWeekAgo);
+  const thisWeek = filtered.filter(app => {
+    const date = getAppDate(app);
+    return date && date >= oneWeekAgo;
+  });
   const lastWeek = filtered.filter(app => {
-    const date = new Date(app.createdAt);
-    return date >= twoWeeksAgo && date < oneWeekAgo;
+    const date = getAppDate(app);
+    return date && date >= twoWeeksAgo && date < oneWeekAgo;
   });
 
   const interviews = filtered.filter(app =>
@@ -157,7 +167,8 @@ function calculateStats(apps, dateRange = null) {
 
   if (appsWithInterviews.length > 0) {
     const totalDays = appsWithInterviews.reduce((sum, app) => {
-      const applied = new Date(app.createdAt);
+      const applied = getAppDate(app);
+      if (!applied) return sum;
       const statusDate = app.statusChangedAt ? new Date(app.statusChangedAt) : new Date();
       const days = Math.floor((statusDate - applied) / (1000 * 60 * 60 * 24));
       return sum + days;
@@ -256,7 +267,9 @@ function initCharts(apps) {
   // Timeline chart
   const timelineData = {};
   apps.forEach(app => {
-    const date = new Date(app.createdAt).toISOString().split('T')[0];
+    const dateSource = app.dateApplied || app.meta?.createdAt;
+    if (!dateSource) return;
+    const date = new Date(dateSource).toISOString().split('T')[0];
     timelineData[date] = (timelineData[date] || 0) + 1;
   });
 
@@ -420,10 +433,11 @@ function initHeatmap(apps) {
     return;
   }
 
-  // Aggregate applications by date
+  // Aggregate applications by date (use dateApplied or meta.createdAt)
   const dailyCounts = {};
   apps.forEach(app => {
-    const date = app.createdAt?.split('T')[0] || new Date().toISOString().split('T')[0];
+    const dateSource = app.dateApplied || app.meta?.createdAt;
+    const date = dateSource?.split('T')[0] || new Date().toISOString().split('T')[0];
     dailyCounts[date] = (dailyCounts[date] || 0) + 1;
   });
 
@@ -458,8 +472,14 @@ function updateGoalDisplay() {
 
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  const weeklyApps = applications.filter(app => new Date(app.createdAt) >= startOfWeek).length;
-  const monthlyApps = applications.filter(app => new Date(app.createdAt) >= startOfMonth).length;
+  const weeklyApps = applications.filter(app => {
+    const date = getAppDate(app);
+    return date && date >= startOfWeek;
+  }).length;
+  const monthlyApps = applications.filter(app => {
+    const date = getAppDate(app);
+    return date && date >= startOfMonth;
+  }).length;
 
   const goal = hasWeekly ? goals.weekly : goals.monthly;
   const current = hasWeekly ? weeklyApps : monthlyApps;
@@ -605,8 +625,8 @@ function applyDateFilter(range, custom = null) {
   const stats = calculateStats(applications, dateRange);
   updateStatsDisplay(stats);
   initCharts(dateRange ? applications.filter(app => {
-    const date = new Date(app.createdAt);
-    return date >= dateRange.start && date <= dateRange.end;
+    const date = getAppDate(app);
+    return date && date >= dateRange.start && date <= dateRange.end;
   }) : applications);
 }
 

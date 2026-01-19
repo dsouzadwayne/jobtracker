@@ -6,11 +6,21 @@
 const WorkExtractor = {
   BULLET_POINTS: ['⋅', '∙', '🞄', '•', '⦁', '⚫', '●', '⬤', '⚬', '○'],
 
-  JOB_TITLES: ['Accountant', 'Administrator', 'Advisor', 'Agent', 'Analyst', 'Apprentice', 'Architect', 'Assistant', 'Associate', 'Auditor', 'Bartender', 'Bookkeeper', 'Buyer', 'Cashier', 'CEO', 'Clerk', 'Consultant', 'Coordinator', 'CTO', 'Developer', 'Designer', 'Director', 'Driver', 'Editor', 'Engineer', 'Founder', 'Freelancer', 'Head', 'Intern', 'Lead', 'Manager', 'Member', 'Officer', 'Operator', 'President', 'Producer', 'Recruiter', 'Representative', 'Researcher', 'Sales', 'Scientist', 'Specialist', 'Supervisor', 'Teacher', 'Technician', 'Trainee', 'VP', 'Volunteer', 'Worker'],
+  JOB_TITLES: ['Accountant', 'Administrator', 'Advisor', 'Agent', 'Analyst', 'Apprentice', 'Architect', 'Assistant', 'Associate', 'Auditor', 'Bartender', 'Bookkeeper', 'Buyer', 'Cashier', 'CEO', 'CFO', 'CIO', 'CISO', 'CMO', 'COO', 'CTO', 'Clerk', 'Consultant', 'Coordinator', 'Creator', 'Curator', 'Developer', 'Designer', 'Director', 'Driver', 'Editor', 'Engineer', 'Executive', 'Expert', 'Founder', 'Freelancer', 'Head', 'Intern', 'Lead', 'Manager', 'Member', 'Officer', 'Operator', 'Owner', 'Partner', 'President', 'Producer', 'Programmer', 'Recruiter', 'Representative', 'Researcher', 'Sales', 'Scientist', 'Scrum', 'Specialist', 'Strategist', 'Supervisor', 'Teacher', 'Technician', 'Trainee', 'VP', 'Volunteer', 'Worker', 'Writer'],
 
-  COMPANY_INDICATORS: /\b(Inc\.?|LLC|Ltd\.?|Corp\.?|Company|Co\.?|Technologies|Solutions|Services|Group|Partners|Consulting|Media|Entertainment|Studios?|Labs?|Global|International|Pvt\.?|Private|Limited)\b/i,
+  COMPANY_INDICATORS: /\b(Inc\.?|LLC|LLP|Ltd\.?|Corp\.?|Corporation|Company|Co\.?|Technologies|Technology|Tech|Solutions|Services|Service|Group|Partners|Partnership|Consulting|Consultancy|Media|Entertainment|Studios?|Labs?|Laboratory|Global|International|Pvt\.?|Private|Limited|PLC|GmbH|AG|S\.?A\.?|N\.?V\.?|B\.?V\.?)\b/i,
 
-  KNOWN_COMPANIES: /\b(Google|Microsoft|Amazon|Apple|Meta|Facebook|Netflix|Gracenote|Nielsen|Spotify|Adobe|Salesforce|Oracle|IBM|Intel|Cisco|VMware|SAP|Uber|Lyft|Airbnb|Twitter|LinkedIn|Snap|Pinterest|TikTok|Stripe|PayPal|Shopify|Zoom|Slack|Dropbox|Atlassian|GitHub|MongoDB|Snowflake|Twilio|Infosys|TCS|Wipro|HCL|Tech Mahindra|Cognizant|Accenture|Deloitte|PwC|EY|KPMG|McKinsey|BCG|Bain)\b/i,
+  KNOWN_COMPANIES: /\b(Google|Microsoft|Amazon|Apple|Meta|Facebook|Netflix|Gracenote|Nielsen|Spotify|Adobe|Salesforce|Oracle|IBM|Intel|Cisco|VMware|SAP|Uber|Lyft|Airbnb|Twitter|X Corp|LinkedIn|Snap|Pinterest|TikTok|ByteDance|Stripe|PayPal|Shopify|Zoom|Slack|Dropbox|Atlassian|GitHub|GitLab|MongoDB|Snowflake|Twilio|Infosys|TCS|Wipro|HCL|Tech Mahindra|Cognizant|Accenture|Deloitte|PwC|EY|KPMG|McKinsey|BCG|Bain|JPMorgan|Goldman Sachs|Morgan Stanley|Citibank|Bank of America|Wells Fargo|HSBC|Barclays|Tesla|SpaceX|OpenAI|Anthropic|Nvidia|AMD|Qualcomm|Samsung|Sony|Nintendo|EA|Ubisoft|Epic Games|Riot Games|Blizzard|Activision)\b/i,
+
+  // Location patterns for city, state/country
+  LOCATION_PATTERNS: [
+    /([A-Z][a-zA-Z\s]+),\s*([A-Z]{2})\b/,  // City, ST (US)
+    /([A-Z][a-zA-Z\s]+),\s*([A-Z][a-zA-Z\s]+)/,  // City, Country/State
+    /\b(Remote|Hybrid|On-site|Onsite)\b/i  // Work arrangement
+  ],
+
+  // Employment type indicators
+  EMPLOYMENT_TYPES: /\b(Full[- ]?time|Part[- ]?time|Contract|Contractor|Freelance|Temporary|Temp|Intern(?:ship)?|Co-op|Remote|Hybrid|On[- ]?site)\b/i,
 
   MONTHS: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
 
@@ -33,10 +43,25 @@ const WorkExtractor = {
     });
 
     const workExperiences = [];
+    let lastCompany = '';  // Track last seen company for promotions/multiple roles
 
     for (const subsectionLines of subsections) {
       const entry = this.extractEntry(subsectionLines);
       if (entry && (entry.company || entry.jobTitle)) {
+        // If this entry has a company, update lastCompany
+        if (entry.company) {
+          lastCompany = entry.company;
+        } else if (lastCompany && entry.jobTitle) {
+          // No company found but we have a job title - likely a promotion/second role
+          // Check if this looks like a continuation (no company indicators in the text)
+          const allText = subsectionLines.flat().map(item => item.text).join(' ');
+          const hasCompanyIndicator = this.COMPANY_INDICATORS.test(allText) || this.KNOWN_COMPANIES.test(allText);
+
+          if (!hasCompanyIndicator) {
+            entry.company = lastCompany;
+            console.log('[WorkExtractor] Inherited company from previous entry:', lastCompany);
+          }
+        }
         workExperiences.push(entry);
       }
     }
@@ -135,6 +160,55 @@ const WorkExtractor = {
       if (subsection.length > 0) subsections.push(subsection);
     }
 
+    // Method 4: Multiple roles under same company (promotions)
+    // Look for pattern: job title + date on same line, appearing multiple times
+    if (subsections.length <= 1) {
+      // Use comprehensive job title list for role detection
+      const roleTitles = this.JOB_TITLES.join('|');
+      const rolePattern = new RegExp(`\\b(${roleTitles})\\b.*\\b(19|20)\\d{2}\\b`, 'i');
+
+      const roleLineIndices = [];
+      for (let i = 0; i < lines.length; i++) {
+        const lineText = lines[i].map(item => item.text).join(' ');
+        if (rolePattern.test(lineText) && lineText.length < 100) {
+          roleLineIndices.push(i);
+        }
+      }
+
+      // If we found role lines, use them as split points
+      if (roleLineIndices.length >= 1) {
+        console.log('[WorkExtractor] Found role lines at indices:', roleLineIndices);
+        subsections = [];
+
+        // If there's substantial content before the first role line, treat it as a separate entry
+        // (This handles cases where the first/most recent role's title isn't on its own line)
+        if (roleLineIndices[0] > 0) {
+          const beforeFirstRole = lines.slice(0, roleLineIndices[0]);
+          // Check if this content has descriptions (bullet points or long text)
+          const beforeText = beforeFirstRole.flat().map(item => item.text).join(' ');
+          const hasBullets = /[•\-\*]/.test(beforeText);
+          const hasSubstantialContent = beforeText.length > 100 || hasBullets;
+
+          if (hasSubstantialContent) {
+            console.log('[WorkExtractor] Content before first role treated as separate entry');
+            subsections.push(beforeFirstRole);
+          }
+        }
+
+        // Add each role as a subsection
+        for (let i = 0; i < roleLineIndices.length; i++) {
+          const startIdx = roleLineIndices[i];
+          const endIdx = i < roleLineIndices.length - 1 ? roleLineIndices[i + 1] : lines.length;
+          const roleLines = lines.slice(startIdx, endIdx);
+          if (roleLines.length > 0) {
+            subsections.push(roleLines);
+          }
+        }
+
+        console.log('[WorkExtractor] Split into', subsections.length, 'role subsections');
+      }
+    }
+
     return subsections;
   },
 
@@ -219,6 +293,22 @@ const WorkExtractor = {
       }
     }
 
+    // Step 4b: Check first line for company name (common in multi-role resumes)
+    // If first line has no job title and no date, it's likely the company name
+    if (!company && subsectionLines.length > 0) {
+      const firstLineText = subsectionLines[0].map(item => item.text).join(' ').trim();
+      const hasJobTitleInFirst = this.hasJobTitle(firstLineText);
+      const hasDateInFirst = this.hasYear(firstLineText) || this.hasPresent(firstLineText);
+
+      if (!hasJobTitleInFirst && !hasDateInFirst && firstLineText.length < 80 && firstLineText.length > 2) {
+        // First line might be company name - check if it's not a bullet point
+        if (!/^[-•*]/.test(firstLineText)) {
+          company = firstLineText;
+          console.log('[WorkExtractor.extractEntry] Found company (first line):', company);
+        }
+      }
+    }
+
     // Step 5: Extract descriptions - lines after the first few info lines
     const descriptionsLineIdx = this.getDescriptionsLineIdx(subsectionLines);
     const descriptionLines = subsectionLines.slice(descriptionsLineIdx);
@@ -226,9 +316,33 @@ const WorkExtractor = {
 
     const parsedDates = this.parseDate(date);
 
+    // Step 6: Extract location
+    let location = '';
+    const allText = subsectionLines.flat().map(item => item.text).join(' ');
+    for (const pattern of this.LOCATION_PATTERNS) {
+      const locationMatch = allText.match(pattern);
+      if (locationMatch) {
+        location = locationMatch[0].trim();
+        // Don't use "Remote" etc. as the full location, just note it
+        if (/^(Remote|Hybrid|On-?site)$/i.test(location)) {
+          location = '';  // Will be captured as employment type instead
+        }
+        break;
+      }
+    }
+
+    // Step 7: Extract employment type
+    let employmentType = '';
+    const typeMatch = allText.match(this.EMPLOYMENT_TYPES);
+    if (typeMatch) {
+      employmentType = typeMatch[0].trim();
+    }
+
     const result = {
       company,
       jobTitle,
+      location,
+      employmentType,
       date,
       startDate: parsedDates.start,
       endDate: parsedDates.end,

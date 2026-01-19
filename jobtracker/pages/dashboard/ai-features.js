@@ -583,6 +583,32 @@ export async function loadStorageSizes() {
     updateModelStatusBadge('embeddings', modelsStatus?.embeddings?.downloadStatus);
     updateModelStatusBadge('ner', modelsStatus?.ner?.downloadStatus);
 
+    // Update preload button state based on download status
+    const preloadBtn = document.getElementById('preload-models-btn');
+    if (preloadBtn) {
+      const allDownloaded = modelsStatus?.embeddings?.downloadStatus === 'downloaded' &&
+                            modelsStatus?.ner?.downloadStatus === 'downloaded';
+      if (allDownloaded) {
+        preloadBtn.innerHTML = `
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          Models Downloaded
+        `;
+        preloadBtn.classList.add('downloaded');
+      } else {
+        preloadBtn.innerHTML = `
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          Download All Models (132 MB)
+        `;
+        preloadBtn.classList.remove('downloaded');
+      }
+    }
+
     // Calculate total
     const totalSize = appsSize + profileSize + modelsCacheSize;
     const totalSizeEl = document.getElementById('total-storage-size');
@@ -1042,45 +1068,34 @@ export function setupSettingsListeners() {
         showNotification('Download failed. Check your internet connection.', 'error');
       } finally {
         preloadBtn.disabled = false;
-        preloadBtn.innerHTML = `
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
-          Download All Models (132 MB)
-        `;
-      }
-    });
-  }
 
-  // Clear models cache button
-  const clearModelsBtn = document.getElementById('clear-models-btn');
-  if (clearModelsBtn) {
-    clearModelsBtn.addEventListener('click', async () => {
-      if (!confirm('Clear AI models cache? Models will need to be re-downloaded for AI features.')) return;
+        // Check if models were successfully downloaded
+        const modelsStatus = await chrome.runtime.sendMessage({
+          type: SettingsMessageTypes.GET_MODELS_STATUS
+        });
 
-      try {
-        // Clear models metadata from IndexedDB
-        await chrome.runtime.sendMessage({ type: SettingsMessageTypes.CLEAR_MODELS_METADATA });
+        const allDownloaded = modelsStatus?.embeddings?.downloadStatus === 'downloaded' &&
+                              modelsStatus?.ner?.downloadStatus === 'downloaded';
 
-        // Also try to clear the browser's cache storage for transformers.js models
-        if ('caches' in window) {
-          const cacheNames = await caches.keys();
-          for (const name of cacheNames) {
-            if (name.includes('transformers') || name.includes('onnx')) {
-              await caches.delete(name);
-            }
-          }
+        if (allDownloaded) {
+          preloadBtn.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            Models Downloaded
+          `;
+          preloadBtn.classList.add('downloaded');
+        } else {
+          preloadBtn.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Download All Models (132 MB)
+          `;
+          preloadBtn.classList.remove('downloaded');
         }
-
-        updateModelStatusBadge('embeddings', 'not_downloaded');
-        updateModelStatusBadge('ner', 'not_downloaded');
-        showNotification('AI models cache cleared', 'success');
-        loadStorageSizes();
-      } catch (error) {
-        console.log('[Settings] Failed to clear models:', error);
-        showNotification('Failed to clear models cache', 'error');
       }
     });
   }

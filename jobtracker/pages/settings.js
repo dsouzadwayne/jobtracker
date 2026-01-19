@@ -147,10 +147,130 @@ function populateSettings() {
   if (aiTags) aiTags.checked = settings?.ai?.autoSuggestTags ?? true;
   if (aiResume) aiResume.checked = settings?.ai?.enhanceResumeParsing ?? true;
 
+  // Per-field AI settings (with migration from old format)
+  const resumeFields = settings?.ai?.resumeFields || getDefaultResumeFields();
+
+  // Personal fields
+  const personal = resumeFields.personal || {};
+  setCheckbox('ai-field-personal-name', personal.name ?? true);
+  setCheckbox('ai-field-personal-email', personal.email ?? true);
+  setCheckbox('ai-field-personal-phone', personal.phone ?? true);
+  setCheckbox('ai-field-personal-location', personal.location ?? true);
+  setCheckbox('ai-field-personal-links', personal.links ?? true);
+
+  // Work fields
+  const work = resumeFields.work || {};
+  setCheckbox('ai-field-work-companies', work.companies ?? true);
+  setCheckbox('ai-field-work-titles', work.titles ?? true);
+  setCheckbox('ai-field-work-locations', work.locations ?? true);
+  setCheckbox('ai-field-work-dates', work.dates ?? true);
+  setCheckbox('ai-field-work-descriptions', work.descriptions ?? true);
+
+  // Education fields
+  const education = resumeFields.education || {};
+  setCheckbox('ai-field-education-schools', education.schools ?? true);
+  setCheckbox('ai-field-education-degrees', education.degrees ?? true);
+  setCheckbox('ai-field-education-fields', education.fields ?? true);
+  setCheckbox('ai-field-education-dates', education.dates ?? true);
+  setCheckbox('ai-field-education-gpa', education.gpa ?? true);
+
+  // Skills fields
+  const skills = resumeFields.skills || {};
+  setCheckbox('ai-field-skills-languages', skills.languages ?? true);
+  setCheckbox('ai-field-skills-frameworks', skills.frameworks ?? true);
+  setCheckbox('ai-field-skills-tools', skills.tools ?? true);
+  setCheckbox('ai-field-skills-soft', skills.soft ?? true);
+
+  // Suggested tags
+  setCheckbox('ai-field-tags', resumeFields.suggestedTags ?? true);
+
+  // Update section checkboxes based on their children
+  updateSectionCheckboxes();
+
   // Update AI models section visibility based on AI enabled state
   updateAIModelsVisibility();
 
+  // Update AI sub-options visibility (grey out when AI disabled)
+  updateAISubOptionsVisibility();
+
+  // Update field options visibility based on Enhanced Resume Parsing toggle
+  updateFieldOptionsVisibility();
+
   renderCustomRules();
+}
+
+// Helper to set checkbox value
+function setCheckbox(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.checked = value;
+}
+
+// Get default resume fields settings (all enabled)
+function getDefaultResumeFields() {
+  return {
+    personal: {
+      name: true,
+      email: true,
+      phone: true,
+      location: true,
+      links: true
+    },
+    work: {
+      companies: true,
+      titles: true,
+      locations: true,
+      dates: true,
+      descriptions: true
+    },
+    education: {
+      schools: true,
+      degrees: true,
+      fields: true,
+      dates: true,
+      gpa: true
+    },
+    skills: {
+      languages: true,
+      frameworks: true,
+      tools: true,
+      soft: true
+    },
+    suggestedTags: true
+  };
+}
+
+// Update section checkboxes based on child states
+function updateSectionCheckboxes() {
+  const sections = ['personal', 'work', 'education', 'skills'];
+
+  sections.forEach(section => {
+    const sectionCheckbox = document.getElementById(`ai-section-${section}`);
+    const childCheckboxes = document.querySelectorAll(`[id^="ai-field-${section}-"]`);
+
+    if (sectionCheckbox && childCheckboxes.length > 0) {
+      const allChecked = Array.from(childCheckboxes).every(cb => cb.checked);
+      const someChecked = Array.from(childCheckboxes).some(cb => cb.checked);
+
+      sectionCheckbox.checked = someChecked;
+      sectionCheckbox.indeterminate = someChecked && !allChecked;
+    }
+  });
+}
+
+// Update field options visibility based on Enhanced Resume Parsing toggle
+function updateFieldOptionsVisibility() {
+  const aiEnabled = document.getElementById('setting-ai-enabled')?.checked;
+  const aiResumeEnabled = document.getElementById('setting-ai-resume')?.checked;
+  const fieldOptions = document.getElementById('ai-field-options');
+
+  if (fieldOptions) {
+    // Only show if both AI and Enhanced Resume Parsing are enabled
+    if (aiEnabled && aiResumeEnabled) {
+      fieldOptions.classList.remove('hidden');
+    } else {
+      fieldOptions.classList.add('hidden');
+    }
+  }
 }
 
 // Update AI models section visibility
@@ -171,6 +291,28 @@ function updateAIModelsVisibility() {
       preloadBtn.title = '';
     }
   }
+}
+
+// Update AI sub-options visibility when master AI toggle changes
+function updateAISubOptionsVisibility() {
+  const aiEnabled = document.getElementById('setting-ai-enabled')?.checked;
+
+  // Grey out Auto-suggest Tags and Enhanced Resume Parsing when AI is disabled
+  const aiTagsRow = document.getElementById('setting-ai-tags')?.closest('.setting-row');
+  const aiResumeRow = document.getElementById('setting-ai-resume')?.closest('.setting-row');
+
+  if (aiTagsRow) {
+    aiTagsRow.style.opacity = aiEnabled ? '1' : '0.5';
+    aiTagsRow.style.pointerEvents = aiEnabled ? 'auto' : 'none';
+  }
+
+  if (aiResumeRow) {
+    aiResumeRow.style.opacity = aiEnabled ? '1' : '0.5';
+    aiResumeRow.style.pointerEvents = aiEnabled ? 'auto' : 'none';
+  }
+
+  // Also update field options visibility
+  updateFieldOptionsVisibility();
 }
 
 function formatDelay(ms) {
@@ -196,10 +338,44 @@ async function saveAISettings() {
   settings.ai.autoSuggestTags = document.getElementById('setting-ai-tags')?.checked ?? true;
   settings.ai.enhanceResumeParsing = document.getElementById('setting-ai-resume')?.checked ?? true;
 
+  // Save per-field settings with comprehensive structure
+  settings.ai.resumeFields = {
+    personal: {
+      name: document.getElementById('ai-field-personal-name')?.checked ?? true,
+      email: document.getElementById('ai-field-personal-email')?.checked ?? true,
+      phone: document.getElementById('ai-field-personal-phone')?.checked ?? true,
+      location: document.getElementById('ai-field-personal-location')?.checked ?? true,
+      links: document.getElementById('ai-field-personal-links')?.checked ?? true
+    },
+    work: {
+      companies: document.getElementById('ai-field-work-companies')?.checked ?? true,
+      titles: document.getElementById('ai-field-work-titles')?.checked ?? true,
+      locations: document.getElementById('ai-field-work-locations')?.checked ?? true,
+      dates: document.getElementById('ai-field-work-dates')?.checked ?? true,
+      descriptions: document.getElementById('ai-field-work-descriptions')?.checked ?? true
+    },
+    education: {
+      schools: document.getElementById('ai-field-education-schools')?.checked ?? true,
+      degrees: document.getElementById('ai-field-education-degrees')?.checked ?? true,
+      fields: document.getElementById('ai-field-education-fields')?.checked ?? true,
+      dates: document.getElementById('ai-field-education-dates')?.checked ?? true,
+      gpa: document.getElementById('ai-field-education-gpa')?.checked ?? true
+    },
+    skills: {
+      languages: document.getElementById('ai-field-skills-languages')?.checked ?? true,
+      frameworks: document.getElementById('ai-field-skills-frameworks')?.checked ?? true,
+      tools: document.getElementById('ai-field-skills-tools')?.checked ?? true,
+      soft: document.getElementById('ai-field-skills-soft')?.checked ?? true
+    },
+    suggestedTags: document.getElementById('ai-field-tags')?.checked ?? true
+  };
+
   await chrome.runtime.sendMessage({ type: SettingsMessageTypes.SAVE_SETTINGS, payload: settings });
 
   // Update UI state
   updateAIModelsVisibility();
+  updateAISubOptionsVisibility();
+  updateFieldOptionsVisibility();
 
   showNotification('AI settings saved', 'success');
 }
@@ -379,6 +555,32 @@ async function loadStorageSizes() {
     updateModelStatusBadge('embeddings', modelsStatus?.embeddings?.downloadStatus);
     updateModelStatusBadge('ner', modelsStatus?.ner?.downloadStatus);
 
+    // Update preload button state based on download status
+    const preloadBtn = document.getElementById('preload-models-btn');
+    if (preloadBtn) {
+      const allDownloaded = modelsStatus?.embeddings?.downloadStatus === 'downloaded' &&
+                            modelsStatus?.ner?.downloadStatus === 'downloaded';
+      if (allDownloaded) {
+        preloadBtn.innerHTML = `
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          Models Downloaded
+        `;
+        preloadBtn.classList.add('downloaded');
+      } else {
+        preloadBtn.innerHTML = `
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          Download All Models (132 MB)
+        `;
+        preloadBtn.classList.remove('downloaded');
+      }
+    }
+
     // Calculate total
     const totalSize = appsSize + profileSize + modelsCacheSize;
     const totalSizeEl = document.getElementById('total-storage-size');
@@ -395,6 +597,9 @@ async function loadStorageSizes() {
         cacheInfoEl.textContent = 'Models will be cached for offline use after download';
       }
     }
+
+    // Ensure button disabled state is synced with AI enabled state
+    updateAIModelsVisibility();
   } catch (error) {
     console.log('Error loading storage sizes:', error);
   }
@@ -453,8 +658,23 @@ async function handleImport(e) {
     const text = await file.text();
     const data = JSON.parse(text);
 
+    // Basic validation (required fields)
     if (!data.version || !data.profile) {
-      throw new Error('Invalid import file format');
+      throw new Error('Invalid import file format: missing version or profile');
+    }
+
+    // Use Zod validation if available
+    if (typeof window.JobTrackerValidation !== 'undefined' && window.JobTrackerValidation.isAvailable()) {
+      const validationResult = window.JobTrackerValidation.validateImportData(data);
+
+      if (!validationResult.success) {
+        const errorMsg = window.JobTrackerValidation.formatErrors(validationResult.errors);
+        console.log('Validation errors:', validationResult.errors);
+        throw new Error(`Invalid import data:\n${errorMsg}`);
+      }
+
+      // Use validated/transformed data
+      console.log('JobTracker: Import data validated successfully');
     }
 
     const merge = confirm('Do you want to merge with existing data? Click Cancel to replace all data.');
@@ -610,7 +830,6 @@ function setupEventListeners() {
   document.getElementById('clear-profile-btn')?.addEventListener('click', clearProfile);
   document.getElementById('clear-applications-btn')?.addEventListener('click', clearApplications);
   document.getElementById('clear-ai-models-btn')?.addEventListener('click', clearModelsCache);
-  document.getElementById('clear-models-btn')?.addEventListener('click', clearModelsCache);
   document.getElementById('clear-all-data-btn')?.addEventListener('click', clearAllData);
 
   // AI settings
@@ -618,9 +837,74 @@ function setupEventListeners() {
   const aiTags = document.getElementById('setting-ai-tags');
   const aiResume = document.getElementById('setting-ai-resume');
 
-  if (aiEnabled) aiEnabled.addEventListener('change', saveAISettings);
+  if (aiEnabled) {
+    aiEnabled.addEventListener('change', () => {
+      updateAIModelsVisibility();
+      updateAISubOptionsVisibility();
+      updateFieldOptionsVisibility();
+      saveAISettings();
+    });
+  }
   if (aiTags) aiTags.addEventListener('change', saveAISettings);
-  if (aiResume) aiResume.addEventListener('change', saveAISettings);
+  if (aiResume) {
+    aiResume.addEventListener('change', () => {
+      updateFieldOptionsVisibility();
+      saveAISettings();
+    });
+  }
+
+  // Section toggle checkboxes (toggle all children)
+  const sections = ['personal', 'work', 'education', 'skills'];
+  sections.forEach(section => {
+    const sectionCheckbox = document.getElementById(`ai-section-${section}`);
+    if (sectionCheckbox) {
+      sectionCheckbox.addEventListener('change', () => {
+        const isChecked = sectionCheckbox.checked;
+        const childCheckboxes = document.querySelectorAll(`[id^="ai-field-${section}-"]`);
+        childCheckboxes.forEach(cb => cb.checked = isChecked);
+        sectionCheckbox.indeterminate = false;
+        saveAISettings();
+      });
+    }
+  });
+
+  // Per-field AI settings
+  const fieldCheckboxes = [
+    // Personal
+    'ai-field-personal-name',
+    'ai-field-personal-email',
+    'ai-field-personal-phone',
+    'ai-field-personal-location',
+    'ai-field-personal-links',
+    // Work
+    'ai-field-work-companies',
+    'ai-field-work-titles',
+    'ai-field-work-locations',
+    'ai-field-work-dates',
+    'ai-field-work-descriptions',
+    // Education
+    'ai-field-education-schools',
+    'ai-field-education-degrees',
+    'ai-field-education-fields',
+    'ai-field-education-dates',
+    'ai-field-education-gpa',
+    // Skills
+    'ai-field-skills-languages',
+    'ai-field-skills-frameworks',
+    'ai-field-skills-tools',
+    'ai-field-skills-soft',
+    // Suggested tags
+    'ai-field-tags'
+  ];
+  fieldCheckboxes.forEach(id => {
+    const checkbox = document.getElementById(id);
+    if (checkbox) {
+      checkbox.addEventListener('change', () => {
+        updateSectionCheckboxes();
+        saveAISettings();
+      });
+    }
+  });
 
   // Preload models button
   const preloadBtn = document.getElementById('preload-models-btn');
@@ -655,14 +939,35 @@ function setupEventListeners() {
         showNotification('Download failed: ' + (error.message || 'Check your internet connection.'), 'error');
       } finally {
         preloadBtn.disabled = false;
-        preloadBtn.innerHTML = `
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
-          Download All Models (132 MB)
-        `;
+
+        // Check if models were successfully downloaded
+        const modelsStatus = await chrome.runtime.sendMessage({
+          type: SettingsMessageTypes.GET_MODELS_STATUS
+        });
+
+        const allDownloaded = modelsStatus?.embeddings?.downloadStatus === 'downloaded' &&
+                              modelsStatus?.ner?.downloadStatus === 'downloaded';
+
+        if (allDownloaded) {
+          preloadBtn.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            Models Downloaded
+          `;
+          preloadBtn.classList.add('downloaded');
+        } else {
+          preloadBtn.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Download All Models (132 MB)
+          `;
+          preloadBtn.classList.remove('downloaded');
+        }
+
         // Re-check if AI is still enabled
         updateAIModelsVisibility();
       }

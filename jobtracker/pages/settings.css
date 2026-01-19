@@ -709,3 +709,151 @@
     flex: 1;
   }
 }
+
+/* AI Field Options (per-field toggle) */
+.ai-field-options {
+  margin-left: var(--space-lg);
+  padding: var(--space-md);
+  border-left: 2px solid var(--border-color);
+  margin-top: var(--space-md);
+  animation: slideDown 0.2s ease-out;
+}
+
+.ai-field-options.hidden {
+  display: none;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.field-options-header {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  margin-bottom: var(--space-md);
+  font-weight: 500;
+}
+
+/* Field Sections */
+.field-section {
+  margin-bottom: var(--space-md);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.field-section:last-child {
+  margin-bottom: 0;
+}
+
+.field-section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-primary);
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.field-section-header:hover {
+  background: var(--bg-hover);
+}
+
+.field-section-header input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+.field-section-header.standalone {
+  flex-wrap: wrap;
+}
+
+.field-section-header.standalone .field-option-desc {
+  width: 100%;
+  margin-left: calc(16px + var(--space-sm));
+  margin-top: 2px;
+}
+
+.field-section-options {
+  padding: var(--space-xs) var(--space-md);
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
+}
+
+.field-section-options.collapsed {
+  display: none;
+}
+
+.field-option {
+  padding: var(--space-xs) 0;
+}
+
+.field-option label {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  cursor: pointer;
+  padding: var(--space-xs);
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-normal);
+}
+
+.field-option label:hover {
+  background: var(--bg-hover);
+}
+
+.field-option input[type="checkbox"] {
+  margin-top: 2px;
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  accent-color: var(--color-primary);
+}
+
+.field-option-label {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+  display: block;
+  min-width: 80px;
+}
+
+.field-option-desc {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  display: block;
+  margin-top: 1px;
+}
+
+/* Disabled state for child checkboxes when section is unchecked */
+.field-section-options.section-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* Mobile adjustments for field options */
+@media (max-width: 600px) {
+  .ai-field-options {
+    margin-left: 0;
+    border-left: none;
+    border-top: 1px solid var(--border-color);
+    padding-left: 0;
+  }
+
+  .field-option-label {
+    min-width: 60px;
+  }
+}

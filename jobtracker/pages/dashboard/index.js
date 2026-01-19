@@ -74,6 +74,9 @@ import {
   setupSettingsListeners, loadStorageSizes, loadDashboardSettings
 } from './ai-features.js';
 
+// Search index (Fuse.js)
+let searchIndex = null;
+
 // BroadcastChannel for cross-page real-time updates
 const applicationChannel = new BroadcastChannel('jobtracker-applications');
 applicationChannel.onmessage = async (event) => {
@@ -233,6 +236,13 @@ async function loadApplications() {
   try {
     const apps = await chrome.runtime.sendMessage({ type: MessageTypes.GET_APPLICATIONS }) || [];
     setApplications(apps);
+
+    // Initialize fuzzy search index (Fuse.js loaded globally)
+    if (typeof window.JobTrackerSearch !== 'undefined') {
+      searchIndex = new window.JobTrackerSearch();
+      searchIndex.setData(apps);
+    }
+
     applyFilters();
   } catch (error) {
     console.log('Error loading applications:', error);
@@ -281,25 +291,29 @@ async function updateStats() {
 
 // Apply filters and render
 function applyFilters() {
-  const searchTerm = elements.searchInput.value.toLowerCase();
+  const searchTerm = elements.searchInput.value.trim();
   const statusFilter = elements.filterStatus.value;
   const sortOrder = elements.filterSort.value;
   const selectedTags = getSelectedTags();
   const applications = getApplications();
 
-  // Filter
-  let filtered = applications.filter(app => {
-    const matchesSearch = !searchTerm ||
-      (app.company?.toLowerCase().includes(searchTerm)) ||
-      (app.position?.toLowerCase().includes(searchTerm));
+  // Use fuzzy search if available and search term exists
+  let searchResults;
+  if (searchTerm && searchIndex) {
+    searchResults = searchIndex.search(searchTerm);
+  } else {
+    searchResults = applications;
+  }
 
+  // Filter by status and tags
+  let filtered = searchResults.filter(app => {
     const matchesStatus = !statusFilter || app.status === statusFilter;
 
     // CRM Enhancement: Tag filter
     const matchesTags = selectedTags.length === 0 ||
       (app.tags && selectedTags.every(tag => app.tags.includes(tag)));
 
-    return matchesSearch && matchesStatus && matchesTags;
+    return matchesStatus && matchesTags;
   });
 
   // Sort

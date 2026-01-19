@@ -247,6 +247,195 @@
                 <span class="toggle-slider"></span>
               </label>
             </div>
+
+            <!-- Per-field AI options (shown when Enhanced Resume Parsing is enabled) -->
+            <div class="ai-field-options hidden" id="ai-field-options">
+              <div class="field-options-header">
+                <span>Choose which fields to enhance with AI:</span>
+              </div>
+
+              <!-- Personal Info Section -->
+              <div class="field-section">
+                <div class="field-section-header">
+                  <input type="checkbox" id="ai-section-personal" checked>
+                  <span>Personal Info</span>
+                </div>
+                <div class="field-section-options">
+                  <div class="field-option">
+                    <label>
+                      <input type="checkbox" id="ai-field-personal-name" checked>
+                      <span class="field-option-label">Name</span>
+                      <span class="field-option-desc">First, middle, last name via NER</span>
+                    </label>
+                  </div>
+                  <div class="field-option">
+                    <label>
+                      <input type="checkbox" id="ai-field-personal-email" checked>
+                      <span class="field-option-label">Email</span>
+                      <span class="field-option-desc">Email address extraction</span>
+                    </label>
+                  </div>
+                  <div class="field-option">
+                    <label>
+                      <input type="checkbox" id="ai-field-personal-phone" checked>
+                      <span class="field-option-label">Phone</span>
+                      <span class="field-option-desc">Phone number extraction</span>
+                    </label>
+                  </div>
+                  <div class="field-option">
+                    <label>
+                      <input type="checkbox" id="ai-field-personal-location" checked>
+                      <span class="field-option-label">Location</span>
+                      <span class="field-option-desc">City, state, country via NER</span>
+                    </label>
+                  </div>
+                  <div class="field-option">
+                    <label>
+                      <input type="checkbox" id="ai-field-personal-links" checked>
+                      <span class="field-option-label">Links</span>
+                      <span class="field-option-desc">LinkedIn, GitHub, portfolio URLs</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Work History Section -->
+              <div class="field-section">
+                <div class="field-section-header">
+                  <input type="checkbox" id="ai-section-work" checked>
+                  <span>Work History</span>
+                </div>
+                <div class="field-section-options">
+                  <div class="field-option">
+                    <label>
+                      <input type="checkbox" id="ai-field-work-companies" checked>
+                      <span class="field-option-label">Companies</span>
+                      <span class="field-option-desc">Company name detection via NER</span>
+                    </label>
+                  </div>
+                  <div class="field-option">
+                    <label>
+                      <input type="checkbox" id="ai-field-work-titles" checked>
+                      <span class="field-option-label">Job Titles</span>
+                      <span class="field-option-desc">Position title extraction</span>
+                    </label>
+                  </div>
+                  <div class="field-option">
+                    <label>
+                      <input type="checkbox" id="ai-field-work-locations" checked>
+                      <span class="field-option-label">Locations</span>
+                      <span class="field-option-desc">Work location via NER</span>
+                    </label>
+                  </div>
+                  <div class="field-option">
+                    <label>
+                      <input type="checkbox" id="ai-field-work-dates" checked>
+                      <span class="field-option-label">Dates</span>
+                      <span class="field-option-desc">Start/end date parsing</span>
+                    </label>
+                  </div>
+                  <div class="field-option">
+                    <label>
+                      <input type="checkbox" id="ai-field-work-descriptions" checked>
+                      <span class="field-option-label">Descriptions</span>
+                      <span class="field-option-desc">Job description enhancement</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Education Section -->
+              <div class="field-section">
+                <div class="field-section-header">
+                  <input type="checkbox" id="ai-section-education" checked>
+                  <span>Education</span>
+                </div>
+                <div class="field-section-options">
+                  <div class="field-option">
+                    <label>
+                      <input type="checkbox" id="ai-field-education-schools" checked>
+                      <span class="field-option-label">Schools</span>
+                      <span class="field-option-desc">School/university name via NER</span>
+                    </label>
+                  </div>
+                  <div class="field-option">
+                    <label>
+                      <input type="checkbox" id="ai-field-education-degrees" checked>
+                      <span class="field-option-label">Degrees</span>
+                      <span class="field-option-desc">Degree type extraction</span>
+                    </label>
+                  </div>
+                  <div class="field-option">
+                    <label>
+                      <input type="checkbox" id="ai-field-education-fields" checked>
+                      <span class="field-option-label">Fields of Study</span>
+                      <span class="field-option-desc">Major/minor extraction</span>
+                    </label>
+                  </div>
+                  <div class="field-option">
+                    <label>
+                      <input type="checkbox" id="ai-field-education-dates" checked>
+                      <span class="field-option-label">Dates</span>
+                      <span class="field-option-desc">Graduation date parsing</span>
+                    </label>
+                  </div>
+                  <div class="field-option">
+                    <label>
+                      <input type="checkbox" id="ai-field-education-gpa" checked>
+                      <span class="field-option-label">GPA</span>
+                      <span class="field-option-desc">GPA extraction</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Skills Section -->
+              <div class="field-section">
+                <div class="field-section-header">
+                  <input type="checkbox" id="ai-section-skills" checked>
+                  <span>Skills</span>
+                </div>
+                <div class="field-section-options">
+                  <div class="field-option">
+                    <label>
+                      <input type="checkbox" id="ai-field-skills-languages" checked>
+                      <span class="field-option-label">Languages</span>
+                      <span class="field-option-desc">Programming languages</span>
+                    </label>
+                  </div>
+                  <div class="field-option">
+                    <label>
+                      <input type="checkbox" id="ai-field-skills-frameworks" checked>
+                      <span class="field-option-label">Frameworks</span>
+                      <span class="field-option-desc">Frameworks &amp; libraries</span>
+                    </label>
+                  </div>
+                  <div class="field-option">
+                    <label>
+                      <input type="checkbox" id="ai-field-skills-tools" checked>
+                      <span class="field-option-label">Tools</span>
+                      <span class="field-option-desc">Tools &amp; technologies</span>
+                    </label>
+                  </div>
+                  <div class="field-option">
+                    <label>
+                      <input type="checkbox" id="ai-field-skills-soft" checked>
+                      <span class="field-option-label">Soft Skills</span>
+                      <span class="field-option-desc">Communication, leadership, etc.</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Suggested Tags -->
+              <div class="field-section">
+                <div class="field-section-header standalone">
+                  <input type="checkbox" id="ai-field-tags" checked>
+                  <span>Suggested Tags</span>
+                  <span class="field-option-desc">Generate tag suggestions from resume content</span>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- AI Models -->
@@ -295,7 +484,6 @@
                 </svg>
                 Download All Models (132 MB)
               </button>
-              <button class="btn-secondary" id="clear-models-btn">Clear Cache</button>
             </div>
 
             <p class="cache-info" id="models-cache-info">Models will be cached for offline use after download</p>
@@ -444,6 +632,10 @@
       </form>
     </div>
   </div>
+
+  <!-- Validation library (Zod) -->
+  <script src="../lib/vendor/zod.min.js"></script>
+  <script src="../lib/validation.js"></script>
 
   <script type="module" src="settings.js"></script>
 </body>

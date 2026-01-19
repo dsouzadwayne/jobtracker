@@ -4,7 +4,32 @@
  */
 
 const SectionGrouper = {
-  SECTION_KEYWORDS: ['experience', 'education', 'project', 'skill', 'summary', 'objective', 'certification', 'award', 'work', 'employment', 'qualification', 'professional'],
+  SECTION_KEYWORDS: [
+    // Work/Experience
+    'experience', 'employment', 'work', 'professional', 'career', 'history',
+    // Education
+    'education', 'academic', 'qualification', 'degree', 'university', 'school',
+    // Skills
+    'skill', 'competenc', 'expertise', 'technologies', 'technical', 'proficienc', 'abilities',
+    // Projects
+    'project', 'portfolio', 'personal project', 'side project',
+    // Summary/Objective
+    'summary', 'objective', 'profile', 'about', 'overview', 'introduction', 'statement',
+    // Certifications
+    'certification', 'certificate', 'license', 'credential', 'accreditation',
+    // Awards
+    'award', 'achievement', 'honor', 'recognition', 'accomplishment',
+    // Publications
+    'publication', 'paper', 'research', 'article', 'journal',
+    // Languages
+    'language', 'linguistic',
+    // Volunteer/Leadership
+    'volunteer', 'community', 'leadership', 'extracurricular', 'activities',
+    // References
+    'reference', 'referees',
+    // Interests
+    'interest', 'hobbies', 'hobby', 'passion'
+  ],
 
   group(lines) {
     const sections = {};
@@ -62,26 +87,52 @@ const SectionGrouper = {
     const lower = name.toLowerCase();
 
     // Map common variations to standard names
-    if (lower.includes('experience') || lower.includes('employment') || lower.includes('work') || lower.includes('professional')) {
+    if (lower.includes('experience') || lower.includes('employment') || lower.includes('work') ||
+        lower.includes('professional') || lower.includes('career') || lower.includes('history')) {
       return 'experience';
     }
-    if (lower.includes('education') || lower.includes('academic') || lower.includes('qualification')) {
+    if (lower.includes('education') || lower.includes('academic') || lower.includes('qualification') ||
+        lower.includes('degree') || lower.includes('university') || lower.includes('school')) {
       return 'education';
     }
-    if (lower.includes('skill') || lower.includes('competenc') || lower.includes('expertise') || lower.includes('technologies')) {
+    if (lower.includes('skill') || lower.includes('competenc') || lower.includes('expertise') ||
+        lower.includes('technologies') || lower.includes('technical') || lower.includes('proficienc') ||
+        lower.includes('abilities')) {
       return 'skills';
     }
-    if (lower.includes('project')) {
+    if (lower.includes('project') || lower.includes('portfolio')) {
       return 'projects';
     }
-    if (lower.includes('summary') || lower.includes('objective') || lower.includes('profile')) {
+    if (lower.includes('summary') || lower.includes('objective') || lower.includes('profile') ||
+        lower.includes('about') || lower.includes('overview') || lower.includes('introduction') ||
+        lower.includes('statement')) {
       return 'summary';
     }
-    if (lower.includes('certification') || lower.includes('certificate')) {
+    if (lower.includes('certification') || lower.includes('certificate') || lower.includes('license') ||
+        lower.includes('credential') || lower.includes('accreditation')) {
       return 'certifications';
     }
-    if (lower.includes('award') || lower.includes('achievement')) {
+    if (lower.includes('award') || lower.includes('achievement') || lower.includes('honor') ||
+        lower.includes('recognition') || lower.includes('accomplishment')) {
       return 'awards';
+    }
+    if (lower.includes('publication') || lower.includes('paper') || lower.includes('research') ||
+        lower.includes('article') || lower.includes('journal')) {
+      return 'publications';
+    }
+    if (lower.includes('language') || lower.includes('linguistic')) {
+      return 'languages';
+    }
+    if (lower.includes('volunteer') || lower.includes('community') || lower.includes('leadership') ||
+        lower.includes('extracurricular') || lower.includes('activities')) {
+      return 'activities';
+    }
+    if (lower.includes('reference') || lower.includes('referees')) {
+      return 'references';
+    }
+    if (lower.includes('interest') || lower.includes('hobby') || lower.includes('hobbies') ||
+        lower.includes('passion')) {
+      return 'interests';
     }
 
     return lower;
