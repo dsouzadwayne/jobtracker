@@ -95,6 +95,30 @@ const BADGE_CLEAR_ALARM = 'jobtracker-clear-badge';
 // Valid message types set for quick lookup
 const VALID_MESSAGE_TYPES = new Set(Object.values(MessageTypes));
 
+// Validation constants (mirrors validation.js schemas)
+const APPLICATION_STATUSES = ['saved', 'applied', 'screening', 'interview', 'offer', 'rejected', 'withdrawn'];
+const PLATFORMS = ['linkedin', 'indeed', 'glassdoor', 'greenhouse', 'lever', 'workday', 'icims', 'smartrecruiters', 'naukri', 'other'];
+const INTERVIEW_OUTCOMES = ['pending', 'passed', 'failed', 'cancelled', 'Pending', 'Passed', 'Failed', 'Cancelled'];
+const TASK_PRIORITIES = ['low', 'medium', 'high'];
+
+// Helper to validate URL format
+function isValidUrl(string) {
+  if (!string) return true; // Empty is allowed
+  try {
+    new URL(string);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Helper to validate ISO date string
+function isValidISODate(string) {
+  if (!string) return true; // Empty is allowed
+  const date = new Date(string);
+  return !isNaN(date.getTime());
+}
+
 // Validate message payload based on type
 function validatePayload(type, payload) {
   switch (type) {
@@ -118,6 +142,26 @@ function validatePayload(type, payload) {
       // Validate required fields for update
       if (type === MessageTypes.UPDATE_APPLICATION && !payload.id) {
         return { valid: false, error: 'Application update requires id' };
+      }
+      // Validate status if provided
+      if (payload.status && !APPLICATION_STATUSES.includes(payload.status)) {
+        return { valid: false, error: `Invalid status. Must be one of: ${APPLICATION_STATUSES.join(', ')}` };
+      }
+      // Validate platform if provided
+      if (payload.platform && !PLATFORMS.includes(payload.platform)) {
+        return { valid: false, error: `Invalid platform. Must be one of: ${PLATFORMS.join(', ')}` };
+      }
+      // Validate URL format if provided
+      if (payload.jobUrl && !isValidUrl(payload.jobUrl)) {
+        return { valid: false, error: 'Invalid job URL format' };
+      }
+      // Validate date format if provided
+      if (payload.dateApplied && !isValidISODate(payload.dateApplied)) {
+        return { valid: false, error: 'Invalid dateApplied format' };
+      }
+      // Validate tags is an array if provided
+      if (payload.tags !== undefined && !Array.isArray(payload.tags)) {
+        return { valid: false, error: 'Tags must be an array' };
       }
       break;
 
@@ -163,6 +207,14 @@ function validatePayload(type, payload) {
       if (type === MessageTypes.UPDATE_INTERVIEW && !payload.id) {
         return { valid: false, error: 'Interview update requires id' };
       }
+      // Validate outcome if provided
+      if (payload.outcome && !INTERVIEW_OUTCOMES.includes(payload.outcome)) {
+        return { valid: false, error: `Invalid outcome. Must be one of: ${INTERVIEW_OUTCOMES.join(', ')}` };
+      }
+      // Validate scheduled date format if provided
+      if (payload.scheduledDate && !isValidISODate(payload.scheduledDate)) {
+        return { valid: false, error: 'Invalid scheduledDate format' };
+      }
       break;
 
     case MessageTypes.DELETE_INTERVIEW:
@@ -181,6 +233,17 @@ function validatePayload(type, payload) {
       }
       if (type === MessageTypes.UPDATE_TASK && !payload.id) {
         return { valid: false, error: 'Task update requires id' };
+      }
+      // Validate priority if provided
+      if (payload.priority && !TASK_PRIORITIES.includes(payload.priority)) {
+        return { valid: false, error: `Invalid priority. Must be one of: ${TASK_PRIORITIES.join(', ')}` };
+      }
+      // Validate date formats if provided
+      if (payload.dueDate && !isValidISODate(payload.dueDate)) {
+        return { valid: false, error: 'Invalid dueDate format' };
+      }
+      if (payload.reminderDate && !isValidISODate(payload.reminderDate)) {
+        return { valid: false, error: 'Invalid reminderDate format' };
       }
       break;
 

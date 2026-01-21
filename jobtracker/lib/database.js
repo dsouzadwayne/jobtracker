@@ -3,6 +3,9 @@
  * Provides a proper database for storing applications, profile, and settings
  */
 
+// Valid application statuses
+const APPLICATION_STATUSES = ['saved', 'applied', 'screening', 'interview', 'offer', 'rejected', 'withdrawn'];
+
 const JobTrackerDB = {
   DB_NAME: 'JobTrackerDB',
   DB_VERSION: 3,
@@ -282,8 +285,11 @@ const JobTrackerDB = {
       }
     };
 
-    // Track status change
+    // Track status change (validate against allowed statuses)
     if (application.status && application.status !== oldStatus) {
+      if (!APPLICATION_STATUSES.includes(application.status)) {
+        throw new Error(`Invalid status: ${application.status}. Must be one of: ${APPLICATION_STATUSES.join(', ')}`);
+      }
       updated.statusHistory = updated.statusHistory || [];
       updated.statusHistory.push({
         status: application.status,
@@ -373,14 +379,24 @@ const JobTrackerDB = {
     }
 
     applications.forEach(app => {
-      // Status counts
-      stats.byStatus[app.status] = (stats.byStatus[app.status] || 0) + 1;
+      // Skip null/undefined applications
+      if (!app) return;
+
+      // Status counts (default to 'applied' if missing)
+      const status = app.status || 'applied';
+      stats.byStatus[status] = (stats.byStatus[status] || 0) + 1;
 
       // Platform counts
       const platform = app.platform || 'other';
       stats.byPlatform[platform] = (stats.byPlatform[platform] || 0) + 1;
 
-      const appliedDate = new Date(app.dateApplied || app.meta?.createdAt);
+      // Parse date with null checks
+      const dateSource = app.dateApplied || app.meta?.createdAt;
+      if (!dateSource) return; // Skip if no date available
+
+      const appliedDate = new Date(dateSource);
+      if (isNaN(appliedDate.getTime())) return; // Skip invalid dates
+
       if (appliedDate >= weekAgo) stats.thisWeek++;
       if (appliedDate >= monthAgo) stats.thisMonth++;
 
@@ -515,24 +531,14 @@ const JobTrackerDB = {
     const getDateKey = (dateValue) => {
       if (!dateValue) return null;
 
-      // If it's a string that looks like an ISO date (starts with YYYY-MM-DD)
-      if (typeof dateValue === 'string') {
-        // Extract YYYY-MM-DD from start of string (handles "2026-01-18" or "2026-01-18T...")
-        const match = dateValue.match(/^(\d{4}-\d{2}-\d{2})/);
-        if (match) {
-          return match[1];
-        }
-      }
-
-      // For Date objects or other formats, parse and use UTC date components
-      // (since dates are typically stored as UTC midnight)
+      // Parse the date value
       const date = new Date(dateValue);
       if (isNaN(date.getTime())) return null;
 
-      // Use UTC methods to avoid timezone shifting
-      const year = date.getUTCFullYear();
-      const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-      const day = String(date.getUTCDate()).padStart(2, '0');
+      // Use LOCAL methods to match heatmap renderer's local date format
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
       return `${year}-${month}-${day}`;
     };
 
@@ -1352,9 +1358,65 @@ const JobTrackerDB = {
   },
 
   /**
+   * Validate import data structure
+   * @param {Object} data - Data to validate
+   * @returns {{ valid: boolean, errors: string[] }}
+   */
+  validateImportData(data) {
+    const errors = [];
+
+    if (!data || typeof data !== 'object') {
+      return { valid: false, errors: ['Import data must be an object'] };
+    }
+
+    // Validate applications array if present
+    if (data.applications !== undefined) {
+      if (!Array.isArray(data.applications)) {
+        errors.push('applications must be an array');
+      } else {
+        data.applications.forEach((app, index) => {
+          if (!app || typeof app !== 'object') {
+            errors.push(`applications[${index}] must be an object`);
+          } else {
+            if (!app.id || typeof app.id !== 'string') {
+              errors.push(`applications[${index}].id must be a non-empty string`);
+            }
+            // At least company or position should exist
+            if (!app.company && !app.position) {
+              errors.push(`applications[${index}] must have company or position`);
+            }
+          }
+        });
+      }
+    }
+
+    // Validate profile if present
+    if (data.profile !== undefined) {
+      if (!data.profile || typeof data.profile !== 'object') {
+        errors.push('profile must be an object');
+      }
+    }
+
+    // Validate settings if present
+    if (data.settings !== undefined) {
+      if (!data.settings || typeof data.settings !== 'object') {
+        errors.push('settings must be an object');
+      }
+    }
+
+    return { valid: errors.length === 0, errors };
+  },
+
+  /**
    * Import data
    */
   async importData(data, merge = false) {
+    // Validate data structure before importing
+    const validation = this.validateImportData(data);
+    if (!validation.valid) {
+      throw new Error(`Invalid import data: ${validation.errors.join(', ')}`);
+    }
+
     if (merge) {
       // Merge logic
       if (data.applications) {

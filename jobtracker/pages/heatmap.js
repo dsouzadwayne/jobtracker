@@ -3,8 +3,23 @@
  * Uses ActivityHeatmap library (D3.js) for GitHub-style visualization
  */
 
+// Helper to escape HTML for safe insertion
+function escapeHtml(str) {
+  if (!str) return '';
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
 // Heatmap rendering module
 const HeatmapRenderer = {
+  // AbortController for event listener cleanup
+  _abortController: null,
+  // MutationObserver reference for cleanup
+  _observer: null,
+  // Retry counter for deferred rendering
+  _renderRetries: 0,
+  _maxRenderRetries: 3,
   /**
    * Render the activity heatmap
    * @param {string} selector - CSS selector for the container
@@ -17,8 +32,25 @@ const HeatmapRenderer = {
       return;
     }
 
-    // Clear existing heatmap
+    // Abort any existing event listeners from previous render
+    if (this._abortController) {
+      this._abortController.abort();
+    }
+    this._abortController = new AbortController();
+    const signal = this._abortController.signal;
+
+    // Disconnect any existing MutationObserver
+    if (this._observer) {
+      this._observer.disconnect();
+      this._observer = null;
+    }
+
+    // Clear existing heatmap and remove any existing tooltip
     container.innerHTML = '';
+    const existingGlobalTooltip = document.getElementById('heatmap-tooltip-global');
+    if (existingGlobalTooltip) {
+      existingGlobalTooltip.remove();
+    }
 
     // Pre-populate all dates for the past year to ensure all cells render
     // This ensures today's date block always appears
@@ -84,7 +116,28 @@ const HeatmapRenderer = {
     try {
       // Calculate cell size based on container width
       // 53 weeks in a year, plus margins and row labels
-      const containerWidth = container.offsetWidth || 800;
+      let containerWidth = container.offsetWidth;
+
+      // If container has no width (not rendered yet), defer rendering
+      if (!containerWidth || containerWidth === 0) {
+        if (this._renderRetries < this._maxRenderRetries) {
+          this._renderRetries++;
+          // Use requestAnimationFrame to wait for layout, then retry
+          const self = this;
+          requestAnimationFrame(() => {
+            self.render(selector, dailyCounts);
+          });
+          return; // Exit and let RAF callback re-render
+        } else {
+          // Max retries reached, use default width
+          console.log('Heatmap: Container still has no width after retries, using default 800px');
+          containerWidth = 800;
+          this._renderRetries = 0; // Reset for future renders
+        }
+      } else {
+        this._renderRetries = 0; // Reset on successful width detection
+      }
+
       const availableWidth = containerWidth - 60; // Account for margins and labels
       const cellSize = Math.max(8, Math.min(14, Math.floor(availableWidth / 55)));
       const cellPadding = Math.max(1, Math.floor(cellSize / 6));
@@ -206,13 +259,15 @@ const HeatmapRenderer = {
           cell.setAttribute('data-value', value);
         });
 
-        // Create custom tooltip
+        // Create custom tooltip with unique ID for cleanup
         const tooltip = document.createElement('div');
+        tooltip.id = 'heatmap-tooltip-global';
         tooltip.className = 'heatmap-tooltip';
         tooltip.style.display = 'none';
         document.body.appendChild(tooltip);
 
-        // Add event listeners to cells
+        // Add event listeners to cells with abort signal for cleanup
+        const abortSignal = signal;
         cells.forEach(cell => {
           cell.addEventListener('mouseenter', (e) => {
             const dateStr = cell.getAttribute('data-date');
@@ -226,12 +281,13 @@ const HeatmapRenderer = {
                 year: 'numeric'
               });
               const count = parseInt(value, 10);
+              const safeDate = escapeHtml(formattedDate);
               tooltip.innerHTML = count === 0
-                ? `No applications on ${formattedDate}`
-                : `<strong>${count}</strong> application${count !== 1 ? 's' : ''} on ${formattedDate}`;
+                ? `No applications on ${safeDate}`
+                : `<strong>${count}</strong> application${count !== 1 ? 's' : ''} on ${safeDate}`;
               tooltip.style.display = 'block';
             }
-          });
+          }, { signal: abortSignal });
 
           cell.addEventListener('mousemove', (e) => {
             const tooltipRect = tooltip.getBoundingClientRect();
@@ -262,21 +318,40 @@ const HeatmapRenderer = {
 
             tooltip.style.left = left + 'px';
             tooltip.style.top = top + 'px';
-          });
+          }, { signal: abortSignal });
 
           cell.addEventListener('mouseleave', () => {
             tooltip.style.display = 'none';
-          });
+          }, { signal: abortSignal });
         });
 
         // Clean up tooltip when container is cleared
-        const observer = new MutationObserver(() => {
+        const self = this;
+        this._observer = new MutationObserver(() => {
           if (!document.contains(svg)) {
             tooltip.remove();
-            observer.disconnect();
+            if (self._observer) {
+              self._observer.disconnect();
+              self._observer = null;
+            }
           }
         });
-        observer.observe(container, { childList: true });
+        this._observer.observe(container, { childList: true });
+
+        // Also clean up on page unload/navigation
+        const cleanupOnUnload = () => {
+          tooltip.remove();
+          if (self._observer) {
+            self._observer.disconnect();
+            self._observer = null;
+          }
+          if (self._abortController) {
+            self._abortController.abort();
+            self._abortController = null;
+          }
+        };
+        window.addEventListener('pagehide', cleanupOnUnload, { once: true });
+        window.addEventListener('beforeunload', cleanupOnUnload, { once: true });
       }
     } catch (error) {
       console.log('Error rendering activity heatmap:', error);

@@ -58,7 +58,7 @@ const ResumeParser = {
         portfolio: result.profile.url,
         location: result.profile.location || ''
       },
-      workHistory: result.workExperiences.map(exp => {
+      workHistory: (result.workExperiences || []).map(exp => {
         console.log('[ResumeParser] Mapping work experience:', {
           jobTitle: exp.jobTitle,
           company: exp.company,
@@ -111,7 +111,7 @@ const ResumeParser = {
           description: description
         };
       }),
-      education: result.education.map(edu => ({
+      education: (result.education || []).map(edu => ({
         school: edu.school,
         degree: edu.degree,
         field: edu.field || '',

@@ -59,9 +59,9 @@
     };
 
     // Strategy 1: JSON-LD structured data (most reliable)
-    try {
-      const jsonLdScripts = document.querySelectorAll('script[type="application/ld+json"]');
-      for (const script of jsonLdScripts) {
+    const jsonLdScripts = document.querySelectorAll('script[type="application/ld+json"]');
+    for (const script of jsonLdScripts) {
+      try {
         const data = JSON.parse(script.textContent);
         if (data['@type'] === 'JobPosting') {
           info.position = data.title || '';
@@ -107,9 +107,9 @@
 
           break;
         }
+      } catch (e) {
+        // JSON-LD parsing failed for this script, continue with others
       }
-    } catch (e) {
-      // JSON-LD parsing failed, continue with DOM extraction
     }
 
     // Strategy 2: DOM extraction (fallback)

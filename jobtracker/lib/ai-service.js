@@ -12,7 +12,8 @@ class AIService {
   constructor() {
     this.worker = null;
     this.isReady = false;
-    this.mlAvailable = false;
+    this.mlAvailable = false; // Default to false until availability check completes
+    this.mlAvailabilityPromise = null; // Promise for ML availability check
     this.pendingRequests = new Map();
     this.requestCounter = 0;
     this.loadingPromise = null;
@@ -45,12 +46,14 @@ class AIService {
         this.isReady = true;
         console.log('[AI Service] Worker initialized');
 
-        // Check if Transformers.js is available (don't block init)
-        this.checkMLAvailability().then(available => {
+        // Check if Transformers.js is available (don't block init, but store promise for callers who need to wait)
+        this.mlAvailabilityPromise = this.checkMLAvailability().then(available => {
           this.mlAvailable = available;
           console.log(`[AI Service] ML features: ${available ? 'enabled' : 'disabled (regex-only mode)'}`);
+          return available;
         }).catch(() => {
           this.mlAvailable = false;
+          return false;
         });
 
         resolve(true);
@@ -316,8 +319,22 @@ class AIService {
 
   /**
    * Check if ML is available (sync check after init)
+   * Note: May return false if availability check is still pending.
+   * Use waitForMLAvailability() to ensure accurate result.
    */
   isMLAvailable() {
+    return this.mlAvailable;
+  }
+
+  /**
+   * Wait for ML availability check to complete
+   * @returns {Promise<boolean>} Whether ML features are available
+   */
+  async waitForMLAvailability() {
+    await this.init();
+    if (this.mlAvailabilityPromise) {
+      return this.mlAvailabilityPromise;
+    }
     return this.mlAvailable;
   }
 

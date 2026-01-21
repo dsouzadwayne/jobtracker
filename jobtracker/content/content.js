@@ -59,11 +59,22 @@
   // Handle autofill trigger
   async function handleAutofill() {
     try {
-      // Get profile data and settings in parallel
-      const [profileData, settingsData] = await Promise.all([
+      // Get profile data and settings in parallel with individual error handling
+      const [profileResult, settingsResult] = await Promise.allSettled([
         chrome.runtime.sendMessage({ type: MessageTypes.GET_PROFILE_FOR_FILL }),
         chrome.runtime.sendMessage({ type: MessageTypes.GET_SETTINGS })
       ]);
+
+      // Extract values with fallbacks for failed promises
+      const profileData = profileResult.status === 'fulfilled' ? profileResult.value : null;
+      const settingsData = settingsResult.status === 'fulfilled' ? settingsResult.value : null;
+
+      if (profileResult.status === 'rejected') {
+        console.log('JobTracker: Failed to load profile:', profileResult.reason);
+      }
+      if (settingsResult.status === 'rejected') {
+        console.log('JobTracker: Failed to load settings:', settingsResult.reason);
+      }
 
       profile = profileData;
       settings = settingsData;

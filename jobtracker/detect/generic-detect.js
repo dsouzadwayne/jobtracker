@@ -69,9 +69,9 @@
     }
 
     // Strategy 1: JSON-LD structured data
-    try {
-      const jsonLdScripts = document.querySelectorAll('script[type="application/ld+json"]');
-      for (const script of jsonLdScripts) {
+    const jsonLdScripts = document.querySelectorAll('script[type="application/ld+json"]');
+    for (const script of jsonLdScripts) {
+      try {
         const data = JSON.parse(script.textContent);
         const jobPosting = findJobPosting(data);
         if (jobPosting) {
@@ -81,9 +81,9 @@
           info.jobDescription = jobPosting.description || info.jobDescription;
           if (info.position && info.company) break;
         }
+      } catch (e) {
+        // JSON-LD parsing failed for this script, continue with others
       }
-    } catch (e) {
-      // JSON-LD parsing failed, continue with other strategies
     }
 
     // Strategy 2: Open Graph / Meta tags

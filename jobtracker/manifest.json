@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
   "name": "JobTracker",
-  "version": "0.4.6",
+  "version": "0.4.7",
   "description": "Track job applications and autofill forms. 100% local, privacy-first, open source.",
-  "author": "JobTracker Contributors",
-  "homepage_url": "https://github.com/yourusername/jobtracker",
+  "author": "Dwayne",
+  "homepage_url": "https://github.com/dsouzadwayne/jobtracker",
 
   "permissions": [
     "storage",
