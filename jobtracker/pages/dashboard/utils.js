@@ -189,33 +189,60 @@ export function formatJobDescription(text) {
   if (!text) return '';
 
   // Escape HTML first
-  let formatted = escapeHtml(text);
+  let escaped = escapeHtml(text);
 
-  // Convert lines starting with bullet-like characters to proper bullets
-  formatted = formatted
-    // Handle lines starting with •, -, *, or similar
-    .replace(/^[\s]*[•\-\*\●\○\■\□\►\▸]\s*/gm, '<li>')
-    // Handle numbered lists (1. 2. etc)
-    .replace(/^[\s]*\d+[\.\)]\s+/gm, '<li>')
-    // Wrap consecutive <li> items in <ul>
-    .replace(/(<li>.*?)(?=(?:<li>|$))/gs, '$1</li>');
+  // Split into lines for processing
+  const lines = escaped.split('\n');
+  const result = [];
+  let inList = false;
 
-  // Wrap sequences of list items in ul tags
-  formatted = formatted.replace(/((?:<li>.*?<\/li>\s*)+)/gs, '<ul class="job-desc-list">$1</ul>');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmedLine = line.trim();
 
-  // Convert double line breaks to paragraph breaks
-  formatted = formatted.replace(/\n\n+/g, '</p><p>');
+    // Check if line starts with a bullet character
+    const bulletMatch = trimmedLine.match(/^[•\-\*\●\○\■\□\►\▸]\s*(.*)$/);
+    // Check if line starts with a number (numbered list)
+    const numberMatch = trimmedLine.match(/^\d+[\.\)]\s+(.*)$/);
 
-  // Convert remaining single line breaks
-  formatted = formatted.replace(/\n/g, '<br>');
+    if (bulletMatch || numberMatch) {
+      // Start a list if not already in one
+      if (!inList) {
+        result.push('<ul class="job-desc-list">');
+        inList = true;
+      }
+      const content = bulletMatch ? bulletMatch[1] : numberMatch[1];
+      result.push(`<li>${content}</li>`);
+    } else {
+      // Close the list if we were in one
+      if (inList) {
+        result.push('</ul>');
+        inList = false;
+      }
 
-  // Wrap in paragraph if not empty
-  if (formatted.trim()) {
-    formatted = '<p>' + formatted + '</p>';
+      // Handle empty lines as paragraph breaks
+      if (trimmedLine === '') {
+        // Only add break if previous wasn't already a break
+        if (result.length > 0 && !result[result.length - 1].endsWith('</ul>')) {
+          result.push('<br><br>');
+        }
+      } else {
+        // Regular text line
+        result.push(trimmedLine + '<br>');
+      }
+    }
   }
 
-  // Clean up empty paragraphs
-  formatted = formatted.replace(/<p>\s*<\/p>/g, '');
+  // Close any remaining open list
+  if (inList) {
+    result.push('</ul>');
+  }
+
+  let formatted = result.join('\n');
+
+  // Clean up excessive line breaks
+  formatted = formatted.replace(/(<br>\s*){3,}/g, '<br><br>');
+  formatted = formatted.replace(/^<br>|<br>$/g, '');
 
   return formatted;
 }

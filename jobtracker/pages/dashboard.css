@@ -357,6 +357,16 @@
   display: flex;
   align-items: center;
   gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.app-location {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
 }
 
 .app-card-actions {
@@ -510,6 +520,9 @@
 .company-location {
   font-size: var(--font-size-sm);
   color: var(--text-muted);
+  word-break: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
 }
 
 .details-status {
@@ -574,7 +587,6 @@
 .details-description-content {
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
-  white-space: pre-wrap;
   line-height: 1.6;
   max-height: 200px;
   overflow-y: auto;
@@ -594,10 +606,21 @@
 .details-description-content ul.job-desc-list li {
   margin-bottom: var(--space-xs);
   line-height: 1.6;
+  color: var(--text-primary);
+}
+
+.details-description-content ul.job-desc-list li::marker {
+  color: var(--color-primary);
 }
 
 .details-description-content p {
   margin-bottom: var(--space-sm);
+}
+
+.details-description-content br + br {
+  display: block;
+  content: "";
+  margin-top: var(--space-sm);
 }
 
 /* Job Link with Icon */

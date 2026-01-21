@@ -31,6 +31,13 @@ let aiInitialized = false;
 let aiAvailable = false;
 let aiEnabled = false;  // Controlled by settings
 
+// Track toasts being created to prevent race conditions (fixes duplicate toast bug)
+const toastsBeingCreated = new Set();
+
+// Track event listener cleanup (fixes listener accumulation bug)
+let modelDownloadListenersInitialized = false;
+const modelDownloadListenerCleanup = [];
+
 /**
  * Check if AI is enabled in settings
  */
@@ -93,8 +100,12 @@ export function disableAI() {
  * Show model download toast notification
  */
 function showModelDownloadToast(modelName, size) {
+  // Check if toast already exists or is being created (fixes race condition)
   const existingToast = document.getElementById(`model-toast-${modelName}`);
-  if (existingToast) return; // Already showing
+  if (existingToast || toastsBeingCreated.has(modelName)) return;
+
+  // Mark as being created to prevent duplicate creation from rapid events
+  toastsBeingCreated.add(modelName);
 
   const toast = document.createElement('div');
   toast.className = 'model-download-toast';
@@ -114,6 +125,9 @@ function showModelDownloadToast(modelName, size) {
     </div>
   `;
   document.body.appendChild(toast);
+
+  // Clear from tracking set after toast is added to DOM
+  toastsBeingCreated.delete(modelName);
 }
 
 /**
@@ -213,10 +227,17 @@ function updateLoadingIndicator(progress) {
 
 /**
  * Setup global event listeners for model downloads
+ * Includes cleanup tracking to prevent listener accumulation on re-initialization
  */
 export function setupModelDownloadListeners() {
-  // Listen for model download progress events from worker
-  window.addEventListener('model-download-progress', (event) => {
+  // Prevent duplicate listener registration (fixes listener accumulation bug)
+  if (modelDownloadListenersInitialized) {
+    console.log('[AI Features] Model download listeners already initialized, skipping');
+    return;
+  }
+
+  // Define listener functions so we can remove them later
+  const progressListener = (event) => {
     const { model, status, progress, loaded, total, size } = event.detail;
 
     if (status === 'initiate') {
@@ -226,10 +247,9 @@ export function setupModelDownloadListeners() {
     if (status === 'downloading') {
       updateModelDownloadProgress(model, progress, loaded, total);
     }
-  });
+  };
 
-  // Listen for model download completion
-  window.addEventListener('model-download-complete', async (event) => {
+  const completeListener = async (event) => {
     const { model } = event.detail;
     completeModelDownload(model);
 
@@ -246,15 +266,38 @@ export function setupModelDownloadListeners() {
     } catch (error) {
       console.log('[AI Features] Failed to save model metadata:', error);
     }
-  });
+  };
 
-  // Listen for model download errors
-  window.addEventListener('model-download-error', (event) => {
+  const errorListener = (event) => {
     const { model, error } = event.detail;
     showModelDownloadError(model, error);
-  });
+  };
 
+  // Add listeners
+  window.addEventListener('model-download-progress', progressListener);
+  window.addEventListener('model-download-complete', completeListener);
+  window.addEventListener('model-download-error', errorListener);
+
+  // Store cleanup functions for later removal
+  modelDownloadListenerCleanup.push(
+    () => window.removeEventListener('model-download-progress', progressListener),
+    () => window.removeEventListener('model-download-complete', completeListener),
+    () => window.removeEventListener('model-download-error', errorListener)
+  );
+
+  modelDownloadListenersInitialized = true;
   console.log('[AI Features] Model download listeners initialized');
+}
+
+/**
+ * Remove model download event listeners
+ * Call this when navigating away or cleaning up
+ */
+export function removeModelDownloadListeners() {
+  modelDownloadListenerCleanup.forEach(cleanup => cleanup());
+  modelDownloadListenerCleanup.length = 0;
+  modelDownloadListenersInitialized = false;
+  console.log('[AI Features] Model download listeners removed');
 }
 
 /**
@@ -530,6 +573,9 @@ export async function preloadModels() {
  * Clean up AI resources
  */
 export async function cleanup() {
+  // Remove event listeners to prevent accumulation
+  removeModelDownloadListeners();
+
   if (aiInitialized) {
     await aiService.unloadModels();
     aiService.terminate();
@@ -1106,6 +1152,11 @@ export function setupSettingsListeners() {
     clearAiModelsBtn.addEventListener('click', async () => {
       if (!confirm('Clear AI models cache?')) return;
       try {
+        // Unload models from worker memory first (worker stays running for re-download)
+        if (aiInitialized) {
+          await aiService.unloadModels();
+        }
+
         await chrome.runtime.sendMessage({ type: SettingsMessageTypes.CLEAR_MODELS_METADATA });
         if ('caches' in window) {
           const cacheNames = await caches.keys();
@@ -1171,9 +1222,14 @@ export function setupSettingsListeners() {
       if (!confirm('Last chance! Are you absolutely sure you want to delete everything?')) return;
 
       try {
+        // Unload models from worker memory first
+        if (aiInitialized) {
+          await aiService.unloadModels();
+        }
+
         await chrome.runtime.sendMessage({ type: SettingsMessageTypes.CLEAR_ALL_DATA });
 
-        // Also clear models cache
+        // Also clear browser models cache
         if ('caches' in window) {
           const cacheNames = await caches.keys();
           for (const name of cacheNames) {

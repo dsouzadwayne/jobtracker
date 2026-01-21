@@ -156,21 +156,31 @@ export function openInterviewModal(applicationId, interview = null) {
 
   elements.interviewForm?.reset();
 
+  const interviewIdEl = document.getElementById('interview-id');
+  const interviewAppIdEl = document.getElementById('interview-app-id');
+  const interviewRoundEl = document.getElementById('interview-round');
+  const interviewTypeEl = document.getElementById('interview-type');
+  const interviewDateEl = document.getElementById('interview-date');
+  const interviewDurationEl = document.getElementById('interview-duration');
+  const interviewLocationEl = document.getElementById('interview-location');
+  const interviewNotesEl = document.getElementById('interview-notes');
+  const interviewOutcomeEl = document.getElementById('interview-outcome');
+
   if (interview) {
-    document.getElementById('interview-id').value = interview.id;
-    document.getElementById('interview-app-id').value = interview.applicationId;
-    document.getElementById('interview-round').value = interview.round || 1;
-    document.getElementById('interview-type').value = interview.type || '';
-    document.getElementById('interview-date').value = formatDateTimeInput(interview.scheduledDate);
-    document.getElementById('interview-duration').value = interview.duration || 60;
-    document.getElementById('interview-location').value = interview.location || '';
-    document.getElementById('interview-notes').value = interview.notes || '';
-    document.getElementById('interview-outcome').value = interview.outcome || 'Pending';
+    if (interviewIdEl) interviewIdEl.value = interview.id;
+    if (interviewAppIdEl) interviewAppIdEl.value = interview.applicationId;
+    if (interviewRoundEl) interviewRoundEl.value = interview.round || 1;
+    if (interviewTypeEl) interviewTypeEl.value = interview.type || '';
+    if (interviewDateEl) interviewDateEl.value = formatDateTimeInput(interview.scheduledDate);
+    if (interviewDurationEl) interviewDurationEl.value = interview.duration || 60;
+    if (interviewLocationEl) interviewLocationEl.value = interview.location || '';
+    if (interviewNotesEl) interviewNotesEl.value = interview.notes || '';
+    if (interviewOutcomeEl) interviewOutcomeEl.value = interview.outcome || 'Pending';
   } else {
-    document.getElementById('interview-id').value = '';
-    document.getElementById('interview-app-id').value = applicationId;
-    document.getElementById('interview-round').value = 1;
-    document.getElementById('interview-outcome').value = 'Pending';
+    if (interviewIdEl) interviewIdEl.value = '';
+    if (interviewAppIdEl) interviewAppIdEl.value = applicationId;
+    if (interviewRoundEl) interviewRoundEl.value = 1;
+    if (interviewOutcomeEl) interviewOutcomeEl.value = 'Pending';
   }
 
   elements.interviewModal.classList.remove('hidden');

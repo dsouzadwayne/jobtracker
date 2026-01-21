@@ -7,6 +7,7 @@ const JobTrackerDB = {
   DB_NAME: 'JobTrackerDB',
   DB_VERSION: 3,
   db: null,
+  loadingPromise: null,
 
   // Object store names
   STORES: {
@@ -25,12 +26,14 @@ const JobTrackerDB = {
    */
   async init() {
     if (this.db) return this.db;
+    if (this.loadingPromise) return this.loadingPromise;
 
-    return new Promise((resolve, reject) => {
+    this.loadingPromise = new Promise((resolve, reject) => {
       const request = indexedDB.open(this.DB_NAME, this.DB_VERSION);
 
       request.onerror = () => {
         console.log('JobTracker: Failed to open database', request.error);
+        this.loadingPromise = null;
         reject(request.error);
       };
 
@@ -111,6 +114,8 @@ const JobTrackerDB = {
         console.log('JobTracker: Database schema created/upgraded');
       };
     });
+
+    return this.loadingPromise;
   },
 
   /**
@@ -238,9 +243,9 @@ const JobTrackerDB = {
       const store = transaction.objectStore(this.STORES.APPLICATIONS);
       const request = store.add(app);
 
-      request.onsuccess = () => {
+      request.onsuccess = async () => {
         // Create initial activity entry
-        this.addActivity({
+        await this.addActivity({
           applicationId: app.id,
           type: 'application_created',
           title: `Application added`,

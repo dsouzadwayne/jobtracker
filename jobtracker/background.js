@@ -316,6 +316,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   // Handle async operations
+  let responseSent = false;
   (async () => {
     try {
       let response;
@@ -379,7 +380,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         // Detection - application submitted
         case MessageTypes.SUBMISSION_DETECTED: {
           const settings = await JobTrackerDB.getSettings();
-          if (settings.detection.autoTrackSubmissions) {
+          if (settings?.detection?.autoTrackSubmissions) {
             const newApp = await JobTrackerDB.addApplication({
               ...payload,
               status: 'applied',
@@ -720,10 +721,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           response = { error: 'Unknown message type' };
       }
 
-      sendResponse(response);
+      if (!responseSent) {
+        sendResponse(response);
+        responseSent = true;
+      }
     } catch (error) {
       console.log('JobTracker: Error handling message:', error);
-      sendResponse({ error: error.message });
+      if (!responseSent) {
+        sendResponse({ error: error.message });
+        responseSent = true;
+      }
     }
   })();
 

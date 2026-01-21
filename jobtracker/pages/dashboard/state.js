@@ -75,7 +75,7 @@ export const state = {
   selectedAppId: null,
 
   // View state
-  currentView: 'cards', // 'cards' or 'table'
+  currentView: 'table', // 'cards' or 'table'
   currentPage: 'applications', // 'applications' or 'stats'
 
   // Settings cache

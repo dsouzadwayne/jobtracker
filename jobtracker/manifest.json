@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "JobTracker",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "description": "Track job applications and autofill forms. 100% local, privacy-first, open source.",
   "author": "JobTracker Contributors",
   "homepage_url": "https://github.com/yourusername/jobtracker",
@@ -48,8 +48,16 @@
         "lib/storage.js",
         "lib/utils.js",
         "lib/format-utils.js",
-        "lib/field-matcher.js",
-        "lib/form-utils.js",
+        "lib/autofill/dom-utils.js",
+        "lib/autofill/event-dispatcher.js",
+        "lib/autofill/label-detector.js",
+        "lib/autofill/field-patterns.js",
+        "lib/autofill/autocomplete-map.js",
+        "lib/autofill/matching-strategies.js",
+        "lib/autofill/field-matcher.js",
+        "lib/autofill/input-fillers.js",
+        "lib/autofill/form-detector.js",
+        "lib/autofill/index.js",
         "content/content.js",
         "content/ai-job-extractor.js",
         "content/floating-button.js",
@@ -63,8 +71,16 @@
     {
       "matches": ["*://www.linkedin.com/jobs/*", "*://www.linkedin.com/job/*"],
       "js": [
-        "lib/field-matcher.js",
-        "lib/form-utils.js",
+        "lib/autofill/dom-utils.js",
+        "lib/autofill/event-dispatcher.js",
+        "lib/autofill/label-detector.js",
+        "lib/autofill/field-patterns.js",
+        "lib/autofill/autocomplete-map.js",
+        "lib/autofill/matching-strategies.js",
+        "lib/autofill/field-matcher.js",
+        "lib/autofill/input-fillers.js",
+        "lib/autofill/form-detector.js",
+        "lib/autofill/index.js",
         "autofill/linkedin-autofill.js",
         "detect/linkedin-detect.js"
       ],
@@ -73,8 +89,16 @@
     {
       "matches": ["*://www.indeed.com/*", "*://*.indeed.com/*"],
       "js": [
-        "lib/field-matcher.js",
-        "lib/form-utils.js",
+        "lib/autofill/dom-utils.js",
+        "lib/autofill/event-dispatcher.js",
+        "lib/autofill/label-detector.js",
+        "lib/autofill/field-patterns.js",
+        "lib/autofill/autocomplete-map.js",
+        "lib/autofill/matching-strategies.js",
+        "lib/autofill/field-matcher.js",
+        "lib/autofill/input-fillers.js",
+        "lib/autofill/form-detector.js",
+        "lib/autofill/index.js",
         "autofill/indeed-autofill.js",
         "detect/indeed-detect.js"
       ],
@@ -83,8 +107,16 @@
     {
       "matches": ["*://www.glassdoor.com/*", "*://www.glassdoor.co.uk/*"],
       "js": [
-        "lib/field-matcher.js",
-        "lib/form-utils.js",
+        "lib/autofill/dom-utils.js",
+        "lib/autofill/event-dispatcher.js",
+        "lib/autofill/label-detector.js",
+        "lib/autofill/field-patterns.js",
+        "lib/autofill/autocomplete-map.js",
+        "lib/autofill/matching-strategies.js",
+        "lib/autofill/field-matcher.js",
+        "lib/autofill/input-fillers.js",
+        "lib/autofill/form-detector.js",
+        "lib/autofill/index.js",
         "autofill/glassdoor-autofill.js",
         "detect/glassdoor-detect.js"
       ],
@@ -93,8 +125,16 @@
     {
       "matches": ["*://boards.greenhouse.io/*", "*://*.greenhouse.io/*"],
       "js": [
-        "lib/field-matcher.js",
-        "lib/form-utils.js",
+        "lib/autofill/dom-utils.js",
+        "lib/autofill/event-dispatcher.js",
+        "lib/autofill/label-detector.js",
+        "lib/autofill/field-patterns.js",
+        "lib/autofill/autocomplete-map.js",
+        "lib/autofill/matching-strategies.js",
+        "lib/autofill/field-matcher.js",
+        "lib/autofill/input-fillers.js",
+        "lib/autofill/form-detector.js",
+        "lib/autofill/index.js",
         "autofill/greenhouse-autofill.js",
         "detect/greenhouse-detect.js"
       ],
@@ -103,8 +143,16 @@
     {
       "matches": ["*://jobs.lever.co/*", "*://*.lever.co/*", "*://*.lever.com/*"],
       "js": [
-        "lib/field-matcher.js",
-        "lib/form-utils.js",
+        "lib/autofill/dom-utils.js",
+        "lib/autofill/event-dispatcher.js",
+        "lib/autofill/label-detector.js",
+        "lib/autofill/field-patterns.js",
+        "lib/autofill/autocomplete-map.js",
+        "lib/autofill/matching-strategies.js",
+        "lib/autofill/field-matcher.js",
+        "lib/autofill/input-fillers.js",
+        "lib/autofill/form-detector.js",
+        "lib/autofill/index.js",
         "autofill/lever-autofill.js",
         "detect/lever-detect.js"
       ],
@@ -113,8 +161,16 @@
     {
       "matches": ["*://*.myworkdayjobs.com/*", "*://*.workday.com/*"],
       "js": [
-        "lib/field-matcher.js",
-        "lib/form-utils.js",
+        "lib/autofill/dom-utils.js",
+        "lib/autofill/event-dispatcher.js",
+        "lib/autofill/label-detector.js",
+        "lib/autofill/field-patterns.js",
+        "lib/autofill/autocomplete-map.js",
+        "lib/autofill/matching-strategies.js",
+        "lib/autofill/field-matcher.js",
+        "lib/autofill/input-fillers.js",
+        "lib/autofill/form-detector.js",
+        "lib/autofill/index.js",
         "autofill/workday-autofill.js",
         "detect/workday-detect.js"
       ],
@@ -123,8 +179,16 @@
     {
       "matches": ["*://*.icims.com/*"],
       "js": [
-        "lib/field-matcher.js",
-        "lib/form-utils.js",
+        "lib/autofill/dom-utils.js",
+        "lib/autofill/event-dispatcher.js",
+        "lib/autofill/label-detector.js",
+        "lib/autofill/field-patterns.js",
+        "lib/autofill/autocomplete-map.js",
+        "lib/autofill/matching-strategies.js",
+        "lib/autofill/field-matcher.js",
+        "lib/autofill/input-fillers.js",
+        "lib/autofill/form-detector.js",
+        "lib/autofill/index.js",
         "autofill/icims-autofill.js",
         "detect/icims-detect.js"
       ],
@@ -133,8 +197,16 @@
     {
       "matches": ["*://*.smartrecruiters.com/*"],
       "js": [
-        "lib/field-matcher.js",
-        "lib/form-utils.js",
+        "lib/autofill/dom-utils.js",
+        "lib/autofill/event-dispatcher.js",
+        "lib/autofill/label-detector.js",
+        "lib/autofill/field-patterns.js",
+        "lib/autofill/autocomplete-map.js",
+        "lib/autofill/matching-strategies.js",
+        "lib/autofill/field-matcher.js",
+        "lib/autofill/input-fillers.js",
+        "lib/autofill/form-detector.js",
+        "lib/autofill/index.js",
         "autofill/smartrecruiters-autofill.js",
         "detect/smartrecruiters-detect.js"
       ],
@@ -143,8 +215,16 @@
     {
       "matches": ["*://www.naukri.com/*", "*://naukri.com/*"],
       "js": [
-        "lib/field-matcher.js",
-        "lib/form-utils.js",
+        "lib/autofill/dom-utils.js",
+        "lib/autofill/event-dispatcher.js",
+        "lib/autofill/label-detector.js",
+        "lib/autofill/field-patterns.js",
+        "lib/autofill/autocomplete-map.js",
+        "lib/autofill/matching-strategies.js",
+        "lib/autofill/field-matcher.js",
+        "lib/autofill/input-fillers.js",
+        "lib/autofill/form-detector.js",
+        "lib/autofill/index.js",
         "autofill/naukri-autofill.js",
         "detect/naukri-detect.js"
       ],
@@ -153,8 +233,16 @@
     {
       "matches": ["*://jobs.ashbyhq.com/*", "*://*.ashbyhq.com/*", "*://*.ashbyprd.com/*"],
       "js": [
-        "lib/field-matcher.js",
-        "lib/form-utils.js",
+        "lib/autofill/dom-utils.js",
+        "lib/autofill/event-dispatcher.js",
+        "lib/autofill/label-detector.js",
+        "lib/autofill/field-patterns.js",
+        "lib/autofill/autocomplete-map.js",
+        "lib/autofill/matching-strategies.js",
+        "lib/autofill/field-matcher.js",
+        "lib/autofill/input-fillers.js",
+        "lib/autofill/form-detector.js",
+        "lib/autofill/index.js",
         "autofill/ashby-autofill.js",
         "detect/ashby-detect.js"
       ],
@@ -175,6 +263,7 @@
     {
       "resources": [
         "lib/*.js",
+        "lib/autofill/*",
         "lib/vendor/*",
         "lib/vendor/onnxruntime-web/*",
         "lib/resume-parser/*",

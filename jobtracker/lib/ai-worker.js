@@ -13,6 +13,13 @@ let isModelLoaded = false;
 let lastUsedTime = 0;
 const MODEL_UNLOAD_TIMEOUT = 5 * 60 * 1000; // Unload after 5 min of inactivity
 
+// Promise locks to prevent duplicate loading (fixes race condition)
+let embeddingsLoadingPromise = null;
+let nerLoadingPromise = null;
+
+// Timeout ID for model unloading (fixes multiple timeout accumulation)
+let unloadTimeoutId = null;
+
 // Model configuration - using Hugging Face Hub models
 // Models are downloaded on first use and cached in IndexedDB
 const MODELS = {
@@ -84,233 +91,248 @@ async function loadTransformers() {
 
 // Load the embeddings model (lightweight)
 async function loadEmbeddingsModel() {
+  // Return cached model if already loaded
   if (featureExtractor) return featureExtractor;
 
-  const available = await loadTransformers();
-  if (!available) {
-    throw new Error('Transformers.js not available');
-  }
+  // Use promise lock to prevent concurrent duplicate downloads (fixes race condition)
+  if (embeddingsLoadingPromise) return embeddingsLoadingPromise;
 
-  // Check network connectivity
-  if (!navigator.onLine) {
-    throw new Error('No internet connection. AI models require initial download.');
-  }
-
-  console.log('[AI Worker] Loading embeddings model from Hugging Face...');
-  const startTime = performance.now();
-
-  let lastError;
-  const maxRetries = 3;
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+  embeddingsLoadingPromise = (async () => {
     try {
-      featureExtractor = await pipeline('feature-extraction', MODELS.embeddings, {
-        dtype: 'q8', // Explicitly use INT8 quantized version (~4x smaller)
-        progress_callback: (progress) => {
-          if (progress.status === 'initiate') {
-            self.postMessage({
-              type: 'MODEL_LOADING_PROGRESS',
-              payload: {
-                model: 'embeddings',
-                status: 'initiate',
-                progress: 0,
-                file: progress.file || '',
-                size: MODEL_SIZES.embeddings
+      const available = await loadTransformers();
+      if (!available) {
+        throw new Error('Transformers.js not available');
+      }
+
+      // Note: We don't check navigator.onLine here because Transformers.js
+      // will use cached models from IndexedDB if available (env.useBrowserCache = true)
+      // This allows offline use with previously downloaded models
+
+      console.log('[AI Worker] Loading embeddings model from Hugging Face...');
+      const startTime = performance.now();
+
+      let lastError;
+      const maxRetries = 3;
+
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          featureExtractor = await pipeline('feature-extraction', MODELS.embeddings, {
+            dtype: 'q8', // Explicitly use INT8 quantized version (~4x smaller)
+            progress_callback: (progress) => {
+              if (progress.status === 'initiate') {
+                self.postMessage({
+                  type: 'MODEL_LOADING_PROGRESS',
+                  payload: {
+                    model: 'embeddings',
+                    status: 'initiate',
+                    progress: 0,
+                    file: progress.file || '',
+                    size: MODEL_SIZES.embeddings
+                  }
+                });
+              } else if (progress.status === 'progress') {
+                self.postMessage({
+                  type: 'MODEL_LOADING_PROGRESS',
+                  payload: {
+                    model: 'embeddings',
+                    status: 'downloading',
+                    progress: Math.round(progress.progress || 0),
+                    loaded: progress.loaded || 0,
+                    total: progress.total || 0,
+                    file: progress.file || '',
+                    size: MODEL_SIZES.embeddings
+                  }
+                });
+              } else if (progress.status === 'done') {
+                self.postMessage({
+                  type: 'MODEL_LOADING_PROGRESS',
+                  payload: {
+                    model: 'embeddings',
+                    status: 'done',
+                    progress: 100,
+                    file: progress.file || ''
+                  }
+                });
               }
-            });
-          } else if (progress.status === 'progress') {
-            self.postMessage({
-              type: 'MODEL_LOADING_PROGRESS',
-              payload: {
-                model: 'embeddings',
-                status: 'downloading',
-                progress: Math.round(progress.progress || 0),
-                loaded: progress.loaded || 0,
-                total: progress.total || 0,
-                file: progress.file || '',
-                size: MODEL_SIZES.embeddings
-              }
-            });
-          } else if (progress.status === 'done') {
-            self.postMessage({
-              type: 'MODEL_LOADING_PROGRESS',
-              payload: {
-                model: 'embeddings',
-                status: 'done',
-                progress: 100,
-                file: progress.file || ''
-              }
-            });
-          } else if (progress.status === 'ready') {
-            self.postMessage({
-              type: 'MODEL_LOADING_COMPLETE',
-              payload: {
-                model: 'embeddings',
-                cached: true
-              }
-            });
+              // Note: Removed 'ready' status handler here to avoid duplicate MODEL_LOADING_COMPLETE events
+            }
+          });
+
+          const loadTime = Math.round(performance.now() - startTime);
+          console.log(`[AI Worker] Embeddings model loaded in ${loadTime}ms`);
+
+          // Notify completion (single notification after pipeline completes)
+          self.postMessage({
+            type: 'MODEL_LOADING_COMPLETE',
+            payload: {
+              model: 'embeddings',
+              cached: true,
+              loadTime
+            }
+          });
+
+          isModelLoaded = true;
+          lastUsedTime = Date.now();
+          scheduleUnload();
+
+          return featureExtractor;
+
+        } catch (error) {
+          lastError = error;
+          console.log(`[AI Worker] Load attempt ${attempt} failed:`, error.message);
+
+          if (attempt < maxRetries) {
+            // Exponential backoff: 2s, 4s, 8s
+            const delay = Math.pow(2, attempt) * 1000;
+            console.log(`[AI Worker] Retrying in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
           }
         }
-      });
+      }
 
-      const loadTime = Math.round(performance.now() - startTime);
-      console.log(`[AI Worker] Embeddings model loaded in ${loadTime}ms`);
-
-      // Notify completion
+      // All retries failed
       self.postMessage({
-        type: 'MODEL_LOADING_COMPLETE',
+        type: 'MODEL_LOADING_ERROR',
         payload: {
           model: 'embeddings',
-          cached: true,
-          loadTime
+          error: lastError.message
         }
       });
 
-      isModelLoaded = true;
-      lastUsedTime = Date.now();
-      scheduleUnload();
-
-      return featureExtractor;
-
-    } catch (error) {
-      lastError = error;
-      console.log(`[AI Worker] Load attempt ${attempt} failed:`, error.message);
-
-      if (attempt < maxRetries) {
-        // Exponential backoff: 2s, 4s, 8s
-        const delay = Math.pow(2, attempt) * 1000;
-        console.log(`[AI Worker] Retrying in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
+      throw new Error(`Failed to download embeddings model after ${maxRetries} attempts: ${lastError.message}`);
+    } finally {
+      // Clear the loading promise so future calls can retry if needed
+      embeddingsLoadingPromise = null;
     }
-  }
+  })();
 
-  // All retries failed
-  self.postMessage({
-    type: 'MODEL_LOADING_ERROR',
-    payload: {
-      model: 'embeddings',
-      error: lastError.message
-    }
-  });
-
-  throw new Error(`Failed to download embeddings model after ${maxRetries} attempts: ${lastError.message}`);
+  return embeddingsLoadingPromise;
 }
 
 // Load NER model on demand (heavier, only when needed)
 async function loadNERModel() {
+  // Return cached model if already loaded
   if (nerPipeline) return nerPipeline;
 
-  const available = await loadTransformers();
-  if (!available) {
-    throw new Error('Transformers.js not available');
-  }
+  // Use promise lock to prevent concurrent duplicate downloads (fixes race condition)
+  if (nerLoadingPromise) return nerLoadingPromise;
 
-  // Check network connectivity
-  if (!navigator.onLine) {
-    throw new Error('No internet connection. AI models require initial download.');
-  }
-
-  console.log('[AI Worker] Loading NER model from Hugging Face...');
-  const startTime = performance.now();
-
-  let lastError;
-  const maxRetries = 3;
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+  nerLoadingPromise = (async () => {
     try {
-      nerPipeline = await pipeline('token-classification', MODELS.ner, {
-        dtype: 'q8',
-        progress_callback: (progress) => {
-          if (progress.status === 'initiate') {
-            self.postMessage({
-              type: 'MODEL_LOADING_PROGRESS',
-              payload: {
-                model: 'ner',
-                status: 'initiate',
-                progress: 0,
-                file: progress.file || '',
-                size: MODEL_SIZES.ner
+      const available = await loadTransformers();
+      if (!available) {
+        throw new Error('Transformers.js not available');
+      }
+
+      // Note: We don't check navigator.onLine here because Transformers.js
+      // will use cached models from IndexedDB if available (env.useBrowserCache = true)
+      // This allows offline use with previously downloaded models
+
+      console.log('[AI Worker] Loading NER model from Hugging Face...');
+      const startTime = performance.now();
+
+      let lastError;
+      const maxRetries = 3;
+
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          nerPipeline = await pipeline('token-classification', MODELS.ner, {
+            dtype: 'q8',
+            progress_callback: (progress) => {
+              if (progress.status === 'initiate') {
+                self.postMessage({
+                  type: 'MODEL_LOADING_PROGRESS',
+                  payload: {
+                    model: 'ner',
+                    status: 'initiate',
+                    progress: 0,
+                    file: progress.file || '',
+                    size: MODEL_SIZES.ner
+                  }
+                });
+              } else if (progress.status === 'progress') {
+                self.postMessage({
+                  type: 'MODEL_LOADING_PROGRESS',
+                  payload: {
+                    model: 'ner',
+                    status: 'downloading',
+                    progress: Math.round(progress.progress || 0),
+                    loaded: progress.loaded || 0,
+                    total: progress.total || 0,
+                    file: progress.file || '',
+                    size: MODEL_SIZES.ner
+                  }
+                });
+              } else if (progress.status === 'done') {
+                self.postMessage({
+                  type: 'MODEL_LOADING_PROGRESS',
+                  payload: {
+                    model: 'ner',
+                    status: 'done',
+                    progress: 100,
+                    file: progress.file || ''
+                  }
+                });
               }
-            });
-          } else if (progress.status === 'progress') {
-            self.postMessage({
-              type: 'MODEL_LOADING_PROGRESS',
-              payload: {
-                model: 'ner',
-                status: 'downloading',
-                progress: Math.round(progress.progress || 0),
-                loaded: progress.loaded || 0,
-                total: progress.total || 0,
-                file: progress.file || '',
-                size: MODEL_SIZES.ner
-              }
-            });
-          } else if (progress.status === 'done') {
-            self.postMessage({
-              type: 'MODEL_LOADING_PROGRESS',
-              payload: {
-                model: 'ner',
-                status: 'done',
-                progress: 100,
-                file: progress.file || ''
-              }
-            });
-          } else if (progress.status === 'ready') {
-            self.postMessage({
-              type: 'MODEL_LOADING_COMPLETE',
-              payload: {
-                model: 'ner',
-                cached: true
-              }
-            });
+              // Note: Removed 'ready' status handler here to avoid duplicate MODEL_LOADING_COMPLETE events
+            }
+          });
+
+          const loadTime = Math.round(performance.now() - startTime);
+          console.log(`[AI Worker] NER model loaded in ${loadTime}ms`);
+
+          // Notify completion (single notification after pipeline completes)
+          self.postMessage({
+            type: 'MODEL_LOADING_COMPLETE',
+            payload: {
+              model: 'ner',
+              cached: true,
+              loadTime
+            }
+          });
+
+          lastUsedTime = Date.now();
+          return nerPipeline;
+
+        } catch (error) {
+          lastError = error;
+          console.log(`[AI Worker] NER load attempt ${attempt} failed:`, error.message);
+
+          if (attempt < maxRetries) {
+            const delay = Math.pow(2, attempt) * 1000;
+            console.log(`[AI Worker] Retrying in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
           }
         }
-      });
+      }
 
-      const loadTime = Math.round(performance.now() - startTime);
-      console.log(`[AI Worker] NER model loaded in ${loadTime}ms`);
-
-      // Notify completion
+      // All retries failed
       self.postMessage({
-        type: 'MODEL_LOADING_COMPLETE',
+        type: 'MODEL_LOADING_ERROR',
         payload: {
           model: 'ner',
-          cached: true,
-          loadTime
+          error: lastError.message
         }
       });
 
-      lastUsedTime = Date.now();
-      return nerPipeline;
-
-    } catch (error) {
-      lastError = error;
-      console.log(`[AI Worker] NER load attempt ${attempt} failed:`, error.message);
-
-      if (attempt < maxRetries) {
-        const delay = Math.pow(2, attempt) * 1000;
-        console.log(`[AI Worker] Retrying in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
+      throw new Error(`Failed to download NER model after ${maxRetries} attempts: ${lastError.message}`);
+    } finally {
+      // Clear the loading promise so future calls can retry if needed
+      nerLoadingPromise = null;
     }
-  }
+  })();
 
-  // All retries failed
-  self.postMessage({
-    type: 'MODEL_LOADING_ERROR',
-    payload: {
-      model: 'ner',
-      error: lastError.message
-    }
-  });
-
-  throw new Error(`Failed to download NER model after ${maxRetries} attempts: ${lastError.message}`);
+  return nerLoadingPromise;
 }
 
 // Unload models after inactivity to free memory
 function scheduleUnload() {
-  setTimeout(() => {
+  // Clear any existing timeout to prevent multiple concurrent timeout chains
+  if (unloadTimeoutId) {
+    clearTimeout(unloadTimeoutId);
+  }
+
+  unloadTimeoutId = setTimeout(() => {
     const timeSinceUse = Date.now() - lastUsedTime;
     if (timeSinceUse >= MODEL_UNLOAD_TIMEOUT && isModelLoaded) {
       unloadModels();
@@ -325,6 +347,16 @@ function unloadModels() {
   featureExtractor = null;
   nerPipeline = null;
   isModelLoaded = false;
+
+  // Clear promise locks so models can be reloaded
+  embeddingsLoadingPromise = null;
+  nerLoadingPromise = null;
+
+  // Clear the unload timeout
+  if (unloadTimeoutId) {
+    clearTimeout(unloadTimeoutId);
+    unloadTimeoutId = null;
+  }
 
   // Force garbage collection hint
   if (typeof gc !== 'undefined') gc();

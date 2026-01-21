@@ -125,8 +125,11 @@ class AIService {
     return new Promise((resolve, reject) => {
       const requestId = ++this.requestCounter;
       let timeoutId = null;
+      let handled = false; // Flag to prevent double execution on timeout/response race
 
       const cleanup = () => {
+        if (handled) return; // Already handled, prevent double execution
+        handled = true;
         if (timeoutId) clearTimeout(timeoutId);
         this.pendingRequests.delete(requestId);
       };
@@ -140,7 +143,7 @@ class AIService {
 
       // Timeout after 120 seconds (increased for model loading)
       timeoutId = setTimeout(() => {
-        if (this.pendingRequests.has(requestId)) {
+        if (this.pendingRequests.has(requestId) && !handled) {
           cleanup();
           reject(new Error('AI request timed out'));
         }
@@ -331,6 +334,12 @@ class AIService {
    */
   terminate() {
     if (this.worker) {
+      // Reject all pending requests to prevent memory leaks and hung async operations
+      this.pendingRequests.forEach(pending => {
+        pending.reject(new Error('Worker terminated'));
+      });
+      this.pendingRequests.clear();
+
       this.worker.terminate();
       this.worker = null;
       this.isReady = false;

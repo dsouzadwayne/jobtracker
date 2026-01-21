@@ -92,14 +92,14 @@ export function render() {
 
     if (hasActiveFilters && state.applications.length > 0) {
       // Filters are active but no results
-      emptyTitle.textContent = 'No matching applications';
-      emptyDesc.textContent = 'Try adjusting your search or filter criteria';
-      emptyBtn.style.display = 'none';
+      if (emptyTitle) emptyTitle.textContent = 'No matching applications';
+      if (emptyDesc) emptyDesc.textContent = 'Try adjusting your search or filter criteria';
+      if (emptyBtn) emptyBtn.style.display = 'none';
     } else {
       // No applications at all
-      emptyTitle.textContent = 'No applications yet';
-      emptyDesc.textContent = 'Start tracking your job search by adding your first application';
-      emptyBtn.style.display = '';
+      if (emptyTitle) emptyTitle.textContent = 'No applications yet';
+      if (emptyDesc) emptyDesc.textContent = 'Start tracking your job search by adding your first application';
+      if (emptyBtn) emptyBtn.style.display = '';
     }
     return;
   }
