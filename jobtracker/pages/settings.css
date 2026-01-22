@@ -874,3 +874,58 @@
     min-width: 60px;
   }
 }
+
+/* NLP Bundle Info */
+.nlp-bundle-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+  margin-top: var(--space-md);
+  font-size: 0.875rem;
+}
+
+.bundle-label {
+  color: var(--text-secondary);
+}
+
+.bundle-size {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* Migration Info */
+.migration-info {
+  padding: var(--space-md);
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+  margin-top: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.migration-status {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.migration-status.success {
+  color: var(--color-success);
+}
+
+.migration-status.error {
+  color: var(--color-error);
+}
+
+.btn-warning {
+  background: var(--color-warning, #f59e0b);
+  color: white;
+}
+
+.btn-warning:hover {
+  background: var(--color-warning-hover, #d97706);
+}

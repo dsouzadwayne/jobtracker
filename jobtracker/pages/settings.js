@@ -120,7 +120,7 @@ async function loadSettings() {
     settings = await chrome.runtime.sendMessage({ type: SettingsMessageTypes.GET_SETTINGS });
     populateSettings();
   } catch (error) {
-    console.log('Error loading settings:', error);
+    console.error('Error loading settings:', error);
   }
 }
 
@@ -195,6 +195,15 @@ function populateSettings() {
 
   // Update field options visibility based on Enhanced Resume Parsing toggle
   updateFieldOptionsVisibility();
+
+  // NLP settings
+  const nlpEnabled = document.getElementById('setting-nlp-enabled');
+  const nlpReadability = document.getElementById('setting-nlp-readability');
+  const nlpFallback = document.getElementById('setting-nlp-fallback');
+
+  if (nlpEnabled) nlpEnabled.checked = settings?.nlp?.enabled ?? true;
+  if (nlpReadability) nlpReadability.checked = settings?.nlp?.useReadability ?? true;
+  if (nlpFallback) nlpFallback.checked = settings?.nlp?.fallbackToTransformers ?? true;
 
   renderCustomRules();
 }
@@ -378,6 +387,17 @@ async function saveAISettings() {
   updateFieldOptionsVisibility();
 
   showNotification('AI settings saved', 'success');
+}
+
+// Save NLP settings
+async function saveNLPSettings() {
+  settings.nlp = settings.nlp || {};
+  settings.nlp.enabled = document.getElementById('setting-nlp-enabled')?.checked ?? true;
+  settings.nlp.useReadability = document.getElementById('setting-nlp-readability')?.checked ?? true;
+  settings.nlp.fallbackToTransformers = document.getElementById('setting-nlp-fallback')?.checked ?? true;
+
+  await chrome.runtime.sendMessage({ type: SettingsMessageTypes.SAVE_SETTINGS, payload: settings });
+  showNotification('NLP settings saved', 'success');
 }
 
 // Custom Rules
@@ -601,7 +621,7 @@ async function loadStorageSizes() {
     // Ensure button disabled state is synced with AI enabled state
     updateAIModelsVisibility();
   } catch (error) {
-    console.log('Error loading storage sizes:', error);
+    console.error('Error loading storage sizes:', error);
   }
 }
 
@@ -645,7 +665,7 @@ async function handleExport() {
     URL.revokeObjectURL(url);
     showNotification('Data exported successfully', 'success');
   } catch (error) {
-    console.log('Error exporting data:', error);
+    console.error('Error exporting data:', error);
     showNotification('Failed to export data', 'error');
   }
 }
@@ -687,7 +707,7 @@ async function handleImport(e) {
     showNotification('Data imported successfully!', 'success');
     setTimeout(() => window.location.reload(), 1000);
   } catch (error) {
-    console.log('Error importing data:', error);
+    console.error('Error importing data:', error);
     showNotification('Failed to import data. Check file format.', 'error');
   }
 
@@ -703,7 +723,7 @@ async function clearProfile() {
     showNotification('Profile cleared', 'success');
     loadStorageSizes();
   } catch (error) {
-    console.log('Error clearing profile:', error);
+    console.error('Error clearing profile:', error);
     showNotification('Failed to clear profile', 'error');
   }
 }
@@ -717,7 +737,7 @@ async function clearApplications() {
     showNotification('All applications cleared', 'success');
     loadStorageSizes();
   } catch (error) {
-    console.log('Error clearing applications:', error);
+    console.error('Error clearing applications:', error);
     showNotification('Failed to clear applications', 'error');
   }
 }
@@ -742,7 +762,7 @@ async function clearModelsCache() {
     showNotification('AI models cache cleared', 'success');
     loadStorageSizes();
   } catch (error) {
-    console.log('Error clearing models:', error);
+    console.error('Error clearing models:', error);
     showNotification('Failed to clear models cache', 'error');
   }
 }
@@ -766,7 +786,7 @@ async function clearAllData() {
     showNotification('All data cleared', 'success');
     setTimeout(() => window.location.reload(), 1000);
   } catch (error) {
-    console.log('Error clearing all data:', error);
+    console.error('Error clearing all data:', error);
     showNotification('Failed to clear all data', 'error');
   }
 }
@@ -853,6 +873,15 @@ function setupEventListeners() {
     });
   }
 
+  // NLP settings
+  const nlpEnabled = document.getElementById('setting-nlp-enabled');
+  const nlpReadability = document.getElementById('setting-nlp-readability');
+  const nlpFallback = document.getElementById('setting-nlp-fallback');
+
+  if (nlpEnabled) nlpEnabled.addEventListener('change', saveNLPSettings);
+  if (nlpReadability) nlpReadability.addEventListener('change', saveNLPSettings);
+  if (nlpFallback) nlpFallback.addEventListener('change', saveNLPSettings);
+
   // Section toggle checkboxes (toggle all children)
   const sections = ['personal', 'work', 'education', 'skills'];
   sections.forEach(section => {
@@ -935,7 +964,7 @@ function setupEventListeners() {
         showNotification('Models downloaded successfully!', 'success');
         loadStorageSizes();
       } catch (error) {
-        console.log('Model download failed:', error);
+        console.error('Model download failed:', error);
         showNotification('Download failed: ' + (error.message || 'Check your internet connection.'), 'error');
       } finally {
         preloadBtn.disabled = false;

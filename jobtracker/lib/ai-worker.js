@@ -675,6 +675,120 @@ async function parseJobPosting(text, useML = true) {
 }
 
 // ============================================
+// HYBRID EXTRACTION (for NLP Pipeline integration)
+// ============================================
+
+/**
+ * Fast extraction without ML models (for hybrid pipeline)
+ * Returns basic extraction that can be enhanced by main thread NLP
+ */
+function extractFast(text) {
+  const regex = extractWithRegex(text);
+  const skills = extractSkills(text);
+
+  return {
+    ...regex,
+    skills,
+    method: 'regex',
+    confidence: 0.5
+  };
+}
+
+/**
+ * Extract entities only (for hybrid pipeline fallback)
+ * Called when main thread NLP needs accuracy boost
+ */
+async function extractEntitiesOnly(text) {
+  if (!transformersAvailable) {
+    await loadTransformers();
+    if (!transformersAvailable) {
+      return { entities: null, method: 'unavailable' };
+    }
+  }
+
+  const entities = await extractEntities(text);
+  return {
+    entities,
+    method: 'bert-ner',
+    confidence: 0.9
+  };
+}
+
+/**
+ * Hybrid job extraction (regex + optional NER)
+ * Optimized for integration with main thread Compromise.js
+ */
+async function extractJobHybrid(text, options = {}) {
+  const { useNER = true, existingData = {} } = options;
+
+  // Start with regex extraction
+  const result = {
+    ...extractFast(text),
+    ...existingData  // Merge any data from main thread NLP
+  };
+
+  // Only use NER if requested and we're missing key data
+  if (useNER && (!result.company || !result.location)) {
+    try {
+      const entities = await extractEntities(text);
+      if (entities) {
+        // Fill in missing fields
+        if (!result.company && entities.organizations?.length > 0) {
+          result.company = entities.organizations[0];
+        }
+        if (!result.location && entities.locations?.length > 0) {
+          result.location = entities.locations.join(', ');
+        }
+        result.method = 'hybrid';
+        result.confidence = 0.85;
+      }
+    } catch (error) {
+      console.log('[AI Worker] Hybrid NER failed:', error.message);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Hybrid resume extraction (regex + optional NER)
+ */
+async function extractResumeHybrid(text, options = {}) {
+  const { useNER = true, existingData = {} } = options;
+
+  // Start with regex extraction
+  const result = {
+    ...extractWithRegex(text),
+    skills: extractSkills(text),
+    ...existingData
+  };
+
+  // Only use NER if requested and we're missing key data
+  if (useNER && (!result.name || !result.companies?.length)) {
+    try {
+      const entities = await extractEntities(text);
+      if (entities) {
+        if (!result.name && entities.persons?.length > 0) {
+          result.name = entities.persons[0];
+        }
+        if (!result.companies?.length && entities.organizations?.length > 0) {
+          result.companies = entities.organizations;
+        }
+        if (!result.locations?.length && entities.locations?.length > 0) {
+          result.locations = entities.locations;
+        }
+        result.method = 'hybrid';
+        result.confidence = 0.85;
+      }
+    } catch (error) {
+      console.log('[AI Worker] Hybrid NER failed:', error.message);
+    }
+  }
+
+  return result;
+}
+
+// ============================================
 // MESSAGE HANDLER
 // ============================================
 
@@ -742,6 +856,36 @@ self.onmessage = async (event) => {
       case 'CHECK_AVAILABILITY':
         await loadTransformers();
         result = { transformersAvailable };
+        break;
+
+      // ============================================
+      // NEW: Hybrid extraction endpoints for NLP Pipeline
+      // ============================================
+
+      case 'EXTRACT_FAST':
+        // Fast extraction without ML (regex + skill matching)
+        result = extractFast(payload.text);
+        break;
+
+      case 'EXTRACT_ENTITIES_ONLY':
+        // NER only (for hybrid pipeline fallback)
+        result = await extractEntitiesOnly(payload.text);
+        break;
+
+      case 'EXTRACT_JOB_HYBRID':
+        // Hybrid job extraction (integrates with main thread NLP)
+        result = await extractJobHybrid(payload.text, {
+          useNER: payload.useNER !== false,
+          existingData: payload.existingData || {}
+        });
+        break;
+
+      case 'EXTRACT_RESUME_HYBRID':
+        // Hybrid resume extraction (integrates with main thread NLP)
+        result = await extractResumeHybrid(payload.text, {
+          useNER: payload.useNER !== false,
+          existingData: payload.existingData || {}
+        });
         break;
 
       default:

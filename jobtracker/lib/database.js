@@ -8,7 +8,7 @@ const APPLICATION_STATUSES = ['saved', 'applied', 'screening', 'interview', 'off
 
 const JobTrackerDB = {
   DB_NAME: 'JobTrackerDB',
-  DB_VERSION: 3,
+  DB_VERSION: 4,
   db: null,
   loadingPromise: null,
 
@@ -21,7 +21,8 @@ const JobTrackerDB = {
     INTERVIEWS: 'interviews',
     TASKS: 'tasks',
     ACTIVITIES: 'activities',
-    MODELS_METADATA: 'models_metadata'
+    MODELS_METADATA: 'models_metadata',
+    EXTRACTION_FEEDBACK: 'extraction_feedback'
   },
 
   /**
@@ -112,6 +113,14 @@ const JobTrackerDB = {
           const modelsStore = db.createObjectStore(this.STORES.MODELS_METADATA, { keyPath: 'modelId' });
           modelsStore.createIndex('downloadStatus', 'downloadStatus', { unique: false });
           modelsStore.createIndex('downloadedAt', 'downloadedAt', { unique: false });
+        }
+
+        // Extraction feedback store (for tracking extraction corrections)
+        if (!db.objectStoreNames.contains(this.STORES.EXTRACTION_FEEDBACK)) {
+          const feedbackStore = db.createObjectStore(this.STORES.EXTRACTION_FEEDBACK, { keyPath: 'id' });
+          feedbackStore.createIndex('applicationId', 'applicationId', { unique: false });
+          feedbackStore.createIndex('domain', 'domain', { unique: false });
+          feedbackStore.createIndex('timestamp', 'timestamp', { unique: false });
         }
 
         console.log('JobTracker: Database schema created/upgraded');
@@ -1771,6 +1780,129 @@ const JobTrackerDB = {
 
       request.onsuccess = () => {
         console.log('JobTracker: All activities cleared');
+        resolve();
+      };
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  // ==================== EXTRACTION FEEDBACK ====================
+
+  /**
+   * Add extraction feedback (when user corrects extraction)
+   * @param {Object} feedback - Feedback data with extracted, corrected, url, domain
+   * @returns {Promise<Object>} Result with success status
+   */
+  async addExtractionFeedback(feedback) {
+    await this.init();
+
+    const data = {
+      ...feedback,
+      id: feedback.id || this.generateId(),
+      timestamp: feedback.timestamp || new Date().toISOString()
+    };
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.EXTRACTION_FEEDBACK], 'readwrite');
+      const store = transaction.objectStore(this.STORES.EXTRACTION_FEEDBACK);
+      const request = store.add(data);
+
+      request.onsuccess = () => {
+        console.log('JobTracker: Extraction feedback recorded');
+        resolve({ success: true, feedback: data });
+      };
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Get extraction feedback by domain
+   * @param {string} domain - Domain to filter by
+   * @returns {Promise<Array>} Array of feedback records
+   */
+  async getExtractionFeedbackByDomain(domain) {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.EXTRACTION_FEEDBACK], 'readonly');
+      const store = transaction.objectStore(this.STORES.EXTRACTION_FEEDBACK);
+      const index = store.index('domain');
+      const request = index.getAll(domain);
+
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Get all extraction feedback
+   * @returns {Promise<Array>} All feedback records
+   */
+  async getAllExtractionFeedback() {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.EXTRACTION_FEEDBACK], 'readonly');
+      const store = transaction.objectStore(this.STORES.EXTRACTION_FEEDBACK);
+      const request = store.getAll();
+
+      request.onsuccess = () => {
+        // Sort by timestamp descending
+        const feedback = request.result.sort((a, b) => {
+          return new Date(b.timestamp) - new Date(a.timestamp);
+        });
+        resolve(feedback);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Get extraction feedback statistics by domain
+   * @returns {Promise<Object>} Stats grouped by domain
+   */
+  async getExtractionFeedbackStats() {
+    const feedback = await this.getAllExtractionFeedback();
+
+    const stats = {};
+    for (const item of feedback) {
+      const domain = item.domain || 'unknown';
+      if (!stats[domain]) {
+        stats[domain] = {
+          total: 0,
+          fields: {
+            position: { corrected: 0 },
+            company: { corrected: 0 },
+            location: { corrected: 0 },
+            salary: { corrected: 0 }
+          }
+        };
+      }
+      stats[domain].total++;
+
+      // Count corrections per field
+      if (item.corrections) {
+        for (const field of ['position', 'company', 'location', 'salary']) {
+          if (item.corrections[field]) {
+            stats[domain].fields[field].corrected++;
+          }
+        }
+      }
+    }
+
+    return stats;
+  },
+
+  /**
+   * Clear all extraction feedback
+   */
+  async clearExtractionFeedback() {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.EXTRACTION_FEEDBACK], 'readwrite');
+      const store = transaction.objectStore(this.STORES.EXTRACTION_FEEDBACK);
+      const request = store.clear();
+
+      request.onsuccess = () => {
+        console.log('JobTracker: Extraction feedback cleared');
         resolve();
       };
       request.onerror = () => reject(request.error);

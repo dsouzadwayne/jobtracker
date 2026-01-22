@@ -1,0 +1,21 @@
+{
+  "name": "jobtracker",
+  "version": "1.0.0",
+  "description": "A privacy-first Chrome extension for tracking job applications and autofilling job application forms. 100% local storage, no external servers, fully open source.",
+  "main": "background.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "compromise": "^14.14.5",
+    "wink-eng-lite-web-model": "^1.8.1",
+    "wink-nlp": "^2.4.0"
+  }
+}

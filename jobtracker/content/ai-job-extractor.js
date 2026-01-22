@@ -3,6 +3,9 @@
  * Uses ML to extract job information from any webpage
  * Always enabled for unsupported sites when user clicks "Track"
  * The AI settings toggle controls other features, not job extraction
+ *
+ * Now integrates with ExtractionPipeline for improved extraction with
+ * confidence scoring and parallel strategy execution.
  */
 
 (function() {
@@ -12,17 +15,152 @@
   if (window.__jobTrackerAIExtractorInitialized) return;
   window.__jobTrackerAIExtractorInitialized = true;
 
+  // Readability state
+  let readabilityLoaded = false;
+  let readabilityLoadPromise = null;
+
+  // Extraction pipeline state
+  let pipelineModule = null;
+  let pipelineLoadPromise = null;
+
   /**
-   * Extract all visible text from the page (optimized for job postings)
+   * Load the ExtractionPipeline module
+   * @returns {Promise<Object|null>} Pipeline module or null if unavailable
    */
-  function extractPageText() {
+  async function loadExtractionPipeline() {
+    if (pipelineModule) return pipelineModule;
+    if (pipelineLoadPromise) return pipelineLoadPromise;
+
+    pipelineLoadPromise = (async () => {
+      try {
+        const module = await import(chrome.runtime.getURL('lib/extraction/index.js'));
+        pipelineModule = module;
+        console.log('JobTracker AI: ExtractionPipeline loaded');
+        return module;
+      } catch (error) {
+        console.log('JobTracker AI: Using fallback extraction (pipeline unavailable)');
+        return null;
+      }
+    })();
+
+    return pipelineLoadPromise;
+  }
+
+  /**
+   * Load Readability.js dynamically with timeout and race condition protection
+   */
+  async function loadReadability() {
+    if (readabilityLoaded && window.Readability) return true;
+    if (readabilityLoadPromise) return readabilityLoadPromise;
+
+    readabilityLoadPromise = (async () => {
+      try {
+        // Double-check after acquiring the promise slot
+        if (window.Readability) {
+          readabilityLoaded = true;
+          return true;
+        }
+
+        // Verify DOM access
+        if (!document.head) {
+          console.warn('JobTracker: No document.head access');
+          return false;
+        }
+
+        return new Promise((resolve) => {
+          const script = document.createElement('script');
+          script.src = chrome.runtime.getURL('lib/vendor/readability.js');
+
+          // Add timeout to prevent hanging
+          const timeout = setTimeout(() => {
+            console.warn('JobTracker: Readability.js load timeout');
+            readabilityLoadPromise = null; // Clear for retry
+            resolve(false);
+          }, 10000);
+
+          script.onload = () => {
+            clearTimeout(timeout);
+            if (window.Readability) {
+              readabilityLoaded = true;
+              console.log('JobTracker: Readability.js loaded');
+              resolve(true);
+            } else {
+              console.warn('JobTracker: Readability.js loaded but not available');
+              readabilityLoadPromise = null; // Clear for retry
+              resolve(false);
+            }
+          };
+          script.onerror = () => {
+            clearTimeout(timeout);
+            console.log('JobTracker: Readability.js load failed, using fallback');
+            readabilityLoadPromise = null; // Clear for retry
+            resolve(false);
+          };
+          document.head.appendChild(script);
+        });
+      } catch (error) {
+        console.log('JobTracker: Readability load error:', error.message);
+        readabilityLoadPromise = null; // Clear for retry
+        return false;
+      }
+    })();
+
+    return readabilityLoadPromise;
+  }
+
+  /**
+   * Extract text using Readability (primary method)
+   * @returns {string|null} Extracted text or null if Readability unavailable
+   */
+  async function extractWithReadability() {
+    const loaded = await loadReadability();
+    if (!loaded || !window.Readability) return null;
+
+    try {
+      // Clone the document to avoid modifying the original
+      const documentClone = document.cloneNode(true);
+
+      const reader = new window.Readability(documentClone, {
+        charThreshold: 100,
+        classesToPreserve: ['job-description', 'job-details', 'posting-description']
+      });
+
+      const article = reader.parse();
+
+      if (article && article.textContent && article.textContent.length > 200) {
+        console.log('JobTracker: Extracted content with Readability');
+        return article.textContent
+          .replace(/\s+/g, ' ')
+          .replace(/\n+/g, '\n')
+          .trim()
+          .substring(0, 15000);
+      }
+    } catch (error) {
+      console.log('JobTracker: Readability parse error:', error.message);
+    }
+
+    return null;
+  }
+
+  /**
+   * Extract text using CSS selectors (fallback method)
+   * @returns {string} Extracted text
+   */
+  function extractWithSelectors() {
     // Priority elements for job postings
     const prioritySelectors = [
+      '.job-description',
+      '.job-details',
+      '.posting-description',
+      '[class*="job-description"]',
+      '[class*="jobDescription"]',
+      '[class*="posting-description"]',
+      '[class*="descriptionBody"]',
+      '[data-automation="jobDescription"]',
+      '[data-testid="job-description"]',
       'article',
       '[role="main"]',
       'main',
-      '.job-description',
-      '.job-details',
       '.job-posting',
       '.job-content',
       '[class*="job"]',
@@ -34,24 +172,47 @@
 
     // Try to find the main job content area
     for (const selector of prioritySelectors) {
-      const element = document.querySelector(selector);
-      if (element && element.textContent.length > 200) {
-        mainContent = element.textContent;
-        break;
+      try {
+        const element = document.querySelector(selector);
+        if (element && element.textContent.length > 200) {
+          mainContent = element.textContent;
+          break;
+        }
+      } catch (e) {
+        // Invalid selector, continue
       }
     }
 
     // Fallback to body if no specific content found
     if (!mainContent) {
-      mainContent = document.body.textContent;
+      if (!document.body) {
+        console.warn('JobTracker: document.body is null');
+        return '';
+      }
+      mainContent = document.body.textContent || '';
     }
 
-    // Clean up the text
     return mainContent
       .replace(/\s+/g, ' ')
       .replace(/\n+/g, '\n')
       .trim()
-      .substring(0, 10000); // Limit to 10k chars for processing
+      .substring(0, 10000);
+  }
+
+  /**
+   * Extract all visible text from the page (optimized for job postings)
+   * Uses Readability as primary method with CSS selector fallback
+   */
+  async function extractPageText() {
+    // Try Readability first (better quality extraction)
+    const readabilityText = await extractWithReadability();
+    if (readabilityText && readabilityText.length > 200) {
+      return readabilityText;
+    }
+
+    // Fallback to CSS selectors
+    console.log('JobTracker: Using CSS selector fallback for extraction');
+    return extractWithSelectors();
   }
 
   /**
@@ -206,6 +367,7 @@
 
   /**
    * Main extraction function - combines all methods
+   * Now uses ExtractionPipeline when available for improved extraction
    */
   async function extractJobInfo() {
     const url = window.location.href;
@@ -224,15 +386,82 @@
       platform: 'other'
     };
 
+    // Try the new ExtractionPipeline first
+    try {
+      const pipeline = await loadExtractionPipeline();
+      if (pipeline) {
+        // Get settings to check if LLM is enabled
+        let llmEnabled = false;
+        try {
+          const settings = await chrome.runtime.sendMessage({ type: 'GET_SETTINGS' });
+          llmEnabled = settings?.ai?.llmEnabled || false;
+        } catch (e) {
+          // Settings not available
+        }
+
+        // Create pipeline with ML extractor
+        const extractor = pipeline.createPipeline({
+          llmEnabled,
+          mlExtractor: async (text) => {
+            return extractWithAI(text);
+          },
+          llmExtractor: llmEnabled ? async (text, currentResults) => {
+            try {
+              const response = await chrome.runtime.sendMessage({
+                type: 'LLM_EXTRACT_JOB',
+                payload: { text, currentResults, url }
+              });
+              return response?.success ? response.data : null;
+            } catch (e) {
+              return null;
+            }
+          } : null
+        });
+
+        // Run extraction
+        const results = await extractor.extract();
+
+        if (results && results.overallConfidence > 0) {
+          jobInfo.position = results.position?.value || '';
+          jobInfo.company = results.company?.value || '';
+          jobInfo.location = results.location?.value || '';
+          jobInfo.salary = results.salary?.value || '';
+          jobInfo.jobDescription = results.jobDescription?.value || '';
+          jobInfo._confidence = results.overallConfidence;
+          jobInfo._extractionMeta = results._extractionMeta;
+
+          // Apply regex for additional fields (jobType, remote)
+          const pageText = await extractPageText();
+          const regexData = extractWithRegex(pageText);
+          jobInfo.jobType = regexData.jobType || '';
+          jobInfo.remote = regexData.remote || '';
+
+          // If we got good results, return early
+          if (jobInfo.position && jobInfo.company && results.overallConfidence > 0.5) {
+            console.log('JobTracker AI: Pipeline extraction successful (confidence:', results.overallConfidence.toFixed(2), ')');
+            return jobInfo;
+          }
+        }
+      }
+    } catch (e) {
+      console.log('JobTracker AI: Pipeline unavailable, using fallback extraction');
+    }
+
+    // Fallback: Legacy extraction methods
     // 1. Try JSON-LD first (most reliable, no AI needed)
     const jsonLdData = extractJsonLd();
     if (jsonLdData) {
-      Object.assign(jobInfo, jsonLdData);
-      console.log('JobTracker AI: Extracted from JSON-LD:', jobInfo);
+      // Only fill missing fields
+      for (const [key, value] of Object.entries(jsonLdData)) {
+        if (value && !jobInfo[key]) {
+          jobInfo[key] = value;
+        }
+      }
+      console.log('JobTracker AI: Enhanced with JSON-LD');
     }
 
-    // 2. Get page text for further extraction
-    const pageText = extractPageText();
+    // 2. Get page text for further extraction (async with Readability)
+    const pageText = await extractPageText();
 
     // 3. Apply regex extraction
     const regexData = extractWithRegex(pageText);
@@ -256,7 +485,7 @@
             jobInfo[key] = value;
           }
         }
-        console.log('JobTracker AI: Enhanced with ML:', jobInfo);
+        console.log('JobTracker AI: Enhanced with ML');
       }
     }
 
@@ -364,10 +593,24 @@
     }
   };
 
-  // Also expose a sync version for basic extraction (no AI)
-  window.__jobTrackerBasicExtract = function() {
+  // Also expose a basic extraction version (uses Readability but no AI)
+  window.__jobTrackerBasicExtract = async function() {
     const jsonLdData = extractJsonLd();
-    const pageText = extractPageText();
+    const pageText = await extractPageText();
+    const regexData = extractWithRegex(pageText);
+
+    return {
+      ...(jsonLdData || {}),
+      ...regexData,
+      jobUrl: window.location.href,
+      platform: 'other'
+    };
+  };
+
+  // Sync fallback for basic extraction (no Readability, no AI)
+  window.__jobTrackerQuickExtract = function() {
+    const jsonLdData = extractJsonLd();
+    const pageText = extractWithSelectors();
     const regexData = extractWithRegex(pageText);
 
     return {

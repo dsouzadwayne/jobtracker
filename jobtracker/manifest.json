@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "JobTracker",
-  "version": "0.4.8",
+  "version": "0.4.9",
   "description": "Track job applications and autofill forms. 100% local, privacy-first, open source.",
   "author": "Dwayne",
   "homepage_url": "https://github.com/dsouzadwayne/jobtracker",
@@ -207,6 +207,7 @@
         "lib/autofill/input-fillers.js",
         "lib/autofill/form-detector.js",
         "lib/autofill/index.js",
+        "lib/autofill/smart-field-matcher.js",
         "autofill/smartrecruiters-autofill.js",
         "detect/smartrecruiters-detect.js"
       ],
@@ -268,6 +269,10 @@
         "lib/vendor/onnxruntime-web/*",
         "lib/resume-parser/*",
         "lib/resume-parser/extractors/*",
+        "lib/nlp/*",
+        "lib/content/*",
+        "lib/extraction/*.js",
+        "lib/extraction/strategies/*.js",
         "icons/*",
         "common.css",
         "pages/dashboard.html",

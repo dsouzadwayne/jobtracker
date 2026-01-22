@@ -77,6 +77,7 @@ const MessageTypes = {
 
   // AI Features
   AI_EXTRACT_JOB: 'AI_EXTRACT_JOB',
+  AI_PARSE_RESUME: 'AI_PARSE_RESUME',
 
   // Data Management (Model Downloads & Storage)
   CLEAR_MODELS_METADATA: 'CLEAR_MODELS_METADATA',
@@ -86,7 +87,15 @@ const MessageTypes = {
   GET_PROFILE_SIZE: 'GET_PROFILE_SIZE',
   GET_APPLICATIONS_COUNT: 'GET_APPLICATIONS_COUNT',
   GET_MODELS_STATUS: 'GET_MODELS_STATUS',
-  SET_MODEL_METADATA: 'SET_MODEL_METADATA'
+  SET_MODEL_METADATA: 'SET_MODEL_METADATA',
+
+  // Extraction Feedback (Correction Tracking)
+  TRACK_EXTRACTION_CORRECTION: 'TRACK_EXTRACTION_CORRECTION',
+  GET_EXTRACTION_FEEDBACK: 'GET_EXTRACTION_FEEDBACK',
+  GET_EXTRACTION_FEEDBACK_STATS: 'GET_EXTRACTION_FEEDBACK_STATS',
+
+  // LLM Extraction
+  LLM_EXTRACT_JOB: 'LLM_EXTRACT_JOB'
 };
 
 // Alarm name for badge clear
@@ -417,6 +426,18 @@ function validatePayload(type, payload) {
     case MessageTypes.GET_APPLICATIONS_COUNT:
     case MessageTypes.GET_MODELS_STATUS:
     case MessageTypes.SET_MODEL_METADATA:
+    case MessageTypes.GET_EXTRACTION_FEEDBACK:
+    case MessageTypes.GET_EXTRACTION_FEEDBACK_STATS:
+    case MessageTypes.LLM_EXTRACT_JOB:
+      break;
+
+    case MessageTypes.TRACK_EXTRACTION_CORRECTION:
+      if (!payload || typeof payload !== 'object') {
+        return { valid: false, error: 'Correction payload must be an object' };
+      }
+      if (!payload.url) {
+        return { valid: false, error: 'Correction requires URL' };
+      }
       break;
 
     default:
@@ -522,7 +543,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Validate payload
   const validation = validatePayload(type, payload);
   if (!validation.valid) {
-    console.log('JobTracker: Message validation failed:', validation.error);
+    console.warn('JobTracker: Message validation failed:', validation.error);
     sendResponse({ error: validation.error });
     return true;
   }
@@ -927,7 +948,133 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
             response = { success: true, data: extracted };
           } catch (error) {
-            console.log('JobTracker: Extraction error:', error);
+            console.error('JobTracker: Extraction error:', error);
+            response = { success: false, error: error.message };
+          }
+          break;
+        }
+
+        // AI Resume Parsing (for NLP pipeline)
+        case MessageTypes.AI_PARSE_RESUME: {
+          try {
+            const { text } = payload;
+            await aiService.init();
+            const result = await aiService.parseResume(text, true);
+            response = { success: true, data: result };
+          } catch (error) {
+            console.error('JobTracker: Resume parsing error:', error);
+            response = { success: false, error: error.message };
+          }
+          break;
+        }
+
+        // ==================== EXTRACTION FEEDBACK ====================
+        case MessageTypes.TRACK_EXTRACTION_CORRECTION: {
+          try {
+            const { extracted, corrected, url, domain, applicationId } = payload;
+
+            // Calculate which fields were corrected
+            const corrections = {};
+            const fields = ['position', 'company', 'location', 'salary'];
+
+            for (const field of fields) {
+              const extractedValue = extracted?.[field] || '';
+              const correctedValue = corrected?.[field] || '';
+
+              if (extractedValue !== correctedValue && correctedValue) {
+                corrections[field] = {
+                  from: extractedValue,
+                  to: correctedValue
+                };
+              }
+            }
+
+            // Only store if there were actual corrections
+            if (Object.keys(corrections).length > 0) {
+              const feedbackData = {
+                applicationId,
+                url,
+                domain: domain || new URL(url).hostname,
+                extracted,
+                corrected,
+                corrections,
+                timestamp: new Date().toISOString()
+              };
+
+              response = await JobTrackerDB.addExtractionFeedback(feedbackData);
+              console.log('JobTracker: Tracked extraction correction:', corrections);
+            } else {
+              response = { success: true, noChanges: true };
+            }
+          } catch (error) {
+            console.error('JobTracker: Correction tracking error:', error);
+            response = { success: false, error: error.message };
+          }
+          break;
+        }
+
+        case MessageTypes.GET_EXTRACTION_FEEDBACK: {
+          try {
+            const domain = payload?.domain;
+            if (domain) {
+              response = await JobTrackerDB.getExtractionFeedbackByDomain(domain);
+            } else {
+              response = await JobTrackerDB.getAllExtractionFeedback();
+            }
+          } catch (error) {
+            console.error('JobTracker: Get feedback error:', error);
+            response = { success: false, error: error.message };
+          }
+          break;
+        }
+
+        case MessageTypes.GET_EXTRACTION_FEEDBACK_STATS: {
+          try {
+            response = await JobTrackerDB.getExtractionFeedbackStats();
+          } catch (error) {
+            console.error('JobTracker: Get feedback stats error:', error);
+            response = { success: false, error: error.message };
+          }
+          break;
+        }
+
+        // ==================== LLM EXTRACTION ====================
+        case MessageTypes.LLM_EXTRACT_JOB: {
+          try {
+            const settings = await JobTrackerDB.getSettings();
+
+            // Check if LLM is enabled
+            if (!settings?.ai?.llmEnabled) {
+              response = { success: false, error: 'LLM extraction not enabled' };
+              break;
+            }
+
+            const { text, currentResults, url } = payload;
+            if (!text) {
+              response = { success: false, error: 'No text provided' };
+              break;
+            }
+
+            // Check cache (24 hour TTL)
+            const cacheKey = `llm_extract_${url || hashString(text.substring(0, 500))}`;
+            const cached = await getCachedLLMResult(cacheKey);
+            if (cached) {
+              response = { success: true, data: cached, cached: true };
+              break;
+            }
+
+            // Call AI service for LLM extraction
+            const llmResult = await aiService.extractJobWithLLM(text, currentResults);
+
+            if (llmResult) {
+              // Cache the result
+              await cacheLLMResult(cacheKey, llmResult);
+              response = { success: true, data: llmResult };
+            } else {
+              response = { success: false, error: 'LLM extraction returned no results' };
+            }
+          } catch (error) {
+            console.error('JobTracker: LLM extraction error:', error);
             response = { success: false, error: error.message };
           }
           break;
@@ -942,7 +1089,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         responseSent = true;
       }
     } catch (error) {
-      console.log('JobTracker: Error handling message:', error);
+      console.error('JobTracker: Error handling message:', error);
       if (!responseSent) {
         sendResponse({ error: error.message });
         responseSent = true;
@@ -1056,6 +1203,59 @@ function extractJobInfoFromText(text) {
   }
 
   return result;
+}
+
+// ==================== LLM CACHING HELPERS ====================
+
+/**
+ * Simple string hash for cache keys
+ */
+function hashString(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash).toString(36);
+}
+
+/**
+ * Get cached LLM result
+ * @param {string} cacheKey - Cache key
+ * @returns {Promise<Object|null>} Cached result or null
+ */
+async function getCachedLLMResult(cacheKey) {
+  try {
+    const cached = await JobTrackerDB.getMeta(cacheKey);
+    if (cached && cached.data) {
+      // Check TTL (24 hours)
+      const age = Date.now() - new Date(cached.timestamp).getTime();
+      const TTL = 24 * 60 * 60 * 1000; // 24 hours in ms
+      if (age < TTL) {
+        return cached.data;
+      }
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Cache LLM result
+ * @param {string} cacheKey - Cache key
+ * @param {Object} data - Data to cache
+ */
+async function cacheLLMResult(cacheKey, data) {
+  try {
+    await JobTrackerDB.setMeta(cacheKey, {
+      data,
+      timestamp: new Date().toISOString()
+    });
+  } catch (e) {
+    console.warn('JobTracker: Failed to cache LLM result:', e.message);
+  }
 }
 
 console.log('JobTracker: Background service worker loaded');

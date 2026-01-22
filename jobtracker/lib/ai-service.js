@@ -364,6 +364,107 @@ class AIService {
       console.log('[AI Service] Worker terminated');
     }
   }
+
+  // ============================================
+  // HYBRID EXTRACTION METHODS (for NLP Pipeline)
+  // ============================================
+
+  /**
+   * Fast extraction without ML (regex + skill matching)
+   * Use this when speed is priority over accuracy
+   * @param {string} text - Text to analyze
+   * @returns {Object} Basic extraction result
+   */
+  async extractFast(text) {
+    if (!text || typeof text !== 'string') {
+      throw new Error('Invalid text');
+    }
+    return this.sendMessage('EXTRACT_FAST', { text });
+  }
+
+  /**
+   * Extract entities only using BERT NER
+   * Use this as fallback when Compromise.js misses data
+   * @param {string} text - Text to analyze
+   * @returns {Object} Entity extraction result
+   */
+  async extractEntitiesOnly(text) {
+    if (!text || typeof text !== 'string') {
+      throw new Error('Invalid text');
+    }
+    return this.sendMessage('EXTRACT_ENTITIES_ONLY', { text });
+  }
+
+  /**
+   * Hybrid job extraction (integrates with main thread NLP)
+   * @param {string} text - Job posting text
+   * @param {Object} options - Options
+   * @param {boolean} options.useNER - Whether to use BERT NER
+   * @param {Object} options.existingData - Data from main thread NLP
+   * @returns {Object} Extracted job information
+   */
+  async extractJobHybrid(text, options = {}) {
+    if (!text || typeof text !== 'string') {
+      throw new Error('Invalid text');
+    }
+    return this.sendMessage('EXTRACT_JOB_HYBRID', {
+      text,
+      useNER: options.useNER !== false,
+      existingData: options.existingData || {}
+    });
+  }
+
+  /**
+   * Hybrid resume extraction (integrates with main thread NLP)
+   * @param {string} text - Resume text
+   * @param {Object} options - Options
+   * @param {boolean} options.useNER - Whether to use BERT NER
+   * @param {Object} options.existingData - Data from main thread NLP
+   * @returns {Object} Extracted resume information
+   */
+  async extractResumeHybrid(text, options = {}) {
+    if (!text || typeof text !== 'string') {
+      throw new Error('Invalid text');
+    }
+    return this.sendMessage('EXTRACT_RESUME_HYBRID', {
+      text,
+      useNER: options.useNER !== false,
+      existingData: options.existingData || {}
+    });
+  }
+
+  // ============================================
+  // LLM EXTRACTION METHODS
+  // ============================================
+
+  /**
+   * Extract job information using LLM
+   * This is a fallback for when ML extraction has low confidence
+   * @param {string} text - Job posting text
+   * @param {Object} currentResults - Current extraction results (optional)
+   * @returns {Promise<Object|null>} Extracted job data
+   */
+  async extractJobWithLLM(text, currentResults = {}) {
+    if (!text || typeof text !== 'string') {
+      throw new Error('Invalid text');
+    }
+
+    // Truncate text to reasonable length for LLM
+    const maxLength = 8000;
+    const truncatedText = text.substring(0, maxLength);
+
+    try {
+      const result = await this.sendMessage('LLM_EXTRACT_JOB', {
+        text: truncatedText,
+        currentResults
+      });
+
+      return result;
+    } catch (error) {
+      console.log('[AI Service] LLM extraction failed:', error.message);
+      return null;
+    }
+  }
 }
 
 // Create singleton instance

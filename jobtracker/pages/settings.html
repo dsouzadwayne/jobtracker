@@ -490,6 +490,52 @@
           </div>
         </div>
 
+        <!-- NLP Features Section -->
+        <div class="settings-group">
+          <h2>NLP Features</h2>
+          <p class="settings-description">Natural Language Processing for improved text extraction and form matching.</p>
+
+          <div class="settings-card">
+            <div class="setting-row">
+              <div class="setting-info">
+                <h4>Enable NLP</h4>
+                <p>Use Compromise.js for fast text analysis</p>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="setting-nlp-enabled" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-row">
+              <div class="setting-info">
+                <h4>Smart Content Extraction</h4>
+                <p>Use Readability.js for cleaner job description extraction</p>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="setting-nlp-readability" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-row">
+              <div class="setting-info">
+                <h4>ML Fallback</h4>
+                <p>Use BERT NER when lightweight NLP misses data</p>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="setting-nlp-fallback" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <div class="nlp-bundle-info">
+              <span class="bundle-label">Bundle size impact:</span>
+              <span class="bundle-size">~760KB (loaded on-demand)</span>
+            </div>
+          </div>
+        </div>
+
         <!-- Data Management -->
         <div class="settings-group">
           <h2>Data Management</h2>

@@ -428,8 +428,14 @@
     }
   }
 
+  // Store original extraction for correction tracking
+  let originalExtraction = null;
+
   // Show quick add modal for manual entry
   function showQuickAddModal(prefill = {}) {
+    // Store the original extraction data for correction tracking
+    originalExtraction = { ...prefill };
+
     return new Promise((resolve) => {
       // Remove existing modal if any
       if (quickAddModal) {
@@ -536,9 +542,16 @@
           return;
         }
 
+        const finalData = { company, position, location, salary, jobType, remote, jobDescription };
+
+        // Track corrections if original extraction exists
+        if (originalExtraction) {
+          trackExtractionCorrection(originalExtraction, finalData);
+        }
+
         quickAddModal.remove();
         quickAddModal = null;
-        resolve({ company, position, location, salary, jobType, remote, jobDescription });
+        resolve(finalData);
       };
 
       quickAddModal.querySelector('.jobtracker-quick-add-close').addEventListener('click', closeModal);
@@ -677,6 +690,7 @@
     let company = '';
     let position = '';
     let location = '';
+    let jobDescription = '';
 
     // Platform-specific selectors
     const platformSelectors = {
@@ -697,6 +711,28 @@
           '.job-details-jobs-unified-top-card__tertiary-description-container .tvm__text--low-emphasis:first-child',
           '.job-details-jobs-unified-top-card__bullet',
           '.jobs-unified-top-card__bullet'
+        ]
+      },
+      smartrecruiters: {
+        company: [
+          '[itemprop="hiringOrganization"] [itemprop="name"]',
+          'meta[itemprop="name"]',
+          '.header-logo img[alt]'
+        ],
+        position: [
+          'h1.job-title[itemprop="title"]',
+          'h1.job-title',
+          '.job-title[itemprop="title"]'
+        ],
+        location: [
+          'spl-job-location[formattedaddress]',
+          '[itemprop="jobLocation"] [itemprop="address"]',
+          '.job-details [itemprop="addressLocality"]'
+        ],
+        description: [
+          '[itemprop="description"]',
+          '.job-sections [itemprop="description"]',
+          '#st-jobDescription .wysiwyg'
         ]
       },
       naukri: {
@@ -756,6 +792,9 @@
               ? addr.addressLocality.join(', ')
               : addr.addressLocality || '';
           }
+          if (data.description) {
+            jobDescription = data.description;
+          }
           if (position && company) break;
         }
       }
@@ -763,13 +802,35 @@
       // JSON-LD parsing failed, continue with DOM extraction
     }
 
+    // Helper to extract text from element, handling special cases
+    const extractFromElement = (el) => {
+      if (!el) return '';
+      // Skip IE11 notification overlay elements
+      if (el.closest('.isn') || el.classList?.contains('isn') ||
+          el.className?.includes?.('isn-')) return '';
+      // Handle meta tags
+      if (el.tagName === 'META') {
+        return el.getAttribute('content') || '';
+      }
+      // Handle img alt text (for company logos)
+      if (el.tagName === 'IMG') {
+        return el.getAttribute('alt') || '';
+      }
+      // Handle custom web components with special attributes
+      if (el.hasAttribute('formattedaddress')) {
+        return el.getAttribute('formattedaddress') || '';
+      }
+      return el.textContent?.trim() || '';
+    };
+
     // DOM extraction fallback
     if (!company) {
       for (const selector of companySelectors) {
         try {
           const el = document.querySelector(selector);
-          if (el && el.textContent.trim().length < 100) {
-            company = el.textContent.trim();
+          const text = extractFromElement(el);
+          if (text && text.length < 100) {
+            company = text;
             break;
           }
         } catch (e) {
@@ -783,8 +844,9 @@
       for (const selector of positionSelectors) {
         try {
           const el = document.querySelector(selector);
-          if (el && el.textContent.trim().length < 200) {
-            position = el.textContent.trim();
+          const text = extractFromElement(el);
+          if (text && text.length < 200) {
+            position = text;
             break;
           }
         } catch (e) {
@@ -800,7 +862,7 @@
           const els = document.querySelectorAll(selector);
           if (els.length > 0) {
             location = Array.from(els)
-              .map(el => el.textContent.trim())
+              .map(el => extractFromElement(el))
               .filter(Boolean)
               .slice(0, 3)
               .join(', ');
@@ -819,10 +881,37 @@
       position = titleParts[0]?.trim() || '';
     }
 
+    // Extract job description if not already found
+    if (!jobDescription) {
+      const descriptionSelectors = [
+        '#job-description',
+        '.job-description',
+        '[class*="job-description"]',
+        '[class*="jobDescription"]',
+        '[class*="description"]',
+        '[data-testid*="description"]',
+        'article',
+        '[role="main"] section'
+      ];
+
+      for (const selector of descriptionSelectors) {
+        try {
+          const el = document.querySelector(selector);
+          if (el && el.innerText?.trim().length > 100) {
+            jobDescription = el.innerText.trim().substring(0, 10000);
+            break;
+          }
+        } catch (e) {
+          // Selector query may fail for complex selectors
+        }
+      }
+    }
+
     return {
       company,
       position,
       location,
+      jobDescription,
       jobUrl: url,
       platform
     };
@@ -1004,6 +1093,61 @@
       childList: true,
       subtree: true
     });
+  }
+
+  // Track extraction corrections for improving future extractions
+  async function trackExtractionCorrection(extracted, corrected) {
+    try {
+      // Check if there are meaningful differences
+      const fieldsToCompare = ['company', 'position', 'location', 'salary'];
+      let hasChanges = false;
+
+      for (const field of fieldsToCompare) {
+        const extractedVal = (extracted[field] || '').trim().toLowerCase();
+        const correctedVal = (corrected[field] || '').trim().toLowerCase();
+
+        if (extractedVal !== correctedVal && correctedVal) {
+          hasChanges = true;
+          break;
+        }
+      }
+
+      if (!hasChanges) {
+        return; // No corrections to track
+      }
+
+      const url = window.location.href;
+      let domain = 'unknown';
+      try {
+        domain = new URL(url).hostname;
+      } catch (e) {
+        // URL parsing failed
+      }
+
+      await chrome.runtime.sendMessage({
+        type: 'TRACK_EXTRACTION_CORRECTION',
+        payload: {
+          extracted: {
+            company: extracted.company || '',
+            position: extracted.position || '',
+            location: extracted.location || '',
+            salary: extracted.salary || ''
+          },
+          corrected: {
+            company: corrected.company || '',
+            position: corrected.position || '',
+            location: corrected.location || '',
+            salary: corrected.salary || ''
+          },
+          url,
+          domain
+        }
+      });
+
+      console.log('JobTracker: Tracked extraction correction');
+    } catch (error) {
+      console.log('JobTracker: Failed to track correction:', error.message);
+    }
   }
 
   // Initialize when DOM is ready

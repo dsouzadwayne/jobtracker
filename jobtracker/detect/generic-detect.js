@@ -2,6 +2,9 @@
  * JobTracker Generic Detection
  * Extracts job information from unsupported sites using heuristics
  * NO auto-adding - user must click the floating button to add jobs
+ *
+ * Now uses the ExtractionPipeline for improved extraction with
+ * confidence scoring, parallel execution, and LLM fallback.
  */
 
 (function() {
@@ -10,6 +13,84 @@
   // Prevent multiple initializations
   if (window.__jobTrackerGenericDetectInitialized) return;
   window.__jobTrackerGenericDetectInitialized = true;
+
+  // Readability loading state
+  let readabilityLoaded = false;
+  let readabilityLoadPromise = null;
+
+  // Extraction pipeline state
+  let pipelineModule = null;
+  let pipelineLoadPromise = null;
+
+  /**
+   * Load Readability.js dynamically for content extraction
+   * @returns {Promise<boolean>} Whether Readability was loaded successfully
+   */
+  async function loadReadability() {
+    if (readabilityLoaded && window.Readability) return true;
+    if (readabilityLoadPromise) return readabilityLoadPromise;
+
+    readabilityLoadPromise = new Promise((resolve) => {
+      try {
+        if (window.Readability) {
+          readabilityLoaded = true;
+          resolve(true);
+          return;
+        }
+
+        const script = document.createElement('script');
+        script.src = chrome.runtime.getURL('lib/vendor/readability.js');
+
+        // Add timeout to prevent hanging
+        const timeout = setTimeout(() => {
+          console.warn('JobTracker: Readability.js load timeout');
+          resolve(false);
+        }, 5000);
+
+        script.onload = () => {
+          clearTimeout(timeout);
+          readabilityLoaded = true;
+          console.log('JobTracker: Readability.js loaded for generic detection');
+          resolve(true);
+        };
+        script.onerror = () => {
+          clearTimeout(timeout);
+          console.warn('JobTracker: Readability.js load failed');
+          resolve(false);
+        };
+        document.head.appendChild(script);
+      } catch (error) {
+        console.warn('JobTracker: Readability load error:', error.message);
+        resolve(false);
+      }
+    });
+
+    return readabilityLoadPromise;
+  }
+
+  /**
+   * Load the ExtractionPipeline module
+   * @returns {Promise<Object|null>} Pipeline module or null if unavailable
+   */
+  async function loadExtractionPipeline() {
+    if (pipelineModule) return pipelineModule;
+    if (pipelineLoadPromise) return pipelineLoadPromise;
+
+    pipelineLoadPromise = (async () => {
+      try {
+        // Dynamic import of the extraction pipeline
+        const module = await import(chrome.runtime.getURL('lib/extraction/index.js'));
+        pipelineModule = module;
+        console.log('JobTracker: ExtractionPipeline loaded');
+        return module;
+      } catch (error) {
+        console.warn('JobTracker: ExtractionPipeline not available, using fallback:', error.message);
+        return null;
+      }
+    })();
+
+    return pipelineLoadPromise;
+  }
 
   // Skip if on a supported platform (they have their own detectors)
   const SUPPORTED_PLATFORMS = [
@@ -29,36 +110,108 @@
     return;
   }
 
-  // Initialize - just expose the job extraction function
-  function init() {
-    // Expose job extraction for the floating button
+  // Initialize - load Readability and expose the job extraction function
+  async function init() {
+    // Pre-load Readability for better extraction
+    loadReadability().catch(err => {
+      console.warn('JobTracker: Readability preload failed:', err.message);
+    });
+
+    // Expose job extraction for the floating button (async version)
     window.__jobTrackerExtractJob = extractJobInfo;
 
     console.log('JobTracker: Generic detection module loaded (manual mode)');
   }
 
   // Extract job info from page using various strategies
-  function extractJobInfo() {
+  async function extractJobInfo() {
     const info = {
       company: '',
       position: '',
       location: '',
+      salary: '',
       jobUrl: window.location.href,
       platform: 'other',
       jobDescription: ''
     };
 
+    // Try the new ExtractionPipeline first
+    try {
+      const pipeline = await loadExtractionPipeline();
+      if (pipeline) {
+        // Get settings to check if LLM is enabled
+        let llmEnabled = false;
+        try {
+          const settings = await chrome.runtime.sendMessage({ type: 'GET_SETTINGS' });
+          llmEnabled = settings?.ai?.llmEnabled || false;
+        } catch (e) {
+          // Settings not available, use default
+        }
+
+        // Create pipeline with ML extractor
+        const extractor = pipeline.createPipeline({
+          llmEnabled,
+          mlExtractor: async (text) => {
+            // Use the existing AI extraction via message passing
+            try {
+              const response = await chrome.runtime.sendMessage({
+                type: 'AI_EXTRACT_JOB',
+                payload: { text }
+              });
+              return response?.success ? response.data : null;
+            } catch (e) {
+              return null;
+            }
+          },
+          llmExtractor: llmEnabled ? async (text, currentResults) => {
+            try {
+              const response = await chrome.runtime.sendMessage({
+                type: 'LLM_EXTRACT_JOB',
+                payload: { text, currentResults, url: window.location.href }
+              });
+              return response?.success ? response.data : null;
+            } catch (e) {
+              return null;
+            }
+          } : null
+        });
+
+        // Run extraction
+        const results = await extractor.extract();
+
+        // Convert results to expected format
+        if (results) {
+          info.position = results.position?.value || '';
+          info.company = results.company?.value || '';
+          info.location = results.location?.value || '';
+          info.salary = results.salary?.value || '';
+          info.jobDescription = results.jobDescription?.value || '';
+          info._confidence = results.overallConfidence;
+          info._extractionMeta = results._extractionMeta;
+
+          // If we got good results, return early
+          if (info.position && info.company && results.overallConfidence > 0.5) {
+            console.log('JobTracker: Extracted via pipeline (confidence:', results.overallConfidence.toFixed(2), ')');
+            return info;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('JobTracker: Pipeline extraction failed, using fallback:', e.message);
+    }
+
+    // Fallback: Legacy extraction methods
     // Strategy 0: Check for __appData (Ashby-like ATS systems)
     try {
       if (window.__appData?.posting) {
         const posting = window.__appData.posting;
-        info.position = posting.title || '';
-        info.company = window.__appData.organization?.name ||
+        info.position = info.position || posting.title || '';
+        info.company = info.company || window.__appData.organization?.name ||
                       posting.linkedData?.hiringOrganization?.name || '';
-        info.location = posting.locationName ||
+        info.location = info.location || posting.locationName ||
                        [posting.address?.postalAddress?.addressLocality,
                         posting.address?.postalAddress?.addressCountry].filter(Boolean).join(', ') || '';
-        info.jobDescription = posting.descriptionPlainText || '';
+        info.jobDescription = info.jobDescription || posting.descriptionPlainText || '';
         info.platform = 'ashby-like';
         if (info.position && info.company) {
           return info;
@@ -260,6 +413,31 @@
           // Selector query may fail for complex selectors
           console.warn('JobTracker: Selector query failed', selector, e.message);
         }
+      }
+    }
+
+    // Strategy 6: Readability fallback for job description
+    if (!info.jobDescription || info.jobDescription.length < 200) {
+      try {
+        // Ensure Readability is loaded before using it
+        const loaded = await loadReadability();
+        if (loaded && window.Readability) {
+          const documentClone = document.cloneNode(true);
+          const reader = new window.Readability(documentClone, {
+            charThreshold: 100,
+            classesToPreserve: ['job-description', 'job-details']
+          });
+          const article = reader.parse();
+          if (article && article.textContent && article.textContent.length > 200) {
+            info.jobDescription = article.textContent
+              .replace(/\s+/g, ' ')
+              .trim()
+              .substring(0, 10000);
+            console.log('JobTracker: Extracted description with Readability');
+          }
+        }
+      } catch (e) {
+        console.warn('JobTracker: Readability extraction failed', e.message);
       }
     }
 
