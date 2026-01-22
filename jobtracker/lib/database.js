@@ -246,15 +246,15 @@ const JobTrackerDB = {
       const store = transaction.objectStore(this.STORES.APPLICATIONS);
       const request = store.add(app);
 
-      request.onsuccess = async () => {
-        // Create initial activity entry
-        await this.addActivity({
+      request.onsuccess = () => {
+        // Create initial activity entry (fire and forget - uses separate transaction)
+        this.addActivity({
           applicationId: app.id,
           type: 'application_created',
           title: `Application added`,
           description: `Applied to ${app.position} at ${app.company}`,
           metadata: { status: app.status }
-        });
+        }).catch(err => console.warn('JobTracker: Failed to add activity:', err));
         resolve({ success: true, application: app });
       };
       request.onerror = () => reject(request.error);
@@ -304,7 +304,7 @@ const JobTrackerDB = {
       const request = store.put(updated);
 
       request.onsuccess = () => {
-        // Create activity for status change
+        // Create activity for status change (fire and forget - uses separate transaction)
         if (application.status && application.status !== oldStatus) {
           this.addActivity({
             applicationId: updated.id,
@@ -312,7 +312,7 @@ const JobTrackerDB = {
             title: `Status changed to ${application.status}`,
             description: application.statusNote || `Changed from ${oldStatus} to ${application.status}`,
             metadata: { oldStatus, newStatus: application.status }
-          });
+          }).catch(err => console.warn('JobTracker: Failed to add activity:', err));
         }
         resolve({ success: true, application: updated });
       };
@@ -514,7 +514,54 @@ const JobTrackerDB = {
   },
 
   /**
+   * Convert a date to a local date key string (YYYY-MM-DD)
+   * This ensures consistent date keys regardless of timezone
+   * @param {Date|string} dateValue - The date to convert
+   * @param {boolean} useUTC - If true, use UTC methods; if false (default), use local time
+   * @returns {string|null} - Date key in YYYY-MM-DD format or null if invalid
+   */
+  getLocalDateKey(dateValue, useUTC = false) {
+    if (!dateValue) return null;
+
+    // Parse the date value
+    const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
+    if (isNaN(date.getTime())) return null;
+
+    // Use the appropriate methods based on useUTC flag
+    // By default, use local time to match user's perspective
+    const year = useUTC ? date.getUTCFullYear() : date.getFullYear();
+    const month = String((useUTC ? date.getUTCMonth() : date.getMonth()) + 1).padStart(2, '0');
+    const day = String(useUTC ? date.getUTCDate() : date.getDate()).padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
+  },
+
+  /**
+   * Get the start of day in local timezone
+   * @param {Date} date - The date
+   * @returns {Date} - Date set to 00:00:00.000 in local timezone
+   */
+  getStartOfLocalDay(date = new Date()) {
+    const result = new Date(date);
+    result.setHours(0, 0, 0, 0);
+    return result;
+  },
+
+  /**
+   * Get the end of day in local timezone
+   * @param {Date} date - The date
+   * @returns {Date} - Date set to 23:59:59.999 in local timezone
+   */
+  getEndOfLocalDay(date = new Date()) {
+    const result = new Date(date);
+    result.setHours(23, 59, 59, 999);
+    return result;
+  },
+
+  /**
    * Calculate daily counts for heatmap (last 365 days)
+   * Note: Uses local timezone for date keys to match user's perspective
+   * Dates are displayed relative to user's local timezone
    */
   calculateDailyCounts(applications, startDate = null, endDate = null) {
     const dailyCounts = {};
@@ -522,25 +569,10 @@ const JobTrackerDB = {
     const start = startDate || new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
     // Set end to end of today (local time) to include all applications dated "today"
     // This handles timezone differences when dates are stored as UTC midnight
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999);
-    const end = endDate || todayEnd;
+    const end = endDate || this.getEndOfLocalDay(now);
 
-    // Helper to extract date key from dateApplied string or Date
-    // Must match the heatmap renderer's local date format (YYYY-MM-DD)
-    const getDateKey = (dateValue) => {
-      if (!dateValue) return null;
-
-      // Parse the date value
-      const date = new Date(dateValue);
-      if (isNaN(date.getTime())) return null;
-
-      // Use LOCAL methods to match heatmap renderer's local date format
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    };
+    // Helper to extract date key - uses instance method for consistency
+    const getDateKey = (dateValue) => this.getLocalDateKey(dateValue, false);
 
     applications.forEach(app => {
       const dateSource = app.dateApplied || app.meta?.createdAt;
@@ -631,7 +663,10 @@ const JobTrackerDB = {
       endDate.setHours(23, 59, 59, 999);
 
       return applications.filter(app => {
-        const appDate = new Date(app.dateApplied || app.meta?.createdAt);
+        const dateSource = app.dateApplied || app.meta?.createdAt;
+        if (!dateSource) return false;
+        const appDate = new Date(dateSource);
+        if (isNaN(appDate.getTime())) return false;
         return appDate >= startDate && appDate <= endDate;
       });
     }
@@ -639,7 +674,10 @@ const JobTrackerDB = {
     if (!startDate) return applications;
 
     return applications.filter(app => {
-      const appDate = new Date(app.dateApplied || app.meta?.createdAt);
+      const dateSource = app.dateApplied || app.meta?.createdAt;
+      if (!dateSource) return false;
+      const appDate = new Date(dateSource);
+      if (isNaN(appDate.getTime())) return false;
       return appDate >= startDate;
     });
   },
@@ -717,14 +755,14 @@ const JobTrackerDB = {
       const request = store.add(interviewData);
 
       request.onsuccess = () => {
-        // Also create an activity entry
+        // Also create an activity entry (fire and forget - uses separate transaction)
         this.addActivity({
           applicationId: interviewData.applicationId,
           type: 'interview_scheduled',
           title: `Interview scheduled: ${interviewData.type || 'Round ' + interviewData.round}`,
           description: `Scheduled for ${new Date(interviewData.scheduledDate).toLocaleDateString()}`,
           metadata: { interviewId: interviewData.id }
-        });
+        }).catch(err => console.warn('JobTracker: Failed to add activity:', err));
         resolve({ success: true, interview: interviewData });
       };
       request.onerror = () => reject(request.error);
@@ -764,7 +802,7 @@ const JobTrackerDB = {
             title: `Interview outcome: ${updated.outcome}`,
             description: `${updated.type || 'Round ' + updated.round} - ${updated.outcome}`,
             metadata: { interviewId: updated.id, outcome: updated.outcome }
-          });
+          }).catch(err => console.warn('JobTracker: Failed to add activity:', err));
         }
         resolve({ success: true, interview: updated });
       };
@@ -886,7 +924,7 @@ const JobTrackerDB = {
       const request = store.add(taskData);
 
       request.onsuccess = () => {
-        // Create activity if linked to application
+        // Create activity if linked to application (fire and forget - uses separate transaction)
         if (taskData.applicationId) {
           this.addActivity({
             applicationId: taskData.applicationId,
@@ -894,7 +932,7 @@ const JobTrackerDB = {
             title: `Task created: ${taskData.title}`,
             description: taskData.dueDate ? `Due: ${new Date(taskData.dueDate).toLocaleDateString()}` : '',
             metadata: { taskId: taskData.id }
-          });
+          }).catch(err => console.warn('JobTracker: Failed to add activity:', err));
         }
         resolve({ success: true, task: taskData });
       };
@@ -938,7 +976,7 @@ const JobTrackerDB = {
             title: `Task completed: ${updated.title}`,
             description: '',
             metadata: { taskId: updated.id }
-          });
+          }).catch(err => console.warn('JobTracker: Failed to add activity:', err));
         }
         resolve({ success: true, task: updated });
       };

@@ -3,6 +3,61 @@
  * Handles statistics, charts, heatmap, goals, and CRM widgets
  */
 
+// Simple notification system
+function showNotification(message, type = 'info') {
+  // Remove existing notification
+  const existing = document.querySelector('.stats-notification');
+  if (existing) existing.remove();
+
+  const notification = document.createElement('div');
+  notification.className = `stats-notification stats-notification-${type}`;
+  notification.innerHTML = `
+    <span>${message}</span>
+    <button class="notification-close">&times;</button>
+  `;
+
+  // Add styles if not already present
+  if (!document.getElementById('stats-notification-styles')) {
+    const style = document.createElement('style');
+    style.id = 'stats-notification-styles';
+    style.textContent = `
+      .stats-notification {
+        position: fixed;
+        bottom: var(--space-lg, 1.5rem);
+        right: var(--space-lg, 1.5rem);
+        padding: 0.75rem 1rem;
+        border-radius: var(--radius-md, 0.5rem);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        z-index: 10000;
+        animation: slideIn 0.3s ease;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      }
+      .stats-notification-success { background: var(--color-success, #6B9080); color: white; }
+      .stats-notification-error { background: var(--color-danger, #B87B7B); color: white; }
+      .stats-notification-info { background: var(--color-primary, #5B7C99); color: white; }
+      .notification-close { background: none; border: none; color: inherit; cursor: pointer; font-size: 1.25rem; line-height: 1; opacity: 0.8; }
+      .notification-close:hover { opacity: 1; }
+      @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    `;
+    document.head.appendChild(style);
+  }
+
+  document.body.appendChild(notification);
+
+  // Auto-remove after 4 seconds
+  const timeout = setTimeout(() => notification.remove(), 4000);
+
+  // Manual close
+  notification.querySelector('.notification-close').addEventListener('click', () => {
+    clearTimeout(timeout);
+    notification.remove();
+  });
+}
+
 // Theme Manager
 const ThemeManager = {
   STORAGE_KEY: 'jobtracker_ui_prefs',
@@ -94,8 +149,7 @@ const MessageTypes = {
   SAVE_SETTINGS: 'SAVE_SETTINGS',
   GET_INTERVIEWS: 'GET_INTERVIEWS',
   GET_TASKS: 'GET_TASKS',
-  UPDATE_TASK: 'UPDATE_TASK',
-  ADD_TASK: 'ADD_TASK'
+  UPDATE_TASK: 'UPDATE_TASK'
 };
 
 // Load applications from background
@@ -155,8 +209,8 @@ function calculateStats(apps, dateRange = null) {
   );
   const offers = filtered.filter(app => app.status?.toLowerCase() === 'offer');
 
-  const interviewRate = filtered.length > 0 ? ((interviews.length / filtered.length) * 100).toFixed(0) : 0;
-  const offerRate = interviews.length > 0 ? ((offers.length / interviews.length) * 100).toFixed(0) : 0;
+  const interviewRate = filtered.length > 0 ? ((interviews.length / filtered.length) * 100).toFixed(0) : '0';
+  const offerRate = interviews.length > 0 ? ((offers.length / interviews.length) * 100).toFixed(0) : '0';
 
   // Calculate average days to interview
   let avgDays = '--';
@@ -219,13 +273,19 @@ function initCharts(apps) {
     return;
   }
 
+  // Get CSS variable with fallback value to prevent Chart.js errors
+  const getCSSVar = (name, fallback) => {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return value || fallback;
+  };
+
   const chartColors = {
-    primary: getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim(),
-    success: getComputedStyle(document.documentElement).getPropertyValue('--color-success').trim(),
-    warning: getComputedStyle(document.documentElement).getPropertyValue('--color-warning').trim(),
-    danger: getComputedStyle(document.documentElement).getPropertyValue('--color-danger').trim(),
-    info: getComputedStyle(document.documentElement).getPropertyValue('--color-info').trim(),
-    muted: getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim()
+    primary: getCSSVar('--color-primary', '#6366f1'),
+    success: getCSSVar('--color-success', '#10b981'),
+    warning: getCSSVar('--color-warning', '#f59e0b'),
+    danger: getCSSVar('--color-danger', '#ef4444'),
+    info: getCSSVar('--color-info', '#3b82f6'),
+    muted: getCSSVar('--text-muted', '#6b7280')
   };
 
   // Status distribution
@@ -274,16 +334,18 @@ function initCharts(apps) {
   });
 
   const sortedDates = Object.keys(timelineData).sort();
+  // Store sliced dates to ensure labels and data arrays match
+  const recentDates = sortedDates.slice(-30);
   const timelineCtx = document.getElementById('timeline-chart')?.getContext('2d');
   if (timelineCtx) {
     if (timelineChart) timelineChart.destroy();
     timelineChart = new Chart(timelineCtx, {
       type: 'line',
       data: {
-        labels: sortedDates.slice(-30),
+        labels: recentDates,
         datasets: [{
           label: 'Applications',
-          data: sortedDates.slice(-30).map(d => timelineData[d]),
+          data: recentDates.map(d => timelineData[d]),
           borderColor: chartColors.primary,
           backgroundColor: chartColors.primary + '20',
           fill: true,
@@ -304,7 +366,7 @@ function initCharts(apps) {
   // Platform chart
   const platformCounts = {};
   apps.forEach(app => {
-    const platform = app.source || 'Direct';
+    const platform = app.platform || 'Direct';
     platformCounts[platform] = (platformCounts[platform] || 0) + 1;
   });
 
@@ -726,10 +788,13 @@ async function loadTasks() {
         const taskItem = btn.closest('.task-item');
         const taskId = taskItem?.dataset.id;
         if (taskId) {
-          await completeTask(taskId);
-          taskItem.remove();
-          if (container.children.length === 0) {
-            container.innerHTML = '<div class="widget-empty"><p>No pending tasks</p></div>';
+          const success = await completeTask(taskId);
+          // Only remove from UI if database update succeeded
+          if (success) {
+            taskItem.remove();
+            if (container.children.length === 0) {
+              container.innerHTML = '<div class="widget-empty"><p>No pending tasks</p></div>';
+            }
           }
         }
       });
@@ -742,12 +807,22 @@ async function loadTasks() {
 
 async function completeTask(taskId) {
   try {
-    await chrome.runtime.sendMessage({
+    const response = await chrome.runtime.sendMessage({
       type: MessageTypes.UPDATE_TASK,
       payload: { id: taskId, completed: true, completedAt: new Date().toISOString() }
     });
+
+    if (response?.error) {
+      showNotification('Failed to complete task', 'error');
+      return false;
+    }
+
+    showNotification('Task completed!', 'success');
+    return true;
   } catch (error) {
     console.log('Error completing task:', error);
+    showNotification('Failed to complete task', 'error');
+    return false;
   }
 }
 
@@ -771,73 +846,7 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-// Task modal
-function setupTaskModal() {
-  const addBtn = document.getElementById('add-task-btn');
-  const modal = document.getElementById('task-modal');
-  const closeBtn = document.getElementById('close-task-modal');
-  const cancelBtn = document.getElementById('cancel-task-btn');
-  const form = document.getElementById('task-form');
-
-  addBtn?.addEventListener('click', () => {
-    form?.reset();
-    document.getElementById('task-id').value = '';
-    document.getElementById('task-app-id').value = '';
-    modal?.classList.remove('hidden');
-  });
-
-  closeBtn?.addEventListener('click', () => modal?.classList.add('hidden'));
-  cancelBtn?.addEventListener('click', () => modal?.classList.add('hidden'));
-
-  modal?.addEventListener('click', (e) => {
-    if (e.target === modal) modal.classList.add('hidden');
-  });
-
-  form?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-
-    const task = {
-      id: document.getElementById('task-id')?.value || generateId(),
-      applicationId: document.getElementById('task-app-id')?.value || null,
-      title: document.getElementById('task-title')?.value || '',
-      description: document.getElementById('task-description')?.value || '',
-      type: document.getElementById('task-type')?.value || 'general',
-      priority: parseInt(document.getElementById('task-priority')?.value) || 3,
-      dueDate: combineDateAndTime(
-        document.getElementById('task-due-date')?.value,
-        document.getElementById('task-due-time')?.value
-      ),
-      completed: false,
-      createdAt: new Date().toISOString()
-    };
-
-    try {
-      await chrome.runtime.sendMessage({ type: MessageTypes.ADD_TASK, payload: task });
-      modal?.classList.add('hidden');
-      await loadTasks();
-    } catch (error) {
-      console.log('Error saving task:', error);
-    }
-  });
-}
-
-function combineDateAndTime(dateStr, timeStr) {
-  if (!dateStr) return null;
-  const date = new Date(dateStr);
-  if (timeStr) {
-    const [hours, minutes] = timeStr.split(':');
-    date.setHours(parseInt(hours), parseInt(minutes));
-  }
-  return date.toISOString();
-}
-
-function generateId() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
-}
+// Task modal removed - tasks are managed from Dashboard
 
 // Setup goal modal listeners
 function setupGoalModal() {
@@ -870,7 +879,7 @@ async function init() {
 
   setupDateFilter();
   setupGoalModal();
-  setupTaskModal();
+  // Task modal removed - tasks are managed from Dashboard
 
   await loadCRMWidgets();
 }

@@ -302,13 +302,7 @@
                 </svg>
                 Tasks
               </h4>
-              <button class="btn-sm btn-secondary" id="add-task-btn">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <line x1="12" y1="5" x2="12" y2="19"></line>
-                  <line x1="5" y1="12" x2="19" y2="12"></line>
-                </svg>
-                Add
-              </button>
+<!-- Add task button removed - tasks are managed from Dashboard -->
             </div>
             <div class="widget-content" id="tasks-list">
               <div class="widget-empty">
@@ -434,66 +428,7 @@
     </div>
   </div>
 
-  <!-- Task Modal -->
-  <div id="task-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="task-modal-title">
-    <div class="modal-content modal-md">
-      <div class="modal-header">
-        <h3 id="task-modal-title">Add Task</h3>
-        <button class="close-btn" id="close-task-modal" aria-label="Close modal">&times;</button>
-      </div>
-      <form id="task-form">
-        <input type="hidden" id="task-id">
-        <input type="hidden" id="task-app-id">
-
-        <div class="form-group">
-          <label for="task-title">Task Title *</label>
-          <input type="text" id="task-title" required placeholder="e.g., Follow up on application">
-        </div>
-
-        <div class="form-group">
-          <label for="task-description">Description</label>
-          <textarea id="task-description" rows="2" placeholder="Additional details..."></textarea>
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label for="task-type">Task Type</label>
-            <select id="task-type">
-              <option value="general">General</option>
-              <option value="follow_up">Follow-up</option>
-              <option value="interview_prep">Interview Prep</option>
-              <option value="application">Application</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="task-priority">Priority</label>
-            <select id="task-priority">
-              <option value="4">Low</option>
-              <option value="3" selected>Normal</option>
-              <option value="2">High</option>
-              <option value="1">Urgent</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label for="task-due-date">Due Date</label>
-            <input type="date" id="task-due-date">
-          </div>
-          <div class="form-group">
-            <label for="task-due-time">Due Time</label>
-            <input type="time" id="task-due-time">
-          </div>
-        </div>
-
-        <div class="form-actions">
-          <button type="button" class="btn-cancel" id="cancel-task-btn">Cancel</button>
-          <button type="submit" class="btn-primary">Save Task</button>
-        </div>
-      </form>
-    </div>
-  </div>
+  <!-- Task modal removed - tasks are managed from Dashboard -->
 
   <script src="../lib/chart.min.js"></script>
   <script src="../lib/heatmap.lib.js"></script>

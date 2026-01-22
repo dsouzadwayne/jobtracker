@@ -36,10 +36,30 @@
     return '';
   }
 
+  function extractLocation() {
+    const selectors = [
+      '.job-location',
+      '.location',
+      '[class*="JobLocation"]',
+      '[class*="job-location"]',
+      '[class*="location"]',
+      '[data-automation="job-location"]',
+      '.job-info .location'
+    ];
+    for (const selector of selectors) {
+      const el = document.querySelector(selector);
+      if (el && el.textContent?.trim()) {
+        return el.textContent.trim();
+      }
+    }
+    return '';
+  }
+
   function extractJobInfo() {
     return {
       position: document.querySelector('.job-title, h1')?.textContent?.trim() || '',
       company: document.querySelector('.company-name')?.textContent?.trim() || '',
+      location: extractLocation(),
       jobUrl: window.location.href,
       platform: 'smartrecruiters',
       jobDescription: extractJobDescription()

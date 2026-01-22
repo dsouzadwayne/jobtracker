@@ -111,15 +111,16 @@
       const title = document.title;
       // Try "Job Application for X at Y" format
       const appMatch = title.match(/Job Application for (.+?) at (.+?)$/i);
-      if (appMatch) {
+      if (appMatch?.[1] && appMatch?.[2]) {
         if (!position) position = appMatch[1].trim();
         if (!company) company = appMatch[2].trim();
       } else {
         // Try "Position at Company - Greenhouse" format
         const titleParts = title.split(' at ');
-        if (titleParts.length >= 2) {
+        if (titleParts.length >= 2 && titleParts[0] && titleParts[1]) {
           if (!position) position = titleParts[0].replace(/Job Application for/i, '').trim();
-          if (!company) company = titleParts[1].split(' - ')[0].trim();
+          const companyParts = titleParts[1].split(' - ');
+          if (!company && companyParts?.[0]) company = companyParts[0].trim();
         }
       }
     }

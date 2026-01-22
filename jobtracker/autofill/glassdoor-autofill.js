@@ -107,7 +107,10 @@
       try {
         const label = document.querySelector(`label[for="${CSS.escape(input.id)}"]`);
         if (label) return label.textContent;
-      } catch (e) {}
+      } catch (e) {
+        // CSS.escape may fail for certain input ids
+        console.warn('JobTracker: Label query failed for input', input.id, e.message);
+      }
     }
     const parentLabel = input.closest('label');
     if (parentLabel) return parentLabel.textContent;

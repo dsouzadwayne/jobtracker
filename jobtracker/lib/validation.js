@@ -88,14 +88,27 @@ if (z) {
       lastName: z.string().optional(),
       email: z.string().email().optional().or(z.literal('')),
       phone: z.string().optional(),
-      address: z.string().optional(),
+      // Address can be either a string (legacy) or an object (current)
+      address: z.union([
+        z.string(),
+        z.object({
+          street: z.string().optional(),
+          addressLine2: z.string().optional(),
+          city: z.string().optional(),
+          state: z.string().optional(),
+          zipCode: z.string().optional(),
+          country: z.string().optional()
+        })
+      ]).optional(),
       city: z.string().optional(),
       state: z.string().optional(),
       country: z.string().optional(),
       zip: z.string().optional(),
+      linkedIn: z.string().url().optional().or(z.literal('')),
       linkedin: z.string().url().optional().or(z.literal('')),
       github: z.string().url().optional().or(z.literal('')),
-      portfolio: z.string().url().optional().or(z.literal(''))
+      portfolio: z.string().url().optional().or(z.literal('')),
+      website: z.string().url().optional().or(z.literal(''))
     }).optional(),
     professional: z.object({
       currentTitle: z.string().optional(),
@@ -252,6 +265,72 @@ if (z) {
 // ==================== VALIDATION FUNCTIONS ====================
 
 /**
+ * Perform basic type validation when Zod is unavailable
+ * @param {string} schemaName - Schema name
+ * @param {any} data - Data to validate
+ * @returns {{ valid: boolean, errors: Array }}
+ */
+function performBasicValidation(schemaName, data) {
+  const errors = [];
+
+  if (data === null || data === undefined) {
+    errors.push({ path: '', message: 'Data is null or undefined', code: 'invalid_type' });
+    return { valid: false, errors };
+  }
+
+  switch (schemaName) {
+    case 'Application':
+      if (typeof data !== 'object') {
+        errors.push({ path: '', message: 'Application must be an object', code: 'invalid_type' });
+      } else {
+        if (data.status && !APPLICATION_STATUSES.includes(data.status)) {
+          errors.push({ path: 'status', message: `Invalid status: ${data.status}`, code: 'invalid_enum' });
+        }
+        if (data.platform && !PLATFORMS.includes(data.platform)) {
+          errors.push({ path: 'platform', message: `Invalid platform: ${data.platform}`, code: 'invalid_enum' });
+        }
+      }
+      break;
+
+    case 'Profile':
+      if (typeof data !== 'object') {
+        errors.push({ path: '', message: 'Profile must be an object', code: 'invalid_type' });
+      }
+      break;
+
+    case 'Settings':
+      if (typeof data !== 'object') {
+        errors.push({ path: '', message: 'Settings must be an object', code: 'invalid_type' });
+      }
+      break;
+
+    case 'Interview':
+      if (typeof data !== 'object') {
+        errors.push({ path: '', message: 'Interview must be an object', code: 'invalid_type' });
+      } else if (data.outcome && !INTERVIEW_OUTCOMES.includes(data.outcome.toLowerCase())) {
+        errors.push({ path: 'outcome', message: `Invalid outcome: ${data.outcome}`, code: 'invalid_enum' });
+      }
+      break;
+
+    case 'Task':
+      if (typeof data !== 'object') {
+        errors.push({ path: '', message: 'Task must be an object', code: 'invalid_type' });
+      } else if (data.priority && !TASK_PRIORITIES.includes(data.priority)) {
+        errors.push({ path: 'priority', message: `Invalid priority: ${data.priority}`, code: 'invalid_enum' });
+      }
+      break;
+
+    default:
+      // For unknown schemas, just verify it's an object
+      if (typeof data !== 'object') {
+        errors.push({ path: '', message: 'Data must be an object', code: 'invalid_type' });
+      }
+  }
+
+  return { valid: errors.length === 0, errors };
+}
+
+/**
  * Validation result class
  */
 class ValidationResult {
@@ -274,12 +353,29 @@ class ValidationResult {
  * Validate data against a schema
  * @param {string} schemaName - Name of the schema to use
  * @param {any} data - Data to validate
+ * @param {boolean} strictMode - If true, throws error when validation library unavailable (default: true)
  * @returns {ValidationResult}
  */
-function validate(schemaName, data) {
-  if (!zodAvailable || !schemas || !schemas[schemaName]) {
-    // If Zod is not available, pass through (no validation)
+function validate(schemaName, data, strictMode = true) {
+  if (!zodAvailable || !schemas) {
+    const errorMsg = 'Validation library (Zod) is not available. Data cannot be validated.';
+    console.error('JobTracker Validation:', errorMsg);
+    if (strictMode) {
+      return ValidationResult.fail([{ path: '', message: errorMsg, code: 'validation_unavailable' }]);
+    }
+    // Non-strict mode: perform basic type validation as fallback
+    console.warn('JobTracker Validation: Using basic validation fallback');
+    const basicValidation = performBasicValidation(schemaName, data);
+    if (!basicValidation.valid) {
+      return ValidationResult.fail(basicValidation.errors);
+    }
     return ValidationResult.ok(data);
+  }
+
+  if (!schemas[schemaName]) {
+    const errorMsg = `Unknown schema: ${schemaName}`;
+    console.error('JobTracker Validation:', errorMsg);
+    return ValidationResult.fail([{ path: '', message: errorMsg, code: 'unknown_schema' }]);
   }
 
   const schema = schemas[schemaName];
@@ -376,6 +472,102 @@ function formatValidationErrors(errors) {
   }).join('\n');
 }
 
+// ==================== SANITIZATION ====================
+
+/**
+ * Sanitize a string to prevent XSS attacks
+ * Removes or escapes dangerous HTML/JS content
+ * @param {string} str - Input string to sanitize
+ * @returns {string} - Sanitized string
+ */
+function sanitizeString(str) {
+  if (!str || typeof str !== 'string') return str;
+
+  // Escape HTML entities
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+    .replace(/\//g, '&#x2F;')
+    // Remove any javascript: or data: URLs that might have slipped through
+    .replace(/javascript:/gi, '')
+    .replace(/data:/gi, '')
+    // Remove event handlers that might be embedded
+    .replace(/on\w+\s*=/gi, '');
+}
+
+/**
+ * Sanitize a URL to prevent XSS via javascript: or data: URLs
+ * @param {string} url - Input URL to sanitize
+ * @returns {string} - Sanitized URL or empty string if invalid
+ */
+function sanitizeUrl(url) {
+  if (!url || typeof url !== 'string') return '';
+
+  const trimmed = url.trim().toLowerCase();
+
+  // Block javascript: and data: URLs
+  if (trimmed.startsWith('javascript:') || trimmed.startsWith('data:')) {
+    console.warn('JobTracker: Blocked potentially malicious URL:', url.substring(0, 50));
+    return '';
+  }
+
+  // Only allow http, https, and mailto protocols
+  if (!trimmed.startsWith('http://') &&
+      !trimmed.startsWith('https://') &&
+      !trimmed.startsWith('mailto:') &&
+      !trimmed.startsWith('/') &&
+      trimmed.includes(':')) {
+    console.warn('JobTracker: Blocked URL with unknown protocol:', url.substring(0, 50));
+    return '';
+  }
+
+  return url;
+}
+
+/**
+ * Sanitize an application object to prevent XSS
+ * @param {object} app - Application data
+ * @returns {object} - Sanitized application
+ */
+function sanitizeApplication(app) {
+  if (!app || typeof app !== 'object') return app;
+
+  const sanitized = { ...app };
+
+  // Sanitize text fields
+  const textFields = ['company', 'position', 'location', 'salary', 'notes', 'jobDescription'];
+  for (const field of textFields) {
+    if (sanitized[field]) {
+      sanitized[field] = sanitizeString(sanitized[field]);
+    }
+  }
+
+  // Sanitize URL field
+  if (sanitized.jobUrl) {
+    sanitized.jobUrl = sanitizeUrl(sanitized.jobUrl);
+  }
+
+  // Sanitize tags array
+  if (Array.isArray(sanitized.tags)) {
+    sanitized.tags = sanitized.tags.map(tag => sanitizeString(tag));
+  }
+
+  return sanitized;
+}
+
+/**
+ * Validate string length constraints
+ * @param {string} str - String to check
+ * @param {number} maxLength - Maximum allowed length
+ * @returns {boolean} - Whether string is within limits
+ */
+function isWithinLengthLimit(str, maxLength = 10000) {
+  return !str || typeof str !== 'string' || str.length <= maxLength;
+}
+
 // ==================== EXPORTS ====================
 
 const JobTrackerValidation = {
@@ -390,6 +582,11 @@ const JobTrackerValidation = {
   formatErrors: formatValidationErrors,
   ValidationResult,
   schemas,
+  // Sanitization functions
+  sanitizeString,
+  sanitizeUrl,
+  sanitizeApplication,
+  isWithinLengthLimit,
   // Constants
   APPLICATION_STATUSES,
   JOB_TYPES,

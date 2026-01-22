@@ -1,7 +1,22 @@
 /**
  * JobTracker Common Styles
  * Japanese Minimalist Design (Ma)
+ *
+ * CSS Layers Order:
+ * 1. reset - CSS reset and box-sizing
+ * 2. tokens - Design tokens (custom properties)
+ * 3. base - Base element styles
+ * 4. components - Component styles
+ * 5. utilities - Utility classes (lowest specificity in layer, but layer wins)
  */
+
+/* Cascade Layer Declaration */
+@layer reset, tokens, base, components, utilities;
+
+/* ========================================
+   Tokens Layer - Design Variables
+   ======================================== */
+@layer tokens {
 
 /* ========================================
    Light Theme (Default) - Japanese Minimalist
@@ -10,20 +25,25 @@
 [data-theme="light"] {
   /* Base Colors - Muted, natural Japanese palette */
   --color-primary: #5B7C99;
-  --color-primary-hover: #4A6B88;
-  --color-primary-light: #E8EEF3;
+  /* Using color-mix() for programmatic hover/light variants */
+  --color-primary-hover: color-mix(in oklch, var(--color-primary) 85%, black);
+  --color-primary-light: color-mix(in oklch, var(--color-primary) 15%, white);
 
   --color-success: #6B9080;
-  --color-success-light: #E5EDEA;
+  --color-success-hover: color-mix(in oklch, var(--color-success) 85%, black);
+  --color-success-light: color-mix(in oklch, var(--color-success) 15%, white);
 
   --color-warning: #C9A962;
-  --color-warning-light: #F5F0E3;
+  --color-warning-hover: color-mix(in oklch, var(--color-warning) 85%, black);
+  --color-warning-light: color-mix(in oklch, var(--color-warning) 15%, white);
 
   --color-danger: #B87B7B;
-  --color-danger-light: #F3E8E8;
+  --color-danger-hover: color-mix(in oklch, var(--color-danger) 85%, black);
+  --color-danger-light: color-mix(in oklch, var(--color-danger) 15%, white);
 
   --color-info: #8B8BB8;
-  --color-info-light: #EDEDF5;
+  --color-info-hover: color-mix(in oklch, var(--color-info) 85%, black);
+  --color-info-light: color-mix(in oklch, var(--color-info) 15%, white);
 
   /* Grays - Warmer, softer tones */
   --color-gray-50: #FAFAF9;
@@ -69,22 +89,26 @@
    Dark Theme - Japanese Minimalist
    ======================================== */
 [data-theme="dark"] {
-  /* Base Colors */
+  /* Base Colors - using color-mix() for consistent variants */
   --color-primary: #7B9CB8;
-  --color-primary-hover: #8DABC5;
-  --color-primary-light: #2A3540;
+  --color-primary-hover: color-mix(in oklch, var(--color-primary) 85%, white);
+  --color-primary-light: color-mix(in oklch, var(--color-primary) 25%, #1A1917);
 
   --color-success: #8BB0A0;
-  --color-success-light: #243530;
+  --color-success-hover: color-mix(in oklch, var(--color-success) 85%, white);
+  --color-success-light: color-mix(in oklch, var(--color-success) 25%, #1A1917);
 
   --color-warning: #D9C982;
-  --color-warning-light: #3A3528;
+  --color-warning-hover: color-mix(in oklch, var(--color-warning) 85%, white);
+  --color-warning-light: color-mix(in oklch, var(--color-warning) 25%, #1A1917);
 
   --color-danger: #C89B9B;
-  --color-danger-light: #3A2828;
+  --color-danger-hover: color-mix(in oklch, var(--color-danger) 85%, white);
+  --color-danger-light: color-mix(in oklch, var(--color-danger) 25%, #1A1917);
 
   --color-info: #A8A8D0;
-  --color-info-light: #2A2A3A;
+  --color-info-hover: color-mix(in oklch, var(--color-info) 85%, white);
+  --color-info-light: color-mix(in oklch, var(--color-info) 25%, #1A1917);
 
   /* Grays - Inverted for dark mode */
   --color-gray-50: #1A1917;
@@ -215,18 +239,24 @@
   --transition-normal: 0.2s ease; /* Alias for dashboard components */
 }
 
+} /* End @layer tokens */
+
 /* ========================================
    Reset
    ======================================== */
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+@layer reset {
+  *, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
 }
 
 /* ========================================
    Base Styles
    ======================================== */
+@layer base {
+
 body {
   font-family: var(--font-family);
   font-size: var(--font-size-base);
@@ -263,8 +293,72 @@ a:hover {
   text-decoration: underline;
 }
 
+} /* End @layer base */
+
 /* ========================================
-   Buttons
+   State-Driven Styles with :has()
+   ======================================== */
+@layer components {
+
+/* Form groups with invalid inputs */
+.form-group:has(input:invalid:not(:placeholder-shown)),
+.form-group:has(select:invalid:not(:placeholder-shown)) {
+  & label {
+    color: var(--color-danger);
+  }
+
+  & input,
+  & select {
+    border-color: var(--color-danger);
+
+    &:focus-visible {
+      box-shadow: 0 0 0 4px var(--color-danger-light);
+    }
+  }
+}
+
+/* Form groups with focused inputs - parent highlight */
+.form-group:has(:focus-visible) {
+  & label {
+    color: var(--color-primary);
+  }
+}
+
+/* Empty list states */
+.recent-list:has(.empty-state) {
+  min-block-size: 200px;
+  display: grid;
+  place-items: center;
+}
+
+/* Application card selection highlight */
+.app-card:has(input[type="checkbox"]:checked) {
+  background: var(--color-primary-light);
+  border-color: var(--color-primary);
+}
+
+/* Entry cards with delete confirmation pending */
+.entry-card:has(.delete-confirm:not(.hidden)) {
+  border-color: var(--color-danger);
+  background: var(--color-danger-light);
+}
+
+/* Disabled state styling for containers with disabled inputs */
+.setting-row:has(input:disabled),
+.setting-row:has(select:disabled) {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+} /* End :has() components layer */
+
+/* ========================================
+   Components Layer
+   ======================================== */
+@layer components {
+
+/* ========================================
+   Buttons (using CSS nesting)
    ======================================== */
 button, .btn {
   display: inline-flex;
@@ -280,58 +374,58 @@ button, .btn {
   border: none;
   cursor: pointer;
   transition: all var(--transition-base);
-}
 
-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 
-button svg, .btn svg {
-  display: block;
-  flex-shrink: 0;
+  & svg {
+    display: block;
+    flex-shrink: 0;
+  }
 }
 
 .btn-primary {
   background: var(--color-primary);
   color: white;
   box-shadow: var(--shadow-sm);
-}
 
-.btn-primary:hover:not(:disabled) {
-  background: var(--color-primary-hover);
-  box-shadow: var(--shadow);
-  transform: translateY(-1px);
+  &:hover:not(:disabled) {
+    background: var(--color-primary-hover);
+    box-shadow: var(--shadow);
+    transform: translateY(-1px);
+  }
 }
 
 .btn-secondary {
   background: transparent;
   color: var(--text-primary);
   border: 1px solid var(--border-color);
-}
 
-.btn-secondary:hover:not(:disabled) {
-  background: var(--bg-secondary);
-  border-color: var(--color-gray-300);
+  &:hover:not(:disabled) {
+    background: var(--bg-secondary);
+    border-color: var(--color-gray-300);
+  }
 }
 
 .btn-cancel {
   background: transparent;
   color: var(--text-secondary);
-}
 
-.btn-cancel:hover {
-  background: var(--bg-secondary);
+  &:hover {
+    background: var(--bg-secondary);
+  }
 }
 
 .btn-danger {
   background: var(--color-danger);
   color: white;
-}
 
-.btn-danger:hover:not(:disabled) {
-  background: var(--color-danger-light);
-  color: var(--color-danger);
+  &:hover:not(:disabled) {
+    background: var(--color-danger-light);
+    color: var(--color-danger);
+  }
 }
 
 .icon-btn {
@@ -339,11 +433,11 @@ button svg, .btn svg {
   background: transparent;
   color: var(--text-secondary);
   border-radius: var(--border-radius-sm);
-}
 
-.icon-btn:hover {
-  background: var(--bg-secondary);
-  color: var(--text-primary);
+  &:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+  }
 }
 
 .link-btn {
@@ -351,14 +445,14 @@ button svg, .btn svg {
   color: var(--color-primary);
   padding: 0;
   font-size: var(--font-size-sm);
-}
 
-.link-btn:hover {
-  text-decoration: underline;
+  &:hover {
+    text-decoration: underline;
+  }
 }
 
 /* ========================================
-   Form Elements
+   Form Elements (using CSS nesting)
    ======================================== */
 input, select, textarea {
   width: 100%;
@@ -370,12 +464,22 @@ input, select, textarea {
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
   transition: all var(--transition-base);
-}
 
-input:focus, select:focus, textarea:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 4px var(--color-primary-light);
+  /* Remove default focus, use focus-visible for keyboard navigation */
+  &:focus {
+    outline: none;
+  }
+
+  /* Focus-visible for keyboard navigation only */
+  &:focus-visible {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 4px var(--color-primary-light);
+  }
+
+  /* Fallback for browsers without focus-visible support */
+  &:focus:not(:focus-visible) {
+    border-color: var(--color-primary);
+  }
 }
 
 select {
@@ -442,13 +546,13 @@ label {
   font-size: var(--font-size-xs);
   font-weight: 500;
   color: var(--text-secondary);
-  margin-bottom: var(--space-xs);
+  margin-block-end: var(--space-xs);
   letter-spacing: var(--letter-spacing-wide);
   text-transform: uppercase;
 }
 
 .form-group {
-  margin-bottom: var(--space-lg);
+  margin-block-end: var(--space-lg);
 }
 
 .form-row {
@@ -476,7 +580,7 @@ label {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-sm);
-  margin-top: var(--space-lg);
+  margin-block-start: var(--space-lg);
 }
 
 /* ========================================
@@ -544,20 +648,18 @@ label {
    ======================================== */
 .modal {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0; /* Logical shorthand for top/right/bottom/left */
   background: rgba(26, 25, 23, 0.4);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-}
 
-.modal.hidden {
-  display: none;
+  &.hidden {
+    display: none;
+    content-visibility: hidden; /* Performance: skip rendering when hidden */
+  }
 }
 
 .modal-content {
@@ -591,10 +693,10 @@ label {
   padding: 0;
   line-height: 1;
   transition: color var(--transition-base);
-}
 
-.close-btn:hover {
-  color: var(--text-primary);
+  &:hover {
+    color: var(--text-primary);
+  }
 }
 
 .modal-content form {
@@ -679,28 +781,40 @@ label {
   font-size: var(--font-size-xs);
   cursor: pointer;
   transition: all var(--transition-base);
-}
 
-.theme-option:hover {
-  color: var(--text-primary);
-  background: var(--bg-tertiary);
-}
+  &:hover {
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+  }
 
-.theme-option.active {
-  background: var(--bg-primary);
-  color: var(--color-primary);
-  box-shadow: var(--shadow-sm);
+  &.active {
+    background: var(--bg-primary);
+    color: var(--color-primary);
+    box-shadow: var(--shadow-sm);
+  }
 }
 
 /* ========================================
-   Utilities
+   Utilities Layer
    ======================================== */
+@layer utilities {
+
+/* Hidden utility - !important needed to override non-layered styles */
+[hidden],
 .hidden {
   display: none !important;
 }
 
 .text-center {
-  text-align: center;
+  text-align: center; /* center is direction-neutral, no change needed */
+}
+
+.text-start {
+  text-align: start;
+}
+
+.text-end {
+  text-align: end;
 }
 
 .text-muted {
@@ -715,13 +829,30 @@ label {
   font-size: var(--font-size-xs);
 }
 
-.mt-sm { margin-top: var(--space-sm); }
-.mt-md { margin-top: var(--space-md); }
-.mt-lg { margin-top: var(--space-lg); }
+/* Block (vertical) margin utilities - using logical properties */
+.mt-sm { margin-block-start: var(--space-sm); }
+.mt-md { margin-block-start: var(--space-md); }
+.mt-lg { margin-block-start: var(--space-lg); }
 
-.mb-sm { margin-bottom: var(--space-sm); }
-.mb-md { margin-bottom: var(--space-md); }
-.mb-lg { margin-bottom: var(--space-lg); }
+.mb-sm { margin-block-end: var(--space-sm); }
+.mb-md { margin-block-end: var(--space-md); }
+.mb-lg { margin-block-end: var(--space-lg); }
+
+/* Inline (horizontal) margin utilities */
+.ms-sm { margin-inline-start: var(--space-sm); }
+.ms-md { margin-inline-start: var(--space-md); }
+.me-sm { margin-inline-end: var(--space-sm); }
+.me-md { margin-inline-end: var(--space-md); }
+
+} /* End @layer utilities */
+
+/* ========================================
+   Shared Animations
+   ======================================== */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
 
 /* ========================================
    Scrollbar
@@ -744,20 +875,23 @@ label {
   background: var(--color-gray-400);
 }
 
+} /* End @layer components */
+
 /* ========================================
    Model Download Toast
    ======================================== */
+@layer components {
 .model-download-toast {
   position: fixed;
-  bottom: var(--space-md);
-  right: var(--space-md);
+  inset-block-end: var(--space-md);
+  inset-inline-end: var(--space-md);
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-lg);
   padding: var(--space-md);
   box-shadow: var(--shadow-lg);
-  min-width: 320px;
-  max-width: 400px;
+  min-inline-size: 320px;
+  max-inline-size: 400px;
   z-index: 10000;
   animation: slideInRight 0.3s ease-out;
 }
@@ -1053,8 +1187,8 @@ label {
    ======================================== */
 .toast {
   position: fixed;
-  bottom: var(--space-md);
-  right: var(--space-md);
+  inset-block-end: var(--space-md);
+  inset-inline-end: var(--space-md);
   padding: var(--space-sm) var(--space-md);
   border-radius: var(--border-radius);
   font-size: var(--font-size-sm);
@@ -1140,4 +1274,86 @@ label {
 
 .modal-actions .btn-text:hover {
   color: var(--text-secondary);
+}
+
+} /* End @layer components */
+
+/* ========================================
+   Accessibility: Reduced Motion
+   ======================================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ========================================
+   Accessibility: High Contrast Mode
+   ======================================== */
+@media (prefers-contrast: high) {
+  :root {
+    --border-color: currentColor;
+    --border-color-light: currentColor;
+    --shadow-sm: none;
+    --shadow: none;
+    --shadow-md: none;
+    --shadow-lg: none;
+  }
+
+  .btn-primary,
+  .btn-secondary,
+  .btn-danger {
+    border: 2px solid currentColor;
+  }
+
+  .card,
+  .modal-content {
+    border-width: 2px;
+  }
+}
+
+/* ========================================
+   Print Styles
+   ======================================== */
+@media print {
+  .sidebar,
+  .dashboard-sidebar,
+  .floating-button,
+  #jobtracker-floating-btn,
+  .modal,
+  .header-actions,
+  .app-actions-menu,
+  .app-card-actions {
+    display: none !important;
+  }
+
+  body {
+    background: white;
+    color: black;
+    font-size: 12pt;
+  }
+
+  .card,
+  .app-card,
+  .stat-card {
+    box-shadow: none;
+    border: 1px solid #ccc;
+    break-inside: avoid;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: underline;
+  }
+
+  a[href]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.8em;
+    color: #666;
+  }
 }

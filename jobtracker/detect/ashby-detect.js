@@ -32,7 +32,10 @@
       if (window.__appData?.posting?.descriptionPlainText) {
         return window.__appData.posting.descriptionPlainText;
       }
-    } catch (e) {}
+    } catch (e) {
+      // __appData may not be accessible or have unexpected structure
+      console.warn('JobTracker: Failed to access __appData for description', e.message);
+    }
 
     // Fallback: Try common Ashby selectors
     const selectors = [
@@ -67,7 +70,10 @@
       if (window.__appData?.posting?.linkedData?.hiringOrganization?.name) {
         return window.__appData.posting.linkedData.hiringOrganization.name;
       }
-    } catch (e) {}
+    } catch (e) {
+      // __appData may not be accessible or have unexpected structure
+      console.warn('JobTracker: Failed to access __appData for company', e.message);
+    }
 
     // Try meta tags
     const metaOg = document.querySelector('meta[property="og:site_name"]');
@@ -100,7 +106,10 @@
       if (address) {
         return [address.addressLocality, address.addressCountry].filter(Boolean).join(', ');
       }
-    } catch (e) {}
+    } catch (e) {
+      // __appData may not be accessible or have unexpected structure
+      console.warn('JobTracker: Failed to access __appData for location', e.message);
+    }
 
     // Try common selectors
     const selectors = [
@@ -129,7 +138,10 @@
       if (window.__appData?.posting?.title) {
         return window.__appData.posting.title;
       }
-    } catch (e) {}
+    } catch (e) {
+      // __appData may not be accessible or have unexpected structure
+      console.warn('JobTracker: Failed to access __appData for title', e.message);
+    }
 
     // Try heading
     const heading = document.querySelector('.ashby-job-posting-heading, h1[class*="title"], h1');

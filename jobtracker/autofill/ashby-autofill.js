@@ -223,7 +223,10 @@
       try {
         const label = document.querySelector(`label[for="${CSS.escape(input.id)}"]`);
         if (label) return label.textContent;
-      } catch (e) {}
+      } catch (e) {
+        // CSS.escape may fail for certain input ids
+        console.warn('JobTracker: Label query failed for input', input.id, e.message);
+      }
     }
 
     // Strategy 5: Parent label
@@ -274,12 +277,18 @@
     }
 
     // Clear React's internal value tracker
+    // Set the cached previous value to something different from the new value
+    // so React detects the change
     try {
       const tracker = input._valueTracker;
       if (tracker) {
-        tracker.setValue('');
+        // Setting to empty string or placeholder depending on the new value
+        tracker.setValue(value ? '' : '_placeholder_');
       }
-    } catch (e) {}
+    } catch (e) {
+      // React value tracker may not exist in all frameworks
+      console.warn('JobTracker: Failed to clear React value tracker', e.message);
+    }
 
     // Dispatch events for framework compatibility
     dispatchInputEvents(input, value);
@@ -315,7 +324,10 @@
           bubbles: true,
           cancelable: true
         }));
-      } catch (e) {}
+      } catch (e) {
+        // KeyboardEvent may fail in some browser contexts
+        console.warn('JobTracker: Failed to dispatch keyboard events', e.message);
+      }
     }
 
     // Standard events

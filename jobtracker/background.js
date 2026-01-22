@@ -98,8 +98,8 @@ const VALID_MESSAGE_TYPES = new Set(Object.values(MessageTypes));
 // Validation constants (mirrors validation.js schemas)
 const APPLICATION_STATUSES = ['saved', 'applied', 'screening', 'interview', 'offer', 'rejected', 'withdrawn'];
 const PLATFORMS = ['linkedin', 'indeed', 'glassdoor', 'greenhouse', 'lever', 'workday', 'icims', 'smartrecruiters', 'naukri', 'other'];
-const INTERVIEW_OUTCOMES = ['pending', 'passed', 'failed', 'cancelled', 'Pending', 'Passed', 'Failed', 'Cancelled'];
-const TASK_PRIORITIES = ['low', 'medium', 'high'];
+const INTERVIEW_OUTCOMES = ['pending', 'passed', 'failed', 'cancelled'];
+const TASK_PRIORITIES = ['low', 'medium', 'high', 1, 2, 3, 4]; // Support both string and numeric (Planify-style) priorities
 
 // Helper to validate URL format
 function isValidUrl(string) {
@@ -117,6 +117,100 @@ function isValidISODate(string) {
   if (!string) return true; // Empty is allowed
   const date = new Date(string);
   return !isNaN(date.getTime());
+}
+
+// Helper to sanitize a string (XSS prevention)
+function sanitizeString(str) {
+  if (!str || typeof str !== 'string') return str;
+  return str
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/javascript:/gi, '')
+    .replace(/data:/gi, '')
+    .replace(/on\w+\s*=/gi, '');
+}
+
+// Helper to sanitize a URL
+function sanitizeUrl(url) {
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = url.trim().toLowerCase();
+  if (trimmed.startsWith('javascript:') || trimmed.startsWith('data:')) {
+    console.warn('JobTracker: Blocked potentially malicious URL');
+    return '';
+  }
+  return url;
+}
+
+// Sanitize application data before storing (deep sanitization)
+function sanitizeApplicationData(app) {
+  if (!app || typeof app !== 'object') return app;
+  const sanitized = { ...app };
+
+  // Sanitize text fields
+  const textFields = ['company', 'position', 'location', 'salary', 'notes', 'jobDescription'];
+  for (const field of textFields) {
+    if (sanitized[field]) {
+      sanitized[field] = sanitizeString(sanitized[field]);
+    }
+  }
+
+  // Sanitize URL
+  if (sanitized.jobUrl) {
+    sanitized.jobUrl = sanitizeUrl(sanitized.jobUrl);
+  }
+
+  // Sanitize tags array
+  if (Array.isArray(sanitized.tags)) {
+    sanitized.tags = sanitized.tags.map(tag => sanitizeString(tag));
+  }
+
+  // Sanitize nested meta object
+  if (sanitized.meta && typeof sanitized.meta === 'object') {
+    sanitized.meta = sanitizeObject(sanitized.meta);
+  }
+
+  // Sanitize custom fields if present
+  if (sanitized.customFields && typeof sanitized.customFields === 'object') {
+    sanitized.customFields = sanitizeObject(sanitized.customFields);
+  }
+
+  // Sanitize contacts array if present
+  if (Array.isArray(sanitized.contacts)) {
+    sanitized.contacts = sanitized.contacts.map(contact => {
+      if (typeof contact === 'object') {
+        return sanitizeObject(contact);
+      }
+      return sanitizeString(String(contact));
+    });
+  }
+
+  return sanitized;
+}
+
+// Recursively sanitize an object's string values
+function sanitizeObject(obj, visited = new WeakSet()) {
+  if (!obj || typeof obj !== 'object') return obj;
+  if (visited.has(obj)) return obj; // Prevent infinite recursion on circular refs
+  visited.add(obj);
+
+  if (Array.isArray(obj)) {
+    return obj.map(item => {
+      if (typeof item === 'string') return sanitizeString(item);
+      if (typeof item === 'object') return sanitizeObject(item, visited);
+      return item;
+    });
+  }
+  const result = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (typeof value === 'string') {
+      result[key] = sanitizeString(value);
+    } else if (typeof value === 'object' && value !== null) {
+      result[key] = sanitizeObject(value, visited);
+    } else {
+      result[key] = value;
+    }
+  }
+  return result;
 }
 
 // Validate message payload based on type
@@ -163,6 +257,24 @@ function validatePayload(type, payload) {
       if (payload.tags !== undefined && !Array.isArray(payload.tags)) {
         return { valid: false, error: 'Tags must be an array' };
       }
+      // Validate string length limits to prevent DoS
+      const stringFields = ['company', 'position', 'location', 'salary', 'notes', 'jobDescription'];
+      for (const field of stringFields) {
+        if (payload[field] && typeof payload[field] === 'string' && payload[field].length > 50000) {
+          return { valid: false, error: `${field} exceeds maximum length of 50000 characters` };
+        }
+      }
+      // Validate tags content
+      if (Array.isArray(payload.tags)) {
+        for (const tag of payload.tags) {
+          if (typeof tag !== 'string') {
+            return { valid: false, error: 'Each tag must be a string' };
+          }
+          if (tag.length > 100) {
+            return { valid: false, error: 'Tag exceeds maximum length of 100 characters' };
+          }
+        }
+      }
       break;
 
     case MessageTypes.DELETE_APPLICATION:
@@ -207,9 +319,14 @@ function validatePayload(type, payload) {
       if (type === MessageTypes.UPDATE_INTERVIEW && !payload.id) {
         return { valid: false, error: 'Interview update requires id' };
       }
-      // Validate outcome if provided
-      if (payload.outcome && !INTERVIEW_OUTCOMES.includes(payload.outcome)) {
-        return { valid: false, error: `Invalid outcome. Must be one of: ${INTERVIEW_OUTCOMES.join(', ')}` };
+      // Validate outcome if provided (normalize to lowercase for backwards compatibility)
+      if (payload.outcome) {
+        const normalizedOutcome = payload.outcome.toLowerCase();
+        if (!INTERVIEW_OUTCOMES.includes(normalizedOutcome)) {
+          return { valid: false, error: `Invalid outcome. Must be one of: ${INTERVIEW_OUTCOMES.join(', ')}` };
+        }
+        // Normalize the outcome to lowercase
+        payload.outcome = normalizedOutcome;
       }
       // Validate scheduled date format if provided
       if (payload.scheduledDate && !isValidISODate(payload.scheduledDate)) {
@@ -333,9 +450,26 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     console.log('JobTracker: Extension updated to version', chrome.runtime.getManifest().version);
     // Run migration from Chrome storage to IndexedDB
     try {
-      await JobTrackerDB.migrateFromChromeStorage();
+      const migrationResult = await JobTrackerDB.migrateFromChromeStorage();
+      if (migrationResult?.migrated) {
+        console.log('JobTracker: Migration completed successfully');
+      }
     } catch (error) {
-      console.log('JobTracker: Migration error', error);
+      console.error('JobTracker: Migration failed!', error);
+      // Store migration error for user notification
+      await chrome.storage.local.set({
+        'jobtracker_migration_error': {
+          message: error.message || 'Unknown migration error',
+          timestamp: new Date().toISOString(),
+          version: chrome.runtime.getManifest().version
+        }
+      });
+      // Show badge to alert user
+      chrome.action.setBadgeText({ text: '!' });
+      chrome.action.setBadgeBackgroundColor({ color: '#EF4444' }); // Red color for error
+      chrome.action.setTitle({
+        title: 'JobTracker: Migration error occurred. Click to see details.'
+      });
     }
   }
 });
@@ -344,9 +478,24 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 (async () => {
   try {
     await JobTrackerDB.init();
-    await JobTrackerDB.migrateFromChromeStorage();
+    const migrationResult = await JobTrackerDB.migrateFromChromeStorage();
+    if (migrationResult?.migrated) {
+      console.log('JobTracker: Startup migration completed successfully');
+    }
   } catch (error) {
-    console.log('JobTracker: Startup migration check failed', error);
+    console.error('JobTracker: Startup migration check failed', error);
+    // Store error for user notification without blocking extension startup
+    try {
+      await chrome.storage.local.set({
+        'jobtracker_migration_error': {
+          message: error.message || 'Unknown migration error',
+          timestamp: new Date().toISOString(),
+          context: 'startup'
+        }
+      });
+    } catch (storageError) {
+      console.error('JobTracker: Failed to store migration error', storageError);
+    }
   }
 })();
 
@@ -409,13 +558,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case MessageTypes.ADD_APPLICATION: {
-          response = await JobTrackerDB.addApplication(payload);
+          // Sanitize application data before storing
+          const sanitizedPayload = sanitizeApplicationData(payload);
+          response = await JobTrackerDB.addApplication(sanitizedPayload);
           applicationChannel.postMessage({ type: 'DATA_CHANGED', action: 'add' });
           break;
         }
 
         case MessageTypes.UPDATE_APPLICATION: {
-          response = await JobTrackerDB.updateApplication(payload);
+          // Sanitize application data before storing
+          const sanitizedUpdatePayload = sanitizeApplicationData(payload);
+          response = await JobTrackerDB.updateApplication(sanitizedUpdatePayload);
           applicationChannel.postMessage({ type: 'DATA_CHANGED', action: 'update' });
           break;
         }
@@ -825,7 +978,7 @@ function extractJobInfoFromText(text) {
 
   for (const pattern of salaryPatterns) {
     const match = text.match(pattern);
-    if (match) {
+    if (match?.[0]) {
       result.salary = match[0].trim();
       break;
     }
@@ -833,7 +986,7 @@ function extractJobInfoFromText(text) {
 
   // Job type patterns
   const jobTypeMatch = text.match(/\b(full[- ]?time|part[- ]?time|contract|freelance|internship|temporary|permanent)\b/i);
-  if (jobTypeMatch) {
+  if (jobTypeMatch?.[1]) {
     result.jobType = jobTypeMatch[1].toLowerCase().replace(/[- ]/g, '-');
   }
 
@@ -845,7 +998,7 @@ function extractJobInfoFromText(text) {
 
   for (const pattern of remotePatterns) {
     const match = text.match(pattern);
-    if (match) {
+    if (match?.[1]) {
       const value = match[1].toLowerCase();
       if (value.includes('remote') || value.includes('wfh') || value.includes('work from home')) {
         result.remote = 'remote';
@@ -866,7 +1019,7 @@ function extractJobInfoFromText(text) {
 
   for (const pattern of locationPatterns) {
     const match = text.match(pattern);
-    if (match && match[1]) {
+    if (match?.[1]) {
       result.location = match[1].trim();
       break;
     }
@@ -881,7 +1034,7 @@ function extractJobInfoFromText(text) {
 
   for (const pattern of companyPatterns) {
     const match = text.match(pattern);
-    if (match && match[1] && match[1].length < 50) {
+    if (match?.[1] && match[1].length < 50) {
       result.company = match[1].trim();
       break;
     }
@@ -896,7 +1049,7 @@ function extractJobInfoFromText(text) {
 
   for (const pattern of positionPatterns) {
     const match = text.match(pattern);
-    if (match && match[1] && match[1].length < 80) {
+    if (match?.[1] && match[1].length < 80) {
       result.position = match[1].trim();
       break;
     }

@@ -152,7 +152,10 @@
       try {
         const label = document.querySelector(`label[for="${CSS.escape(input.id)}"]`);
         if (label) return label.textContent;
-      } catch (e) {}
+      } catch (e) {
+        // CSS.escape may fail for certain input ids
+        console.warn('JobTracker: Label query failed for input', input.id, e.message);
+      }
     }
 
     // Strategy 5: Parent label
@@ -214,10 +217,15 @@
       element.value = value;
     }
 
-    // Clear React tracker
+    // Clear React tracker - set previous value to something different from new value
     try {
-      if (element._valueTracker) element._valueTracker.setValue('');
-    } catch (e) {}
+      if (element._valueTracker) {
+        element._valueTracker.setValue(value ? '' : '_placeholder_');
+      }
+    } catch (e) {
+      // React value tracker may not exist in all frameworks
+      console.warn('JobTracker: Failed to clear React value tracker', e.message);
+    }
 
     // Dispatch keyboard events
     dispatchKeyboardEvents(element, value);
@@ -235,7 +243,10 @@
     try {
       element.dispatchEvent(new KeyboardEvent('keydown', { key: lastChar, keyCode, bubbles: true }));
       element.dispatchEvent(new KeyboardEvent('keyup', { key: lastChar, keyCode, bubbles: true }));
-    } catch (e) {}
+    } catch (e) {
+      // KeyboardEvent may fail in some browser contexts
+      console.warn('JobTracker: Failed to dispatch keyboard events', e.message);
+    }
   }
 
   console.log('JobTracker: Lever autofill module loaded');

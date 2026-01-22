@@ -11,6 +11,61 @@ const ResumeParser = {
     TXT: 'txt'
   },
 
+  // File size limits (in bytes)
+  MAX_FILE_SIZE: 10 * 1024 * 1024, // 10 MB
+  MAX_FILE_SIZES_BY_TYPE: {
+    pdf: 10 * 1024 * 1024,  // 10 MB for PDFs
+    docx: 5 * 1024 * 1024,  // 5 MB for DOCX
+    txt: 1 * 1024 * 1024    // 1 MB for TXT
+  },
+
+  /**
+   * Validate file before parsing
+   * @param {File} file - The file object
+   * @param {string} fileType - Detected file type
+   * @throws {Error} - If validation fails
+   */
+  validateFile(file, fileType) {
+    // Check if file exists
+    if (!file) {
+      throw new Error('No file provided');
+    }
+
+    // Check file size
+    const maxSize = this.MAX_FILE_SIZES_BY_TYPE[fileType] || this.MAX_FILE_SIZE;
+    if (file.size > maxSize) {
+      const maxSizeMB = (maxSize / (1024 * 1024)).toFixed(1);
+      const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
+      throw new Error(`File too large (${fileSizeMB} MB). Maximum allowed size for ${fileType.toUpperCase()} files is ${maxSizeMB} MB.`);
+    }
+
+    // Check for zero-byte files
+    if (file.size === 0) {
+      throw new Error('The file appears to be empty. Please select a valid resume file.');
+    }
+
+    // Validate MIME type matches extension
+    const mimeType = file.type.toLowerCase();
+    const extension = file.name.split('.').pop().toLowerCase();
+
+    // MIME type validation for security
+    const validMimeTypes = {
+      pdf: ['application/pdf'],
+      docx: ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+      txt: ['text/plain', '']
+    };
+
+    if (validMimeTypes[fileType] && validMimeTypes[fileType].length > 0) {
+      // Allow empty MIME type for TXT files (some browsers don't set it)
+      if (!validMimeTypes[fileType].includes(mimeType) && mimeType !== '') {
+        console.warn(`JobTracker: MIME type mismatch - expected ${validMimeTypes[fileType].join(' or ')}, got ${mimeType}`);
+        // Don't throw error, just warn - some browsers report incorrect MIME types
+      }
+    }
+
+    console.log(`[ResumeParser] File validated: ${file.name}, size: ${(file.size / 1024).toFixed(1)} KB, type: ${fileType}`);
+  },
+
   /**
    * Parse a resume file and extract structured data
    * @param {File} file - The file object from file input
@@ -22,6 +77,9 @@ const ResumeParser = {
     if (!fileType) {
       throw new Error(`Unsupported file type: ${file.name}. Please use PDF, DOCX, or TXT files.`);
     }
+
+    // Validate file size and type
+    this.validateFile(file, fileType);
 
     // For PDFs, use SmartResumeParser (better accuracy)
     if (fileType === this.FILE_TYPES.PDF && typeof SmartResumeParser !== 'undefined') {
@@ -42,8 +100,8 @@ const ResumeParser = {
 
     const result = await SmartResumeParser.parse(file);
 
-    // Split the name into first/last
-    const nameParts = ProfileExtractor.splitName(result.profile.name);
+    // Split the name into first/last (use local method)
+    const nameParts = this.splitName(result.profile.name);
 
     // Convert to our expected format
     const extractedData = {
@@ -128,8 +186,8 @@ const ResumeParser = {
       }
     };
 
-    // Normalize to profile schema
-    const normalizedData = ResumeDataNormalizer.normalize(extractedData);
+    // Normalize to profile schema (inline normalization)
+    const normalizedData = this.normalizeExtractedData(extractedData);
 
     return {
       raw: '[Parsed with SmartResumeParser]',
@@ -170,13 +228,23 @@ const ResumeParser = {
     // Extract text based on file type
     switch (fileType) {
       case this.FILE_TYPES.PDF:
-        rawText = await ResumePDFParser.parse(file);
+        // PDF parsing requires pdf.js library
+        if (typeof pdfjsLib !== 'undefined') {
+          rawText = await this.extractPdfText(file);
+        } else {
+          throw new Error('PDF parsing is not available. Please use the SmartResumeParser for PDF files.');
+        }
         break;
       case this.FILE_TYPES.DOCX:
-        rawText = await ResumeDOCXParser.parse(file);
+        // DOCX parsing requires mammoth library
+        if (typeof mammoth !== 'undefined') {
+          rawText = await this.extractDocxText(file);
+        } else {
+          throw new Error('DOCX parsing is not available. Please install required dependencies.');
+        }
         break;
       case this.FILE_TYPES.TXT:
-        rawText = await ResumeTXTParser.parse(file);
+        rawText = await this.extractTxtText(file);
         break;
     }
 
@@ -184,20 +252,141 @@ const ResumeParser = {
       throw new Error('Could not extract text from the file. Please ensure the file contains readable text.');
     }
 
-    // Detect sections in the resume
-    const sections = ResumeSectionDetector.detectSections(rawText);
+    // Detect sections in the resume using basic pattern matching
+    const sections = this.detectSections(rawText);
 
-    // Extract fields from sections
-    const extractedData = ResumeFieldExtractor.extractAll(rawText, sections);
+    // Extract fields from sections using basic extraction
+    const extractedData = this.extractFields(rawText, sections);
 
     // Normalize to profile schema
-    const normalizedData = ResumeDataNormalizer.normalize(extractedData);
+    const normalizedData = this.normalizeExtractedData(extractedData);
 
     return {
       raw: rawText,
       sections: sections,
       extracted: extractedData,
       normalized: normalizedData
+    };
+  },
+
+  /**
+   * Extract text from PDF file using pdf.js
+   */
+  async extractPdfText(file) {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    let text = '';
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      text += content.items.map(item => item.str).join(' ') + '\n';
+    }
+    return text;
+  },
+
+  /**
+   * Extract text from DOCX file using mammoth
+   */
+  async extractDocxText(file) {
+    const arrayBuffer = await file.arrayBuffer();
+    const result = await mammoth.extractRawText({ arrayBuffer });
+    return result.value;
+  },
+
+  /**
+   * Extract text from TXT file
+   */
+  async extractTxtText(file) {
+    return await file.text();
+  },
+
+  /**
+   * Detect sections in resume text using pattern matching
+   */
+  detectSections(text) {
+    const sections = {};
+    const sectionHeaders = [
+      { name: 'contact', patterns: [/^(?:contact|personal)\s*(?:info(?:rmation)?)?/im] },
+      { name: 'summary', patterns: [/^(?:summary|objective|profile|about)/im] },
+      { name: 'experience', patterns: [/^(?:experience|work\s*(?:history|experience)?|employment)/im] },
+      { name: 'education', patterns: [/^(?:education|academic|qualifications)/im] },
+      { name: 'skills', patterns: [/^(?:skills|technical\s*skills|competenc)/im] },
+      { name: 'certifications', patterns: [/^(?:certifications?|licenses?)/im] },
+      { name: 'projects', patterns: [/^(?:projects?|portfolio)/im] }
+    ];
+
+    for (const { name, patterns } of sectionHeaders) {
+      for (const pattern of patterns) {
+        const match = text.match(pattern);
+        if (match) {
+          sections[name] = { start: match.index, name };
+          break;
+        }
+      }
+    }
+
+    return sections;
+  },
+
+  /**
+   * Extract fields from resume text
+   */
+  extractFields(text, sections) {
+    const extracted = {
+      personal: {},
+      workHistory: [],
+      education: [],
+      skills: { languages: [], frameworks: [], tools: [], soft: [] }
+    };
+
+    // Extract email
+    const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+    if (emailMatch) {
+      extracted.personal.email = emailMatch[0];
+    }
+
+    // Extract phone
+    const phoneMatch = text.match(/(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/);
+    if (phoneMatch) {
+      extracted.personal.phone = phoneMatch[0];
+    }
+
+    // Extract LinkedIn
+    const linkedInMatch = text.match(/linkedin\.com\/in\/[\w-]+/i);
+    if (linkedInMatch) {
+      extracted.personal.linkedIn = 'https://' + linkedInMatch[0];
+    }
+
+    // Extract GitHub
+    const githubMatch = text.match(/github\.com\/[\w-]+/i);
+    if (githubMatch) {
+      extracted.personal.github = 'https://' + githubMatch[0];
+    }
+
+    return extracted;
+  },
+
+  /**
+   * Normalize extracted data to profile schema
+   */
+  normalizeExtractedData(data) {
+    if (!data) return {};
+
+    return {
+      personal: {
+        firstName: data.personal?.firstName || '',
+        middleName: data.personal?.middleName || '',
+        lastName: data.personal?.lastName || '',
+        email: data.personal?.email || '',
+        phone: data.personal?.phone || '',
+        linkedIn: data.personal?.linkedIn || '',
+        github: data.personal?.github || '',
+        portfolio: data.personal?.portfolio || '',
+        location: data.personal?.location || ''
+      },
+      workHistory: data.workHistory || [],
+      education: data.education || [],
+      skills: data.skills || { languages: [], frameworks: [], tools: [], soft: [] }
     };
   },
 
@@ -429,7 +618,7 @@ const ResumeParser = {
       }
 
       // Re-normalize with enhanced data
-      enhanced.normalized = ResumeDataNormalizer.normalize(enhanced.extracted);
+      enhanced.normalized = this.normalizeExtractedData(enhanced.extracted);
 
       console.log('[ResumeParser] AI enhancement complete');
       return enhanced;

@@ -2,13 +2,45 @@
  * JobTracker Floating Button Styles
  * Japanese Minimalist Design (Ma)
  * Injected into all pages
+ *
+ * Uses CSS custom properties scoped to #jobtracker-floating-btn
+ * for self-contained theming that works on any page
  */
 
-/* Floating Button Container */
+/* Design tokens scoped to floating button container */
 #jobtracker-floating-btn {
+  /* Light mode colors (default) */
+  --jt-color-primary: #5B7C99;
+  --jt-color-primary-hover: color-mix(in oklch, var(--jt-color-primary) 85%, black);
+  --jt-color-success: #6B9080;
+  --jt-color-success-hover: color-mix(in oklch, var(--jt-color-success) 85%, black);
+  --jt-color-success-light: color-mix(in oklch, var(--jt-color-success) 15%, white);
+  --jt-color-warning: #C9A962;
+  --jt-color-warning-light: color-mix(in oklch, var(--jt-color-warning) 15%, white);
+  --jt-color-danger: #B87B7B;
+  --jt-color-danger-light: color-mix(in oklch, var(--jt-color-danger) 15%, white);
+  --jt-color-info-light: color-mix(in oklch, var(--jt-color-primary) 15%, white);
+
+  --jt-bg-primary: #FDFCFB;
+  --jt-bg-secondary: #F7F6F4;
+  --jt-bg-hover: #F0EFED;
+  --jt-text-primary: #2A2826;
+  --jt-text-secondary: #5C5955;
+  --jt-text-muted: #A8A5A0;
+  --jt-border-color: #E8E6E3;
+  --jt-border-light: #F0EFED;
+
+  --jt-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  --jt-shadow-lg: 0 8px 32px rgba(26, 25, 23, 0.12);
+  --jt-radius: 0.625rem;
+  --jt-radius-lg: 0.875rem;
+  --jt-radius-full: 50px;
+  --jt-transition: 0.25s ease;
+
+  /* Layout */
   position: fixed;
-  bottom: clamp(1rem, 3vw, 1.5rem);
-  right: clamp(1rem, 3vw, 1.5rem);
+  inset-block-end: clamp(1rem, 3vw, 1.5rem);
+  inset-inline-end: clamp(1rem, 3vw, 1.5rem);
   z-index: 2147483647;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans',
                'Noto Sans JP', Roboto, Oxygen, Ubuntu, sans-serif;
@@ -19,9 +51,10 @@
 /* Button Group */
 .jobtracker-btn-group {
   display: flex;
-  border-radius: 50px;
+  border-radius: var(--jt-radius-full);
   overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--jt-shadow);
+  will-change: transform; /* Performance hint for animations */
 }
 
 /* "I Applied" Button */
@@ -30,33 +63,33 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1.125rem;
-  background: linear-gradient(135deg, #6B9080 0%, #5A8070 100%);
+  background: linear-gradient(135deg, var(--jt-color-success), var(--jt-color-success-hover));
   color: white;
   border: none;
   cursor: pointer;
   font-size: 0.875rem;
   font-weight: 500;
   letter-spacing: 0.03em;
-  transition: all 0.25s ease;
+  transition: all var(--jt-transition);
   white-space: nowrap;
-}
 
-.jobtracker-btn-applied:hover {
-  background: linear-gradient(135deg, #7BA090 0%, #6A9080 100%);
-}
+  &:hover {
+    filter: brightness(1.1);
+  }
 
-.jobtracker-btn-applied:active {
-  transform: scale(0.98);
-}
+  &:active {
+    transform: scale(0.98);
+  }
 
-.jobtracker-btn-applied.applied {
-  background: #E5EDEA;
-  color: #6B9080;
-  cursor: default;
-}
+  &.applied {
+    background: var(--jt-color-success-light);
+    color: var(--jt-color-success);
+    cursor: default;
+  }
 
-.jobtracker-btn-applied svg {
-  flex-shrink: 0;
+  & svg {
+    flex-shrink: 0;
+  }
 }
 
 /* Main Autofill Button */
@@ -65,26 +98,26 @@
   align-items: center;
   justify-content: center;
   padding: 0.75rem 0.875rem;
-  background: linear-gradient(135deg, #5B7C99 0%, #4A6B88 100%);
+  background: linear-gradient(135deg, var(--jt-color-primary), var(--jt-color-primary-hover));
   color: white;
   border: none;
-  border-left: 1px solid rgba(255, 255, 255, 0.2);
+  border-inline-start: 1px solid rgba(255, 255, 255, 0.2);
   cursor: pointer;
   font-size: 0.875rem;
   font-weight: 500;
-  transition: all 0.25s ease;
-}
+  transition: all var(--jt-transition);
 
-.jobtracker-btn-main:hover {
-  background: linear-gradient(135deg, #6B8CA9 0%, #5A7B98 100%);
-}
+  &:hover {
+    filter: brightness(1.1);
+  }
 
-.jobtracker-btn-main:active {
-  transform: scale(0.98);
-}
+  &:active {
+    transform: scale(0.98);
+  }
 
-.jobtracker-btn-main svg {
-  flex-shrink: 0;
+  & svg {
+    flex-shrink: 0;
+  }
 }
 
 /* Menu Toggle Button */
@@ -93,38 +126,38 @@
   align-items: center;
   justify-content: center;
   padding: 0.75rem;
-  background: linear-gradient(135deg, #5B7C99 0%, #4A6B88 100%);
+  background: linear-gradient(135deg, var(--jt-color-primary), var(--jt-color-primary-hover));
   color: white;
   border: none;
-  border-left: 1px solid rgba(255, 255, 255, 0.2);
+  border-inline-start: 1px solid rgba(255, 255, 255, 0.2);
   cursor: pointer;
-  transition: all 0.25s ease;
-}
+  transition: all var(--jt-transition);
 
-.jobtracker-btn-menu-toggle:hover {
-  background: linear-gradient(135deg, #6B8CA9 0%, #5A7B98 100%);
-}
+  &:hover {
+    filter: brightness(1.1);
+  }
 
-.jobtracker-btn-menu-toggle svg {
-  flex-shrink: 0;
+  & svg {
+    flex-shrink: 0;
+  }
 }
 
 /* Menu */
 .jobtracker-btn-menu {
   position: absolute;
-  bottom: calc(100% + 0.75rem);
-  right: 0;
-  background: #FDFCFB;
-  border: 1px solid #E8E6E3;
-  border-radius: 0.875rem;
-  box-shadow: 0 8px 32px rgba(26, 25, 23, 0.12);
-  min-width: 12.5rem;
+  inset-block-end: calc(100% + 0.75rem);
+  inset-inline-end: 0;
+  background: var(--jt-bg-primary);
+  border: 1px solid var(--jt-border-color);
+  border-radius: var(--jt-radius-lg);
+  box-shadow: var(--jt-shadow-lg);
+  min-inline-size: 12.5rem;
   overflow: hidden;
   animation: jobtracker-menu-in 0.2s ease;
-}
 
-.jobtracker-btn-menu.hidden {
-  display: none;
+  &.hidden {
+    display: none;
+  }
 }
 
 @keyframes jobtracker-menu-in {
@@ -142,51 +175,57 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  width: 100%;
+  inline-size: 100%;
   padding: 0.875rem 1.125rem;
   background: none;
   border: none;
-  color: #2A2826;
+  color: var(--jt-text-primary);
   font-size: 0.875rem;
   font-weight: 500;
   letter-spacing: 0.01em;
   cursor: pointer;
   transition: background 0.2s ease;
-  text-align: left;
-}
+  text-align: start;
 
-.jobtracker-menu-item:hover {
-  background: #F7F6F4;
-}
+  &:hover {
+    background: var(--jt-bg-secondary);
+  }
 
-.jobtracker-menu-item svg {
-  color: #5C5955;
-  flex-shrink: 0;
-}
+  & svg {
+    color: var(--jt-text-secondary);
+    flex-shrink: 0;
+  }
 
-.jobtracker-menu-item:not(:last-child) {
-  border-bottom: 1px solid #F0EFED;
+  &:not(:last-child) {
+    border-block-end: 1px solid var(--jt-border-light);
+  }
 }
 
 /* Notification */
 #jobtracker-notification,
 .jobtracker-notification {
+  /* Local design tokens for notifications (standalone element) */
+  --jt-bg-primary: #FDFCFB;
+  --jt-border-color: #E8E6E3;
+  --jt-text-primary: #2A2826;
+  --jt-shadow-lg: 0 8px 32px rgba(26, 25, 23, 0.12);
+
   position: fixed;
-  top: clamp(1rem, 3vw, 1.5rem);
-  right: clamp(1rem, 3vw, 1.5rem);
+  inset-block-start: clamp(1rem, 3vw, 1.5rem);
+  inset-inline-end: clamp(1rem, 3vw, 1.5rem);
   z-index: 2147483647;
   display: flex;
   align-items: center;
   gap: 0.75rem;
   padding: 0.875rem 1.25rem;
-  background: #FDFCFB;
-  border: 1px solid #E8E6E3;
+  background: var(--jt-bg-primary);
+  border: 1px solid var(--jt-border-color);
   border-radius: 0.75rem;
-  box-shadow: 0 8px 32px rgba(26, 25, 23, 0.12);
+  box-shadow: var(--jt-shadow-lg);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans',
                'Noto Sans JP', Roboto, Oxygen, Ubuntu, sans-serif;
   font-size: 0.875rem;
-  color: #2A2826;
+  color: var(--jt-text-primary);
   animation: jobtracker-notification-in 0.3s ease;
 }
 
@@ -474,88 +513,60 @@
   background: linear-gradient(135deg, #7BA090 0%, #6A9080 100%);
 }
 
-/* Dark mode support */
+/* Dark mode support - simplified with CSS custom property overrides */
 @media (prefers-color-scheme: dark) {
-  .jobtracker-btn-group {
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  #jobtracker-floating-btn {
+    /* Override design tokens for dark mode */
+    --jt-color-primary: #7B9CB8;
+    --jt-color-primary-hover: color-mix(in oklch, var(--jt-color-primary) 85%, white);
+    --jt-color-success: #8BB0A0;
+    --jt-color-success-hover: color-mix(in oklch, var(--jt-color-success) 85%, white);
+    --jt-color-success-light: color-mix(in oklch, var(--jt-color-success) 25%, #1A1917);
+    --jt-color-warning: #D9C982;
+    --jt-color-warning-light: color-mix(in oklch, var(--jt-color-warning) 25%, #1A1917);
+    --jt-color-danger: #C89B9B;
+    --jt-color-danger-light: color-mix(in oklch, var(--jt-color-danger) 25%, #1A1917);
+    --jt-color-info-light: color-mix(in oklch, var(--jt-color-primary) 25%, #1A1917);
+
+    --jt-bg-primary: #1A1917;
+    --jt-bg-secondary: #242321;
+    --jt-bg-hover: #2E2D2A;
+    --jt-text-primary: #F5F4F2;
+    --jt-text-secondary: #A8A5A0;
+    --jt-text-muted: #6B6863;
+    --jt-border-color: #3D3B38;
+    --jt-border-light: #2E2D2A;
+
+    --jt-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    --jt-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.35);
   }
 
-  .jobtracker-btn-applied {
-    background: linear-gradient(135deg, #7BA090 0%, #6A9080 100%);
-  }
-
-  .jobtracker-btn-applied:hover {
-    background: linear-gradient(135deg, #8BB0A0 0%, #7AA090 100%);
-  }
-
-  .jobtracker-btn-applied.applied {
-    background: #243530;
-    color: #8BB0A0;
-  }
-
-  .jobtracker-btn-main {
-    background: linear-gradient(135deg, #7B9CB8 0%, #6B8CA8 100%);
-  }
-
-  .jobtracker-btn-main:hover {
-    background: linear-gradient(135deg, #8BACB8 0%, #7B9CB8 100%);
-  }
-
-  .jobtracker-btn-menu-toggle {
-    background: linear-gradient(135deg, #7B9CB8 0%, #6B8CA8 100%);
-  }
-
-  .jobtracker-btn-menu-toggle:hover {
-    background: linear-gradient(135deg, #8BACB8 0%, #7B9CB8 100%);
-  }
-
-  .jobtracker-btn-menu {
-    background: #1A1917;
-    border-color: #3D3B38;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
-  }
-
-  .jobtracker-menu-item {
-    color: #F5F4F2;
-  }
-
-  .jobtracker-menu-item:hover {
-    background: #242321;
-  }
-
-  .jobtracker-menu-item svg {
-    color: #A8A5A0;
-  }
-
-  .jobtracker-menu-item:not(:last-child) {
-    border-bottom-color: #2E2D2A;
-  }
-
+  /* Notification dark mode tokens */
   #jobtracker-notification,
   .jobtracker-notification {
-    background: #1A1917;
-    color: #F5F4F2;
-    border-color: #3D3B38;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+    --jt-bg-primary: #1A1917;
+    --jt-border-color: #3D3B38;
+    --jt-text-primary: #F5F4F2;
+    --jt-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.35);
   }
 
   .jobtracker-notification-success .jobtracker-notification-icon {
-    background: #243530;
+    background: color-mix(in oklch, #8BB0A0 25%, #1A1917);
     color: #8BB0A0;
   }
 
   .jobtracker-notification-error .jobtracker-notification-icon {
-    background: #3A2828;
+    background: color-mix(in oklch, #C89B9B 25%, #1A1917);
     color: #C89B9B;
   }
 
   .jobtracker-notification-warning .jobtracker-notification-icon {
-    background: #3A3528;
+    background: color-mix(in oklch, #D9C982 25%, #1A1917);
     color: #D9C982;
   }
 
   .jobtracker-notification-info .jobtracker-notification-icon {
-    background: #2A3540;
+    background: color-mix(in oklch, #7B9CB8 25%, #1A1917);
     color: #7B9CB8;
   }
 
@@ -571,64 +582,66 @@
 
   .jobtracker-quick-add-header {
     border-bottom-color: #3D3B38;
-  }
 
-  .jobtracker-quick-add-header h3 {
-    color: #F5F4F2;
+    & h3 {
+      color: #F5F4F2;
+    }
   }
 
   .jobtracker-quick-add-close {
     color: #A8A5A0;
+
+    &:hover {
+      background: #2E2D2A;
+    }
   }
 
-  .jobtracker-quick-add-close:hover {
-    background: #2E2D2A;
-  }
+  .jobtracker-quick-add-field {
+    & label {
+      color: #F5F4F2;
+    }
 
-  .jobtracker-quick-add-field label {
-    color: #F5F4F2;
-  }
+    & input {
+      background: #242321;
+      border-color: #3D3B38;
+      color: #F5F4F2;
 
-  .jobtracker-quick-add-field input {
-    background: #242321;
-    border-color: #3D3B38;
-    color: #F5F4F2;
-  }
+      &:focus {
+        border-color: #7BA090;
+        box-shadow: 0 0 0 3px rgba(123, 160, 144, 0.2);
+      }
 
-  .jobtracker-quick-add-field input:focus {
-    border-color: #7BA090;
-    box-shadow: 0 0 0 3px rgba(123, 160, 144, 0.2);
-  }
+      &::placeholder {
+        color: #6B6863;
+      }
+    }
 
-  .jobtracker-quick-add-field input::placeholder {
-    color: #6B6863;
-  }
+    & select {
+      background-color: #242321;
+      border-color: #3D3B38;
+      color: #F5F4F2;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23A8A5A0' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
 
-  .jobtracker-quick-add-field select {
-    background-color: #242321;
-    border-color: #3D3B38;
-    color: #F5F4F2;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23A8A5A0' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-  }
+      &:focus {
+        border-color: #7BA090;
+        box-shadow: 0 0 0 3px rgba(123, 160, 144, 0.2);
+      }
+    }
 
-  .jobtracker-quick-add-field select:focus {
-    border-color: #7BA090;
-    box-shadow: 0 0 0 3px rgba(123, 160, 144, 0.2);
-  }
+    & textarea {
+      background: #242321;
+      border-color: #3D3B38;
+      color: #F5F4F2;
 
-  .jobtracker-quick-add-field textarea {
-    background: #242321;
-    border-color: #3D3B38;
-    color: #F5F4F2;
-  }
+      &:focus {
+        border-color: #7BA090;
+        box-shadow: 0 0 0 3px rgba(123, 160, 144, 0.2);
+      }
 
-  .jobtracker-quick-add-field textarea:focus {
-    border-color: #7BA090;
-    box-shadow: 0 0 0 3px rgba(123, 160, 144, 0.2);
-  }
-
-  .jobtracker-quick-add-field textarea::placeholder {
-    color: #6B6863;
+      &::placeholder {
+        color: #6B6863;
+      }
+    }
   }
 
   .jobtracker-optional-label {
@@ -643,18 +656,18 @@
     background: #2E2D2A;
     border-color: #3D3B38;
     color: #A8A5A0;
-  }
 
-  .jobtracker-quick-add-cancel:hover {
-    background: #3A3937;
+    &:hover {
+      background: #3A3937;
+    }
   }
 
   .jobtracker-quick-add-save {
-    background: linear-gradient(135deg, #7BA090 0%, #6A9080 100%);
-  }
+    background: linear-gradient(135deg, #7BA090, #6A9080);
 
-  .jobtracker-quick-add-save:hover {
-    background: linear-gradient(135deg, #8BB0A0 0%, #7AA090 100%);
+    &:hover {
+      filter: brightness(1.1);
+    }
   }
 }
 

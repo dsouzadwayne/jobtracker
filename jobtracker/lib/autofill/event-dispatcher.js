@@ -7,13 +7,18 @@ const JobTrackerEventDispatcher = {
   /**
    * Clear React's internal value tracker
    * React uses _valueTracker to track input changes for synthetic events
+   * Setting the previous value to empty string forces React to see the change
    * @param {HTMLElement} input - Input element
+   * @param {string} newValue - The new value being set (optional)
    */
-  clearReactValueTracker(input) {
+  clearReactValueTracker(input, newValue) {
     try {
       const tracker = input._valueTracker;
       if (tracker) {
-        tracker.setValue('');
+        // Set the cached "previous" value to something different from the new value
+        // This makes React detect the change when comparing values
+        const previousValue = newValue ? '' : '_placeholder_';
+        tracker.setValue(previousValue);
       }
     } catch (e) {
       // Silently ignore if tracker doesn't exist
@@ -29,7 +34,10 @@ const JobTrackerEventDispatcher = {
     // Focus the element first
     try {
       element.focus();
-    } catch (e) {}
+    } catch (e) {
+      // Element may not be focusable
+      console.warn('JobTracker: Failed to focus element', e.message);
+    }
 
     // Dispatch keyboard events (important for Angular/Vue)
     this.dispatchKeyboardEvents(element, value);
@@ -54,7 +62,42 @@ const JobTrackerEventDispatcher = {
       element.dispatchEvent(reactInputEvent);
     } catch (e) {
       // InputEvent might not be supported in older browsers
+      console.warn('JobTracker: InputEvent not supported', e.message);
     }
+  },
+
+  /**
+   * Get the correct KeyboardEvent.code for a character
+   * @param {string} char - Single character
+   * @returns {string} - The keyboard code
+   */
+  getKeyCode(char) {
+    if (char === ' ') return 'Space';
+    if (char === '\t') return 'Tab';
+    if (char === '\n' || char === '\r') return 'Enter';
+
+    // Digits: 0-9 -> Digit0-Digit9
+    if (/^[0-9]$/.test(char)) return `Digit${char}`;
+
+    // Letters: a-z, A-Z -> KeyA-KeyZ
+    if (/^[a-zA-Z]$/.test(char)) return `Key${char.toUpperCase()}`;
+
+    // Common punctuation/symbols
+    const codeMap = {
+      '-': 'Minus',
+      '=': 'Equal',
+      '[': 'BracketLeft',
+      ']': 'BracketRight',
+      '\\': 'Backslash',
+      ';': 'Semicolon',
+      "'": 'Quote',
+      '`': 'Backquote',
+      ',': 'Comma',
+      '.': 'Period',
+      '/': 'Slash'
+    };
+
+    return codeMap[char] || `Key${char.toUpperCase()}`;
   },
 
   /**
@@ -72,7 +115,7 @@ const JobTrackerEventDispatcher = {
 
     const keyboardEventInit = {
       key: lastChar,
-      code: lastChar === ' ' ? 'Space' : `Key${lastChar.toUpperCase()}`,
+      code: this.getKeyCode(lastChar),
       keyCode: keyCode,
       which: keyCode,
       charCode: keyCode,
@@ -86,6 +129,7 @@ const JobTrackerEventDispatcher = {
       element.dispatchEvent(new KeyboardEvent('keyup', keyboardEventInit));
     } catch (e) {
       // KeyboardEvent constructor might fail in some environments
+      console.warn('JobTracker: KeyboardEvent dispatch failed', e.message);
     }
   },
 
@@ -105,7 +149,10 @@ const JobTrackerEventDispatcher = {
         bubbles: true
       });
       select.dispatchEvent(keyEvent);
-    } catch (e) {}
+    } catch (e) {
+      // KeyboardEvent for select may fail in some browsers
+      console.warn('JobTracker: Select keyboard event failed', e.message);
+    }
 
     // Standard events
     select.dispatchEvent(new Event('change', { bubbles: true }));
@@ -128,15 +175,39 @@ const JobTrackerEventDispatcher = {
 
   /**
    * Detect if page is using React
+   * Uses multiple detection methods for reliability
    * @returns {boolean}
    */
   isReactPage() {
-    return !!(
-      document.querySelector('[data-reactroot]') ||
-      document.querySelector('[data-react-checksum]') ||
-      window.__REACT_DEVTOOLS_GLOBAL_HOOK__ ||
-      Object.keys(document.documentElement).some(key => key.startsWith('__react'))
-    );
+    // Check for React DevTools hook (most reliable)
+    if (window.__REACT_DEVTOOLS_GLOBAL_HOOK__) return true;
+
+    // Check for data-reactroot attribute
+    if (document.querySelector('[data-reactroot]')) return true;
+
+    // Check for React internal properties on DOM elements
+    // Modern React uses __reactFiber$ or __reactInternalInstance$ prefixes
+    try {
+      const rootEl = document.getElementById('root') || document.getElementById('app') || document.body;
+      if (rootEl) {
+        const keys = Object.keys(rootEl);
+        if (keys.some(key =>
+          key.startsWith('__reactFiber$') ||
+          key.startsWith('__reactInternalInstance$') ||
+          key.startsWith('__reactContainer$') ||
+          key.startsWith('__reactProps$')
+        )) {
+          return true;
+        }
+      }
+    } catch (e) {
+      // Ignore errors when checking properties
+    }
+
+    // Check for React 18's createRoot marker
+    if (document.querySelector('[data-reactroot]')) return true;
+
+    return false;
   },
 
   /**

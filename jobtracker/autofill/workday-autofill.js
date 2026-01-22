@@ -100,7 +100,10 @@
                 break;
               }
             }
-          } catch (e) {}
+          } catch (e) {
+            // Selector query may fail for certain complex selectors
+            console.warn('JobTracker: Selector query failed', selector, e.message);
+          }
         }
       }
 
@@ -197,7 +200,10 @@
       try {
         const label = document.querySelector(`label[for="${CSS.escape(input.id)}"]`);
         if (label) return label.textContent;
-      } catch (e) {}
+      } catch (e) {
+        // CSS.escape may fail for certain input ids
+        console.warn('JobTracker: Label query failed for input', input.id, e.message);
+      }
     }
 
     const parentLabel = input.closest('label');
@@ -217,6 +223,11 @@
 
   // Fallback fill function
   function fillField(element, value) {
+    // Validate element is an HTMLElement
+    if (!element || !(element instanceof HTMLElement)) {
+      console.warn('JobTracker: fillField called with invalid element');
+      return false;
+    }
     const tagName = element.tagName.toLowerCase();
 
     if (tagName === 'select') {
@@ -241,8 +252,15 @@
     if (setter) setter.call(element, value);
     else element.value = value;
 
-    // Clear React tracker
-    try { if (element._valueTracker) element._valueTracker.setValue(''); } catch (e) {}
+    // Clear React tracker - set previous value to something different from new value
+    try {
+      if (element._valueTracker) {
+        element._valueTracker.setValue(value ? '' : '_placeholder_');
+      }
+    } catch (e) {
+      // React value tracker may not exist in all frameworks
+      console.warn('JobTracker: Failed to clear React value tracker', e.message);
+    }
 
     // Dispatch keyboard events
     dispatchKeyboardEvents(element, value);
@@ -260,7 +278,10 @@
     try {
       element.dispatchEvent(new KeyboardEvent('keydown', { key: lastChar, keyCode, bubbles: true }));
       element.dispatchEvent(new KeyboardEvent('keyup', { key: lastChar, keyCode, bubbles: true }));
-    } catch (e) {}
+    } catch (e) {
+      // KeyboardEvent may fail in some browser contexts
+      console.warn('JobTracker: Failed to dispatch keyboard events', e.message);
+    }
   }
 
   function delay(ms) {

@@ -33,13 +33,15 @@
   letter-spacing: var(--letter-spacing-tight);
 }
 
-/* Stats Section - Compact */
+/* Stats Section - Compact with Container Queries */
 .stats-section {
   padding: var(--space-sm) var(--space-md);
   background: var(--bg-secondary);
   display: flex;
   align-items: center;
   gap: var(--space-md);
+  container-type: inline-size;
+  container-name: stats;
 }
 
 .stat-card.total {
@@ -81,11 +83,11 @@
   border-radius: var(--border-radius);
   border: 1px solid var(--border-color-light);
   transition: all var(--transition-base);
-}
 
-.stat-item:hover {
-  border-color: var(--color-primary);
-  box-shadow: var(--shadow-sm);
+  &:hover {
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-sm);
+  }
 }
 
 .stat-item .stat-number {
@@ -124,23 +126,23 @@
   background: var(--color-primary);
   color: white;
   box-shadow: var(--shadow-sm);
-}
 
-.action-btn.primary:hover {
-  background: var(--color-primary-hover);
-  box-shadow: var(--shadow);
-  transform: translateY(-1px);
+  &:hover {
+    background: var(--color-primary-hover);
+    box-shadow: var(--shadow);
+    transform: translateY(-1px);
+  }
 }
 
 .action-btn.secondary {
   background: transparent;
   color: var(--text-primary);
   border: 1px solid var(--border-color);
-}
 
-.action-btn.secondary:hover {
-  background: var(--bg-secondary);
-  border-color: var(--color-gray-300);
+  &:hover {
+    background: var(--bg-secondary);
+    border-color: var(--color-gray-300);
+  }
 }
 
 .action-btn svg {
@@ -151,18 +153,18 @@
 .action-btn.track-btn {
   background: linear-gradient(135deg, #10b981, #059669);
   position: relative;
-}
 
-.action-btn.track-btn:hover {
-  background: linear-gradient(135deg, #059669, #047857);
-  box-shadow: var(--shadow);
-  transform: translateY(-1px);
-}
+  &:hover {
+    background: linear-gradient(135deg, #059669, #047857);
+    box-shadow: var(--shadow);
+    transform: translateY(-1px);
+  }
 
-.action-btn.track-btn:disabled {
-  opacity: 0.8;
-  cursor: wait;
-  transform: none;
+  &:disabled {
+    opacity: 0.8;
+    cursor: wait;
+    transform: none;
+  }
 }
 
 .action-btn .btn-text,
@@ -181,10 +183,7 @@
   animation: spin 1s linear infinite;
 }
 
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
+/* Note: @keyframes spin is defined in common.css */
 
 /* Recent Section */
 .recent-section {
@@ -214,9 +213,11 @@
   flex: 1;
   overflow-y: auto;
   padding: var(--space-sm) var(--space-md);
+  container-type: inline-size;
+  container-name: recent-list;
 }
 
-/* Application Item */
+/* Application Item with container query support */
 .app-item {
   display: flex;
   align-items: flex-start;
@@ -225,10 +226,27 @@
   border-radius: var(--border-radius);
   cursor: pointer;
   transition: all var(--transition-base);
+  content-visibility: auto; /* Performance: skip rendering when off-screen */
+  contain-intrinsic-size: auto 80px; /* Estimated height for off-screen items */
+
+  &:hover {
+    background: var(--bg-secondary);
+  }
 }
 
-.app-item:hover {
-  background: var(--bg-secondary);
+/* Container query for compact app items */
+@container recent-list (max-width: 300px) {
+  .app-item {
+    gap: var(--space-sm);
+    padding: var(--space-sm);
+  }
+
+  .app-icon {
+    inline-size: 2rem;
+    block-size: 2rem;
+    min-inline-size: 2rem;
+    font-size: var(--font-size-base);
+  }
 }
 
 .app-icon {
@@ -307,9 +325,7 @@
   animation: spin 1s linear infinite;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
+/* Note: @keyframes spin is defined in common.css */
 
 /* Responsive adjustments for popup */
 @media (max-width: 360px) {
@@ -390,6 +406,27 @@
 
   .stat-grid {
     width: 100%;
+  }
+}
+
+/* Container Queries for Stats Section */
+@container stats (max-width: 280px) {
+  .stat-card.total {
+    min-inline-size: 100%;
+  }
+
+  .stat-grid {
+    inline-size: 100%;
+  }
+}
+
+@container stats (min-width: 350px) {
+  .stat-card.total {
+    min-inline-size: 6rem;
+  }
+
+  .stat-item {
+    padding: var(--space-sm) var(--space-md);
   }
 }
 

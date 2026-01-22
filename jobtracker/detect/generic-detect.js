@@ -66,6 +66,7 @@
       }
     } catch (e) {
       // __appData not available or parsing failed
+      console.warn('JobTracker: __appData extraction failed', e.message);
     }
 
     // Strategy 1: JSON-LD structured data
@@ -83,6 +84,7 @@
         }
       } catch (e) {
         // JSON-LD parsing failed for this script, continue with others
+        console.warn('JobTracker: JSON-LD parsing failed', e.message);
       }
     }
 
@@ -160,7 +162,10 @@
             info.position = el.textContent.trim();
             break;
           }
-        } catch (e) {}
+        } catch (e) {
+          // Selector query may fail for complex selectors
+          console.warn('JobTracker: Selector query failed', selector, e.message);
+        }
       }
     }
 
@@ -180,7 +185,10 @@
               break;
             }
           }
-        } catch (e) {}
+        } catch (e) {
+          // Selector query may fail for complex selectors
+          console.warn('JobTracker: Selector query failed', selector, e.message);
+        }
       }
     }
 
@@ -192,7 +200,10 @@
             info.location = el.textContent.trim();
             break;
           }
-        } catch (e) {}
+        } catch (e) {
+          // Selector query may fail for complex selectors
+          console.warn('JobTracker: Selector query failed', selector, e.message);
+        }
       }
     }
 
@@ -209,9 +220,11 @@
       // Standard format: "Job Title - Company" or "Job Title | Company"
       else {
         const titleParts = title.split(/[-|–—]/);
-        if (titleParts.length >= 2) {
-          if (!info.position) info.position = titleParts[0].trim();
-          if (!info.company) info.company = titleParts[1].trim();
+        if (titleParts.length >= 1 && !info.position && titleParts[0]) {
+          info.position = titleParts[0].trim();
+        }
+        if (titleParts.length >= 2 && !info.company && titleParts[1]) {
+          info.company = titleParts[1].trim();
         }
       }
     }
@@ -243,7 +256,10 @@
             info.jobDescription = el.innerText.trim();
             break;
           }
-        } catch (e) {}
+        } catch (e) {
+          // Selector query may fail for complex selectors
+          console.warn('JobTracker: Selector query failed', selector, e.message);
+        }
       }
     }
 

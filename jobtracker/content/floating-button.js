@@ -226,10 +226,13 @@
       });
     });
 
-    // Close menu when clicking elsewhere
-    document.addEventListener('click', () => {
+    // Close menu when clicking elsewhere - store handler for cleanup
+    const closeMenuHandler = () => {
       menu.classList.add('hidden');
-    });
+    };
+    document.addEventListener('click', closeMenuHandler);
+    // Store handler reference for potential cleanup
+    floatingButton._closeMenuHandler = closeMenuHandler;
 
     // Make draggable
     makeDraggable(floatingButton);
@@ -357,7 +360,7 @@
   function getCurrentLinkedInJobId() {
     // Try to get job ID from URL first
     const jobIdMatch = window.location.href.match(/\/jobs\/view\/(\d+)/);
-    if (jobIdMatch) {
+    if (jobIdMatch?.[1]) {
       return jobIdMatch[1];
     }
 
@@ -375,9 +378,13 @@
     }
 
     // Check parent li elements with data-occludable-job-id
-    const activeListItem = document.querySelector('li[data-occludable-job-id]:has(.jobs-search-results-list__list-item--active)');
-    if (activeListItem) {
-      return activeListItem.getAttribute('data-occludable-job-id');
+    // Note: Using fallback approach since :has() isn't supported in all browsers
+    const activeElement = document.querySelector('.jobs-search-results-list__list-item--active');
+    if (activeElement) {
+      const activeListItem = activeElement.closest('li[data-occludable-job-id]');
+      if (activeListItem) {
+        return activeListItem.getAttribute('data-occludable-job-id');
+      }
     }
 
     return null;
@@ -496,15 +503,15 @@
 
       document.body.appendChild(quickAddModal);
 
-      // Focus first empty field
+      // Focus first empty field (with null checks)
       const companyInput = quickAddModal.querySelector('#jt-company');
       const positionInput = quickAddModal.querySelector('#jt-position');
       const descriptionInput = quickAddModal.querySelector('#jt-description');
-      if (!companyInput.value) {
+      if (companyInput && !companyInput.value) {
         companyInput.focus();
-      } else if (!positionInput.value) {
+      } else if (positionInput && !positionInput.value) {
         positionInput.focus();
-      } else {
+      } else if (companyInput) {
         companyInput.focus();
       }
 
@@ -673,6 +680,25 @@
 
     // Platform-specific selectors
     const platformSelectors = {
+      linkedin: {
+        company: [
+          '.job-details-jobs-unified-top-card__company-name a',
+          '.jobs-unified-top-card__company-name a',
+          '.jobs-details-top-card__company-url',
+          '.hirer-card__hirer-information a[href*="/company/"]'
+        ],
+        position: [
+          '.job-details-jobs-unified-top-card__job-title h1',
+          '.job-details-jobs-unified-top-card__job-title a',
+          '.jobs-unified-top-card__job-title h1',
+          '.jobs-unified-top-card__job-title'
+        ],
+        location: [
+          '.job-details-jobs-unified-top-card__tertiary-description-container .tvm__text--low-emphasis:first-child',
+          '.job-details-jobs-unified-top-card__bullet',
+          '.jobs-unified-top-card__bullet'
+        ]
+      },
       naukri: {
         company: [
           '.styles_jd-header-comp-name__MvqAI > a',
@@ -746,7 +772,10 @@
             company = el.textContent.trim();
             break;
           }
-        } catch (e) {}
+        } catch (e) {
+          // Selector query may fail for complex selectors
+          console.warn('JobTracker: Selector query failed', selector, e.message);
+        }
       }
     }
 
@@ -758,7 +787,10 @@
             position = el.textContent.trim();
             break;
           }
-        } catch (e) {}
+        } catch (e) {
+          // Selector query may fail for complex selectors
+          console.warn('JobTracker: Selector query failed', selector, e.message);
+        }
       }
     }
 
@@ -774,7 +806,10 @@
               .join(', ');
             if (location) break;
           }
-        } catch (e) {}
+        } catch (e) {
+          // Selector query may fail for complex selectors
+          console.warn('JobTracker: Selector query failed', selector, e.message);
+        }
       }
     }
 
@@ -820,6 +855,10 @@
   // Hide button
   function hideButton() {
     if (floatingButton) {
+      // Clean up event listener to prevent memory leak
+      if (floatingButton._closeMenuHandler) {
+        document.removeEventListener('click', floatingButton._closeMenuHandler);
+      }
       floatingButton.remove();
       floatingButton = null;
     }
@@ -865,6 +904,22 @@
 
     document.addEventListener('mouseup', () => {
       if (isDragging) {
+        isDragging = false;
+        element.style.transition = '';
+      }
+    });
+
+    // Also reset drag state if mouse leaves the window
+    window.addEventListener('blur', () => {
+      if (isDragging) {
+        isDragging = false;
+        element.style.transition = '';
+      }
+    });
+
+    // Handle mouse leaving the document/viewport
+    document.addEventListener('mouseout', (e) => {
+      if (!e.relatedTarget && isDragging) {
         isDragging = false;
         element.style.transition = '';
       }

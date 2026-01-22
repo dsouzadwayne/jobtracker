@@ -72,7 +72,11 @@
           if (jobLocation?.address) {
             const addr = jobLocation.address;
             if (Array.isArray(addr.addressLocality)) {
-              info.location = addr.addressLocality.join(', ');
+              // Ensure all items are strings before joining
+              info.location = addr.addressLocality
+                .map(item => typeof item === 'string' ? item : String(item || ''))
+                .filter(Boolean)
+                .join(', ');
             } else {
               info.location = [addr.addressLocality, addr.addressRegion].filter(Boolean).join(', ');
             }
@@ -177,7 +181,7 @@
 
     // Try to get job ID from URL
     const jobIdMatch = window.location.href.match(/job-listings[^-]*-(\d+)/);
-    if (jobIdMatch) {
+    if (jobIdMatch?.[1]) {
       info.jobId = jobIdMatch[1];
     }
 

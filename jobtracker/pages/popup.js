@@ -441,7 +441,10 @@ async function handleTrackJob() {
                   break;
                 }
               }
-            } catch (e) {}
+            } catch (e) {
+              // JSON-LD parsing may fail for malformed data
+              console.warn('JobTracker: JSON-LD parsing failed in popup', e.message);
+            }
 
             // Try common selectors
             if (!result.position) {
@@ -604,11 +607,40 @@ async function handleTrackJob() {
 
   } catch (error) {
     console.log('[Popup] Track job error:', error);
-    alert(error.message || 'Failed to scan page. Please try again.');
+    // Show user-friendly error message without exposing internal details
+    const userMessage = getUserFriendlyErrorMessage(error);
+    alert(userMessage);
 
     // Reset button state on error
     btn.disabled = false;
     btnText.classList.remove('hidden');
     btnLoading.classList.add('hidden');
   }
+}
+
+/**
+ * Convert error to user-friendly message
+ */
+function getUserFriendlyErrorMessage(error) {
+  const message = error?.message || '';
+
+  // Map known errors to user-friendly messages
+  if (message.includes('duplicate') || message.includes('already exists')) {
+    return 'This job has already been tracked.';
+  }
+  if (message.includes('network') || message.includes('fetch') || message.includes('Failed to fetch')) {
+    return 'Network error. Please check your connection and try again.';
+  }
+  if (message.includes('permission') || message.includes('access denied')) {
+    return 'Permission error. Please refresh the page and try again.';
+  }
+  if (message.includes('database') || message.includes('IndexedDB')) {
+    return 'Storage error. Please try again or clear browser data.';
+  }
+  if (message.includes('not found') || message.includes('no job')) {
+    return 'Could not detect job information on this page.';
+  }
+
+  // Default message
+  return 'Failed to track job. Please try again.';
 }

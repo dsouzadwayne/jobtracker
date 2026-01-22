@@ -58,9 +58,9 @@
    * Extract structured data from JSON-LD if available
    */
   function extractJsonLd() {
-    try {
-      const scripts = document.querySelectorAll('script[type="application/ld+json"]');
-      for (const script of scripts) {
+    const scripts = document.querySelectorAll('script[type="application/ld+json"]');
+    for (const script of scripts) {
+      try {
         const data = JSON.parse(script.textContent);
 
         // Handle array of items
@@ -79,9 +79,11 @@
             };
           }
         }
+      } catch (e) {
+        // Log individual JSON-LD parsing errors for debugging
+        console.log('JobTracker: Failed to parse JSON-LD script:', e.message);
+        // Continue to try other JSON-LD scripts
       }
-    } catch (e) {
-      // JSON-LD parsing failed
     }
     return null;
   }
@@ -122,7 +124,11 @@
         if (value.minValue && value.maxValue) {
           return `${currency} ${value.minValue} - ${value.maxValue}`;
         }
-        return `${currency} ${value.value || value.minValue || value.maxValue || ''}`;
+        const singleValue = value.value || value.minValue || value.maxValue;
+        if (singleValue) {
+          return `${currency} ${singleValue}`;
+        }
+        return '';
       }
 
       return `${currency} ${value}`;
@@ -154,7 +160,7 @@
 
     for (const pattern of salaryPatterns) {
       const match = text.match(pattern);
-      if (match) {
+      if (match?.[0]) {
         result.salary = match[0];
         break;
       }
@@ -162,13 +168,13 @@
 
     // Job type patterns
     const jobTypeMatch = text.match(/\b(full[- ]?time|part[- ]?time|contract|freelance|internship|temporary)\b/i);
-    if (jobTypeMatch) {
+    if (jobTypeMatch?.[1]) {
       result.jobType = jobTypeMatch[1].toLowerCase().replace(/[- ]/g, '-');
     }
 
     // Remote patterns
     const remoteMatch = text.match(/\b(remote|hybrid|on[- ]?site|in[- ]?office)\b/i);
-    if (remoteMatch) {
+    if (remoteMatch?.[1]) {
       result.remote = remoteMatch[1].toLowerCase().replace(/[- ]/g, '-');
     }
 
@@ -258,14 +264,14 @@
     if (!jobInfo.position && pageTitle) {
       // Common title patterns: "Job Title - Company" or "Job Title | Company"
       const titleParts = pageTitle.split(/[-|–—]/);
-      if (titleParts.length >= 1) {
+      if (titleParts.length >= 1 && titleParts[0]) {
         const potentialPosition = titleParts[0].trim();
         // Only use if it looks like a job title (not too long, no obvious non-job words)
         if (potentialPosition.length < 100 && !potentialPosition.match(/home|login|sign|error/i)) {
           jobInfo.position = potentialPosition;
         }
       }
-      if (titleParts.length >= 2 && !jobInfo.company) {
+      if (titleParts.length >= 2 && titleParts[1] && !jobInfo.company) {
         const potentialCompany = titleParts[1].trim();
         if (potentialCompany.length < 50) {
           jobInfo.company = potentialCompany;
