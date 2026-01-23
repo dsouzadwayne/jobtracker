@@ -8,7 +8,7 @@ import {
   getCurrentView, setCurrentView, getCachedSettings, setCachedSettings,
   getFilteredApplications, getSelectedAppId
 } from './state.js';
-import { escapeHtml, formatDate, formatDateRelative, capitalizeStatus, sanitizeStatus } from './utils.js';
+import { escapeHtml, safeText, formatDate, formatDateRelative, capitalizeStatus, sanitizeStatus } from './utils.js';
 
 // References to external functions (set during initialization)
 let selectAppCallback = null;
@@ -151,9 +151,9 @@ export function createAppCard(app) {
   card.dataset.id = escapeHtml(app.id);
 
   const initial = escapeHtml((app.company || 'U')[0].toUpperCase());
-  const appliedDate = app.dateApplied || app.meta?.createdAt || new Date().toISOString();
-  const dateStr = formatDate(appliedDate);
-  const relativeTime = formatDateRelative(appliedDate);
+  const appliedDate = app.dateApplied || app.meta?.createdAt;
+  const dateStr = appliedDate ? formatDate(appliedDate) : 'Unknown';
+  const relativeTime = appliedDate ? formatDateRelative(appliedDate) : '';
   const statusClass = `status-${sanitizeStatus(app.status)}`;
 
   // CRM Enhancement: Deadline badge
@@ -166,8 +166,8 @@ export function createAppCard(app) {
     <div class="app-card-header">
       <div class="app-icon">${initial}</div>
       <div class="app-info">
-        <div class="app-company">${escapeHtml(app.company || 'Unknown Company')}</div>
-        <div class="app-position">${escapeHtml(app.position || 'Unknown Position')}</div>
+        <div class="app-company">${safeText(app.company || 'Unknown Company')}</div>
+        <div class="app-position">${safeText(app.position || 'Unknown Position')}</div>
       </div>
       <span class="status-badge ${statusClass}" aria-label="Status: ${escapeHtml(capitalizeStatus(app.status))}">${escapeHtml(capitalizeStatus(app.status))}</span>
     </div>
@@ -182,7 +182,7 @@ export function createAppCard(app) {
         </svg>
         ${escapeHtml(relativeTime || dateStr)}
       </span>
-      ${app.location ? `<span class="app-location">${escapeHtml(app.location)}</span>` : ''}
+      ${app.location ? `<span class="app-location">${safeText(app.location)}</span>` : ''}
       ${deadlineBadge}
     </div>
     <div class="app-card-actions">
@@ -239,22 +239,22 @@ export function renderTable() {
 
     const tableInitial = escapeHtml((app.company || 'U')[0].toUpperCase());
     const tableStatusClass = `status-${sanitizeStatus(app.status)}`;
-    const tableAppliedDate = app.dateApplied || app.meta?.createdAt || new Date().toISOString();
-    const tableDateStr = formatDate(tableAppliedDate);
-    const tableRelativeTime = formatDateRelative(tableAppliedDate);
+    const tableAppliedDate = app.dateApplied || app.meta?.createdAt;
+    const tableDateStr = tableAppliedDate ? formatDate(tableAppliedDate) : 'Unknown';
+    const tableRelativeTime = tableAppliedDate ? formatDateRelative(tableAppliedDate) : '';
 
     row.innerHTML = `
       <td>
         <div class="table-company">
           <span class="table-icon">${tableInitial}</span>
-          <span>${escapeHtml(app.company || 'Unknown')}</span>
+          <span>${safeText(app.company || 'Unknown')}</span>
         </div>
       </td>
-      <td>${escapeHtml(app.position || 'Unknown')}</td>
+      <td>${safeText(app.position || 'Unknown')}</td>
       <td><span class="status-badge ${tableStatusClass}">${escapeHtml(capitalizeStatus(app.status))}</span></td>
       <td title="${escapeHtml(tableDateStr)}">${escapeHtml(tableRelativeTime || tableDateStr)}</td>
-      <td>${escapeHtml(app.location || '-')}</td>
-      <td>${escapeHtml(app.salary || '-')}</td>
+      <td>${safeText(app.location || '-')}</td>
+      <td>${safeText(app.salary || '-')}</td>
       <td class="table-actions">
         <button class="action-btn edit-btn" title="Edit" aria-label="Edit ${escapeHtml(app.company || 'application')}">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -301,7 +301,7 @@ export function renderTable() {
 }
 
 // Export applications to CSV
-export function exportToCSV() {
+export async function exportToCSV() {
   const filteredApplications = getFilteredApplications();
 
   const headers = [
@@ -309,7 +309,7 @@ export function exportToCSV() {
     'Location', 'Salary', 'Job Type', 'Remote', 'URL', 'Job Description', 'Notes', 'Platform'
   ];
 
-  const rows = filteredApplications.map(app => [
+  const formatRow = (app) => [
     app.company || '',
     app.position || '',
     app.status || '',
@@ -322,11 +322,22 @@ export function exportToCSV() {
     (app.jobDescription || '').replace(/[\n\r]+/g, ' '),
     (app.notes || '').replace(/[\n\r]+/g, ' '),
     app.platform || ''
-  ]);
+  ];
 
-  const csvContent = [headers, ...rows]
-    .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-    .join('\n');
+  const escapeCSV = (row) => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',');
+
+  let csvContent = escapeCSV(headers) + '\n';
+  const CHUNK_SIZE = 100;
+
+  for (let i = 0; i < filteredApplications.length; i += CHUNK_SIZE) {
+    const chunk = filteredApplications.slice(i, i + CHUNK_SIZE);
+    csvContent += chunk.map(app => escapeCSV(formatRow(app))).join('\n') + '\n';
+
+    // Yield to main thread between chunks
+    if (i + CHUNK_SIZE < filteredApplications.length) {
+      await new Promise(r => setTimeout(r, 0));
+    }
+  }
 
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);

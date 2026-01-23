@@ -19,6 +19,43 @@
     InputFillers: window.JobTrackerInputFillers,
     FormDetector: window.JobTrackerFormDetector,
 
+    // Enhanced detection modules (lazy-loaded)
+    _enhancedDetectionLoaded: false,
+
+    /**
+     * Lazy-load and initialize enhanced detection module
+     * @returns {Promise<Object|null>} EnhancedDetection module or null
+     */
+    async initEnhancedDetection() {
+      if (this._enhancedDetectionLoaded) {
+        return window.EnhancedDetection;
+      }
+
+      // Check if modules are available
+      if (!window.EnhancedDetection) {
+        console.log('JobTracker: Enhanced detection module not loaded');
+        return null;
+      }
+
+      try {
+        await window.EnhancedDetection.init();
+        this._enhancedDetectionLoaded = true;
+        console.log('JobTracker: Enhanced detection initialized');
+        return window.EnhancedDetection;
+      } catch (error) {
+        console.warn('JobTracker: Failed to initialize enhanced detection:', error.message);
+        return null;
+      }
+    },
+
+    /**
+     * Get enhanced detection module (sync access)
+     * @returns {Object|null} EnhancedDetection module or null
+     */
+    getEnhancedDetection() {
+      return window.EnhancedDetection || null;
+    },
+
     // Convenience accessors
     get CERTAINTY_LEVELS() {
       return this.FieldPatterns?.CERTAINTY_LEVELS;
@@ -30,6 +67,32 @@
 
     get ATTRIBUTE_PRIORITY() {
       return this.FieldPatterns?.ATTRIBUTE_PRIORITY;
+    },
+
+    // Enhanced detection accessors
+    get EnhancedDetection() {
+      return window.EnhancedDetection;
+    },
+
+    get JSONLDFormHints() {
+      return window.JSONLDFormHints;
+    },
+
+    get ReadabilityContext() {
+      return window.ReadabilityContext;
+    },
+
+    get NLPLabelAnalyzer() {
+      return window.NLPLabelAnalyzer;
+    },
+
+    /**
+     * Clear all enhanced detection caches (useful for SPA navigation)
+     */
+    clearEnhancedDetectionCache() {
+      if (window.EnhancedDetection) {
+        window.EnhancedDetection.clearCache();
+      }
     }
   };
 
@@ -200,5 +263,10 @@
     window.JobTrackerFormUtils = JobTrackerFormUtils;
   }
 
-  console.log('JobTracker: Autofill modules loaded (modular architecture)');
+  // Initialize enhanced detection on load (async, non-blocking)
+  if (window.EnhancedDetection) {
+    window.EnhancedDetection.init().catch(() => {});
+  }
+
+  console.log('JobTracker: Autofill modules loaded (modular architecture with enhanced detection)');
 })();

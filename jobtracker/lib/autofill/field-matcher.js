@@ -50,6 +50,15 @@ const JobTrackerFieldMatcherModule = {
       matches.push(this._enrichMatch(customMatch, profile));
     }
 
+    // Stage 0.5: Enhanced detection (JSON-LD + NLP + Readability)
+    // Runs before exact attributes to improve field recognition on unsupported sites
+    if (strategies.matchByEnhancedDetection) {
+      const enhancedMatch = strategies.matchByEnhancedDetection(input, profile);
+      if (enhancedMatch) {
+        matches.push(this._enrichMatch(enhancedMatch, profile));
+      }
+    }
+
     // Stage 1: Check data-automation-id and autocomplete (highest certainty)
     if (settings.matchDataAttributes) {
       const exactMatch = strategies.matchByExactAttribute(input, profile);

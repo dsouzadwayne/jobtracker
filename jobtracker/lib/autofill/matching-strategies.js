@@ -20,6 +20,61 @@ const JobTrackerMatchingStrategies = {
     return window.JobTrackerAutocompleteMap;
   },
 
+  _getEnhancedDetection() {
+    return window.EnhancedDetection;
+  },
+
+  /**
+   * Match by enhanced detection (JSON-LD + NLP + Readability)
+   * Uses semantic analysis for improved field recognition on unsupported sites
+   * @param {HTMLElement} input - Input element
+   * @param {Object} profile - User profile
+   * @returns {Object|null} Match object or null
+   */
+  matchByEnhancedDetection(input, profile) {
+    const enhancedDetection = this._getEnhancedDetection();
+    const patterns = this._getPatterns();
+    const labelDetector = this._getLabelDetector();
+
+    // Check if enhanced detection is available
+    if (!enhancedDetection || !enhancedDetection.isAvailable()) {
+      return null;
+    }
+
+    // Ensure enhanced detection is initialized
+    if (!enhancedDetection._initialized) {
+      enhancedDetection.init().catch(() => {});
+      return null; // Will work on next attempt after init
+    }
+
+    // Get label text
+    const labelText = labelDetector ? labelDetector.getLabelText(input) : '';
+
+    // Analyze field using enhanced detection
+    const result = enhancedDetection.analyzeField(input, labelText);
+
+    if (!result || !result.fieldType) {
+      return null;
+    }
+
+    // Minimum confidence threshold (0.6)
+    if (result.confidence < 0.60) {
+      return null;
+    }
+
+    // Verify field type exists in patterns
+    if (patterns?.FIELD_PATTERNS && !patterns.FIELD_PATTERNS[result.fieldType]) {
+      return null;
+    }
+
+    return {
+      fieldType: result.fieldType,
+      certainty: result.confidence,
+      source: `enhanced-${result.source}`,
+      signals: result.signals
+    };
+  },
+
   /**
    * Match by exact attributes (data-automation-id, autocomplete, data-testid)
    * Highest certainty matching

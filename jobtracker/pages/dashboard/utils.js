@@ -5,12 +5,27 @@
 
 import { VALID_STATUSES } from './state.js';
 
+// Decode HTML entities in text
+export function decodeHtmlEntities(str) {
+  if (!str) return '';
+  const textarea = document.createElement('textarea');
+  textarea.innerHTML = str;
+  return textarea.value;
+}
+
 // Escape HTML to prevent XSS
 export function escapeHtml(str) {
   if (!str) return '';
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
+}
+
+// Decode HTML entities then escape for safe display
+// Use this for data that may contain HTML entities from web scraping
+export function safeText(str) {
+  if (!str) return '';
+  return escapeHtml(decodeHtmlEntities(str));
 }
 
 // Format date for display
@@ -188,8 +203,39 @@ export function showNotification(message, type = 'info') {
 export function formatJobDescription(text) {
   if (!text) return '';
 
-  // Escape HTML first
-  let escaped = escapeHtml(text);
+  // First decode any HTML entities (e.g., &lt;p&gt; -> <p>)
+  let decoded = decodeHtmlEntities(text);
+
+  // Check if the decoded text contains HTML tags
+  const hasHtmlTags = /<[a-z][\s\S]*>/i.test(decoded);
+
+  if (hasHtmlTags) {
+    // Content has HTML - sanitize and render it
+    // Create a temporary div to parse HTML safely
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = decoded;
+
+    // Remove any script tags and event handlers for security
+    tempDiv.querySelectorAll('script, style').forEach(el => el.remove());
+    tempDiv.querySelectorAll('*').forEach(el => {
+      // Remove all event handlers
+      Array.from(el.attributes).forEach(attr => {
+        if (attr.name.startsWith('on') || attr.name === 'href' && attr.value.startsWith('javascript:')) {
+          el.removeAttribute(attr.name);
+        }
+      });
+    });
+
+    // Add styling class to lists
+    tempDiv.querySelectorAll('ul, ol').forEach(el => {
+      el.classList.add('job-desc-list');
+    });
+
+    return tempDiv.innerHTML;
+  }
+
+  // Plain text - format with bullet detection
+  let escaped = escapeHtml(decoded);
 
   // Split into lines for processing
   const lines = escaped.split('\n');

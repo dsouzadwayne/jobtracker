@@ -324,6 +324,59 @@ function containsHTML(value) {
 }
 
 /**
+ * Decode HTML entities in text
+ * @param {string} text - Text with potential HTML entities
+ * @returns {string} Decoded text
+ */
+function decodeHtmlEntities(text) {
+  if (!text || typeof text !== 'string') return text;
+
+  // Named HTML entities
+  const namedEntities = {
+    '&amp;': '&',
+    '&lt;': '<',
+    '&gt;': '>',
+    '&quot;': '"',
+    '&apos;': "'",
+    '&#39;': "'",
+    '&nbsp;': ' ',
+    '&#x27;': "'",
+    '&#x2F;': '/',
+    '&mdash;': '\u2014',
+    '&ndash;': '\u2013',
+    '&hellip;': '\u2026',
+    '&trade;': '\u2122',
+    '&reg;': '\u00AE',
+    '&copy;': '\u00A9',
+    '&laquo;': '\u00AB',
+    '&raquo;': '\u00BB',
+    '&ldquo;': '\u201C',
+    '&rdquo;': '\u201D',
+    '&lsquo;': '\u2018',
+    '&rsquo;': '\u2019'
+  };
+
+  // First pass: named entities (case-insensitive for common ones)
+  let result = text.replace(/&(?:amp|lt|gt|quot|apos|nbsp|mdash|ndash|hellip|trade|reg|copy|laquo|raquo|ldquo|rdquo|lsquo|rsquo|#39|#x27|#x2F);/gi, match => {
+    return namedEntities[match.toLowerCase()] || match;
+  });
+
+  // Second pass: decimal numeric entities (&#123;)
+  result = result.replace(/&#(\d+);/g, (match, dec) => {
+    const code = parseInt(dec, 10);
+    return code > 0 && code < 65536 ? String.fromCharCode(code) : match;
+  });
+
+  // Third pass: hexadecimal numeric entities (&#x1F;)
+  result = result.replace(/&#x([0-9a-fA-F]+);/g, (match, hex) => {
+    const code = parseInt(hex, 16);
+    return code > 0 && code < 65536 ? String.fromCharCode(code) : match;
+  });
+
+  return result;
+}
+
+/**
  * Clean and normalize extracted text
  * @param {string} value - Raw extracted text
  * @returns {string} Cleaned text
@@ -332,6 +385,8 @@ function cleanText(value) {
   if (!value || typeof value !== 'string') return '';
 
   return value
+    // Decode HTML entities first (e.g., &amp; -> &)
+    .replace(/&[#\w]+;/g, match => decodeHtmlEntities(match))
     // Normalize whitespace
     .replace(/\s+/g, ' ')
     // Remove zero-width characters
@@ -434,6 +489,7 @@ export {
   cleanText,
   cleanJobDescription,
   sanitizeText,
+  decodeHtmlEntities,
   containsHTML,
   hasExcessiveRepetition,
   LENGTH_CONSTRAINTS,

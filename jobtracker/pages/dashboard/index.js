@@ -81,14 +81,20 @@ let searchIndex = null;
 const applicationChannel = new BroadcastChannel('jobtracker-applications');
 applicationChannel.onmessage = async (event) => {
   if (event.data.type === 'DATA_CHANGED') {
-    await loadApplications();
-    await loadTags();
-    await updateStats();
-    // Refresh intelligence panel and CRM widgets if on stats page
-    if (state.currentPage === 'stats') {
-      await loadIntelligencePanel();
-      await loadUpcomingInterviews();
-      await loadUpcomingTasks();
+    try {
+      await loadApplications();
+      await loadTags();
+      await updateStats();
+      // Refresh intelligence panel and CRM widgets if on stats page
+      if (state.currentPage === 'stats') {
+        await loadIntelligencePanel();
+        await loadUpcomingInterviews();
+        await loadUpcomingTasks();
+      }
+    } catch (error) {
+      console.error('Failed to reload data:', error);
+      const { showNotification } = await import('./utils.js');
+      showNotification('Failed to sync data. Please refresh.', 'error');
     }
   }
 };
@@ -214,13 +220,17 @@ async function loadSettings() {
       // Migrate from localStorage to IndexedDB
       settings.ui = settings.ui || {};
       settings.ui.dashboardView = localStorageView;
-      await chrome.runtime.sendMessage({
-        type: MessageTypes.SAVE_SETTINGS,
-        payload: settings
-      });
-      localStorage.removeItem('dashboardView');
-      console.log('JobTracker: Migrated dashboardView from localStorage to IndexedDB');
-      setCachedSettings(settings);
+      try {
+        await chrome.runtime.sendMessage({
+          type: MessageTypes.SAVE_SETTINGS,
+          payload: settings
+        });
+        localStorage.removeItem('dashboardView');
+        console.log('JobTracker: Migrated dashboardView from localStorage to IndexedDB');
+        setCachedSettings(settings);
+      } catch (error) {
+        console.error('Settings migration failed, keeping localStorage:', error);
+      }
     }
 
     if (settings?.ui?.dashboardView) {

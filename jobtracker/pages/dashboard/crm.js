@@ -12,7 +12,7 @@ import {
   getSelectedAppId
 } from './state.js';
 import {
-  escapeHtml, formatDate, formatDateInput, formatDateTimeInput,
+  escapeHtml, safeText, formatDate, formatDateInput, formatDateTimeInput,
   formatTime, getTimeAgo, showNotification
 } from './utils.js';
 
@@ -67,7 +67,7 @@ export function renderTagFilter() {
   elements.tagFilterContainer.querySelectorAll('.tag-chip').forEach(chip => {
     chip.addEventListener('click', () => {
       const tag = chip.dataset.tag;
-      let currentSelectedTags = getSelectedTags();
+      let currentSelectedTags = [...getSelectedTags()]; // Clone to avoid mutation
       if (currentSelectedTags.includes(tag)) {
         currentSelectedTags = currentSelectedTags.filter(t => t !== tag);
         chip.classList.remove('active');
@@ -137,7 +137,7 @@ export function renderUpcomingInterviews() {
         </div>
         <div class="interview-details">
           <div class="interview-type">${escapeHtml(interview.type || 'Interview')}</div>
-          <div class="interview-company">${escapeHtml(app?.company || 'Unknown')}</div>
+          <div class="interview-company">${safeText(app?.company || 'Unknown')}</div>
         </div>
         <span class="interview-round">Round ${interview.round || 1}</span>
       </div>
@@ -329,7 +329,7 @@ export function renderUpcomingTasks() {
         <div class="task-details">
           <div class="task-title">${escapeHtml(task.title)}</div>
           <div class="task-meta-row">
-            ${app ? `<span class="task-app">${escapeHtml(app.company)}</span>` : ''}
+            ${app ? `<span class="task-app">${safeText(app.company)}</span>` : ''}
             ${taskTypeLabel ? `<span class="task-type-badge">${escapeHtml(taskTypeLabel)}</span>` : ''}
           </div>
         </div>

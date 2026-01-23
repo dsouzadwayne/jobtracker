@@ -9,7 +9,7 @@ import {
   getCurrentPage, setCurrentPage
 } from './state.js';
 import {
-  escapeHtml, formatDate, capitalizeStatus, sanitizeStatus,
+  escapeHtml, safeText, decodeHtmlEntities, formatDate, capitalizeStatus, sanitizeStatus,
   isValidUrl, sanitizeUrl, formatJobDescription
 } from './utils.js';
 import { getDeadlineBadge } from './views.js';
@@ -172,9 +172,9 @@ export async function showDetailsPanel(app) {
     showDetailsOverlay();
   }
 
-  elements.detailsPosition.textContent = app.position || 'Unknown Position';
+  elements.detailsPosition.textContent = decodeHtmlEntities(app.position || 'Unknown Position');
 
-  const detailsInitial = escapeHtml((app.company || 'U')[0].toUpperCase());
+  const detailsInitial = escapeHtml(decodeHtmlEntities((app.company || 'U')[0].toUpperCase()));
   const detailsStatusClass = `status-${sanitizeStatus(app.status)}`;
   const detailsDateStr = formatDate(app.dateApplied || app.meta?.createdAt || new Date().toISOString());
 
@@ -271,8 +271,8 @@ export async function showDetailsPanel(app) {
     <div class="details-company">
       <span class="company-initial">${detailsInitial}</span>
       <div>
-        <div class="company-name">${escapeHtml(app.company || 'Unknown Company')}</div>
-        ${app.location ? `<div class="company-location">${escapeHtml(app.location)}</div>` : ''}
+        <div class="company-name">${safeText(app.company || 'Unknown Company')}</div>
+        ${app.location ? `<div class="company-location">${safeText(app.location)}</div>` : ''}
       </div>
     </div>
 
@@ -283,7 +283,7 @@ export async function showDetailsPanel(app) {
 
     ${tagsHtml}
     ${deadlineHtml}
-    ${app.salary ? `<div class="details-field"><strong>Salary:</strong> ${escapeHtml(app.salary)}</div>` : ''}
+    ${app.salary ? `<div class="details-field"><strong>Salary:</strong> ${safeText(app.salary)}</div>` : ''}
     ${app.jobType ? `<div class="details-field"><strong>Type:</strong> ${escapeHtml(capitalizeStatus(app.jobType))}</div>` : ''}
     ${app.remote ? `<div class="details-field"><strong>Remote:</strong> ${escapeHtml(capitalizeStatus(app.remote))}</div>` : ''}
     ${app.jobUrl && isValidUrl(app.jobUrl) ? `<div class="details-field">

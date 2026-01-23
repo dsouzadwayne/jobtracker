@@ -19,6 +19,30 @@
   let readabilityLoaded = false;
   let readabilityLoadPromise = null;
 
+  /**
+   * Decode HTML entities in text
+   * @param {string} text - Text with potential HTML entities
+   * @returns {string} Decoded text
+   */
+  function decodeHtmlEntities(text) {
+    if (!text || typeof text !== 'string') return text;
+
+    // Use a textarea element for reliable decoding
+    const textarea = document.createElement('textarea');
+    textarea.innerHTML = text;
+    return textarea.value;
+  }
+
+  /**
+   * Clean extracted text value
+   * @param {string} value - Raw extracted value
+   * @returns {string} Cleaned value
+   */
+  function cleanValue(value) {
+    if (!value || typeof value !== 'string') return '';
+    return decodeHtmlEntities(value).trim();
+  }
+
   // Extraction pipeline state
   let pipelineModule = null;
   let pipelineLoadPromise = null;
@@ -230,12 +254,12 @@
         for (const item of items) {
           if (item['@type'] === 'JobPosting') {
             return {
-              position: item.title || '',
-              company: item.hiringOrganization?.name || '',
-              location: extractLocation(item.jobLocation),
-              salary: extractSalary(item),
-              jobType: item.employmentType || '',
-              description: item.description || '',
+              position: cleanValue(item.title || ''),
+              company: cleanValue(item.hiringOrganization?.name || ''),
+              location: cleanValue(extractLocation(item.jobLocation)),
+              salary: cleanValue(extractSalary(item)),
+              jobType: cleanValue(item.employmentType || ''),
+              jobDescription: cleanValue(item.description || ''),
               datePosted: item.datePosted || ''
             };
           }
@@ -438,6 +462,11 @@
 
           // If we got good results, return early
           if (jobInfo.position && jobInfo.company && results.overallConfidence > 0.5) {
+            // Clean up HTML entities before returning
+            jobInfo.company = cleanValue(jobInfo.company);
+            jobInfo.position = cleanValue(jobInfo.position);
+            jobInfo.location = cleanValue(jobInfo.location);
+            jobInfo.salary = cleanValue(jobInfo.salary);
             console.log('JobTracker AI: Pipeline extraction successful (confidence:', results.overallConfidence.toFixed(2), ')');
             return jobInfo;
           }
@@ -512,6 +541,12 @@
     if (!jobInfo.jobDescription && pageText.length > 100) {
       jobInfo.jobDescription = pageText.substring(0, 2000);
     }
+
+    // 7. Final cleanup - decode any HTML entities in extracted values
+    jobInfo.company = cleanValue(jobInfo.company);
+    jobInfo.position = cleanValue(jobInfo.position);
+    jobInfo.location = cleanValue(jobInfo.location);
+    jobInfo.salary = cleanValue(jobInfo.salary);
 
     return jobInfo;
   }
