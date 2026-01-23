@@ -387,25 +387,63 @@
 
   /**
    * Signal weights for scoring
+   * Uses centralized config if available
    */
-  const SIGNAL_WEIGHTS = {
-    id: 25,              // Exact ID match is very strong
-    name: 20,            // Name attribute is strong
-    autocomplete: 30,    // Autocomplete is most reliable
-    label: 20,           // Label text is important
-    placeholder: 15,     // Placeholder gives hints
-    dataTest: 18,        // data-test attributes are reliable
-    formcontrolname: 22, // Angular formControlName is very reliable
-    ariaLabel: 18,       // Accessibility labels
-    contextBonus: 10,    // Bonus for being in relevant section
-    typeMatch: 8,        // Input type matches expected
-    negativePenalty: -40 // Penalty for matching negative patterns
-  };
+  const SIGNAL_WEIGHTS = (() => {
+    if (window.JobTrackerConfig?.SIGNAL_WEIGHTS) {
+      return window.JobTrackerConfig.SIGNAL_WEIGHTS;
+    }
+    return {
+      id: 25,
+      name: 20,
+      autocomplete: 30,
+      label: 20,
+      placeholder: 15,
+      dataTest: 18,
+      formcontrolname: 22,
+      ariaLabel: 18,
+      contextBonus: 10,
+      typeMatch: 8,
+      negativePenalty: -40
+    };
+  })();
 
   /**
-   * Extract all signals from a field
+   * Get cache manager reference
+   */
+  function getCacheManager() {
+    return window.JobTrackerCacheManager;
+  }
+
+  /**
+   * Extract all signals from a field (with caching)
    */
   function extractSignals(field) {
+    const cacheManager = getCacheManager();
+
+    // Check cache first
+    if (cacheManager) {
+      const cached = cacheManager.getSignals(field);
+      if (cached !== null) {
+        return cached;
+      }
+    }
+
+    // Extract signals
+    const signals = _extractSignalsUncached(field);
+
+    // Cache result
+    if (cacheManager) {
+      cacheManager.setSignals(field, signals);
+    }
+
+    return signals;
+  }
+
+  /**
+   * Internal method to extract signals (uncached)
+   */
+  function _extractSignalsUncached(field) {
     const signals = {
       id: (field.getAttribute('id') || '').toLowerCase(),
       name: (field.getAttribute('name') || '').toLowerCase(),
@@ -679,8 +717,16 @@
     extractSignals,
     FIELD_TYPES,
     SIGNAL_WEIGHTS,
-    getProfileValue
+    getProfileValue,
+
+    // Get minimum confidence threshold from config
+    getMinConfidence() {
+      return window.JobTrackerConfig?.THRESHOLDS?.MIN_SMART_MATCHER || 30;
+    }
   };
+
+  // Register with namespace if available
+  window.JobTrackerNamespace?.registerModule('smart-field-matcher');
 
   console.log('JobTracker: Smart Field Matcher loaded');
 })();

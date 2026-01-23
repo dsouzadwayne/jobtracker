@@ -375,3 +375,8 @@ const JSONLDFormHints = {
 if (typeof window !== 'undefined') {
   window.JSONLDFormHints = JSONLDFormHints;
 }
+
+// Register with namespace system
+if (window.JobTrackerNamespace) {
+  window.JobTrackerNamespace.registerModule('json-ld-form-hints');
+}

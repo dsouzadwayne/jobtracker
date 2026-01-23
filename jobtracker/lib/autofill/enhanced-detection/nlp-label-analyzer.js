@@ -376,4 +376,18 @@ const NLPLabelAnalyzer = {
 // Make available globally
 if (typeof window !== 'undefined') {
   window.NLPLabelAnalyzer = NLPLabelAnalyzer;
+
+  // Add method to get semantic mappings from registry if available
+  NLPLabelAnalyzer.getSemanticMappings = function() {
+    // Prefer registry mappings if available
+    if (window.JobTrackerFieldRegistry) {
+      return window.JobTrackerFieldRegistry.getSemanticMapping();
+    }
+    return this.SEMANTIC_MAPPINGS;
+  };
+
+  // Register with namespace if available
+  if (window.JobTrackerNamespace) {
+    window.JobTrackerNamespace.registerModule('nlp-label-analyzer');
+  }
 }

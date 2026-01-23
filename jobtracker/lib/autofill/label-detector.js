@@ -5,11 +5,46 @@
 
 const JobTrackerLabelDetector = {
   /**
+   * Get cache manager reference
+   */
+  _getCacheManager() {
+    return window.JobTrackerCacheManager;
+  },
+
+  /**
    * Get label text for an input using multiple strategies (7 total)
+   * Uses caching to avoid repeated DOM queries
    * @param {HTMLElement} input - Input element to find label for
    * @returns {string} Label text or empty string
    */
   getLabelText(input) {
+    const cacheManager = this._getCacheManager();
+
+    // Check cache first
+    if (cacheManager) {
+      const cached = cacheManager.getLabelText(input);
+      if (cached !== null) {
+        return cached;
+      }
+    }
+
+    // Extract label text using multiple strategies
+    const labelText = this._extractLabelText(input);
+
+    // Cache result
+    if (cacheManager) {
+      cacheManager.setLabelText(input, labelText);
+    }
+
+    return labelText;
+  },
+
+  /**
+   * Internal method to extract label text (uncached)
+   * @param {HTMLElement} input - Input element to find label for
+   * @returns {string} Label text or empty string
+   */
+  _extractLabelText(input) {
     // Strategy 1: Label with for attribute (most reliable)
     if (input.id) {
       try {
@@ -174,4 +209,9 @@ const JobTrackerLabelDetector = {
 // Make available globally
 if (typeof window !== 'undefined') {
   window.JobTrackerLabelDetector = JobTrackerLabelDetector;
+}
+
+// Register with namespace system
+if (window.JobTrackerNamespace) {
+  window.JobTrackerNamespace.registerModule('label-detector');
 }

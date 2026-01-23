@@ -135,6 +135,20 @@ if (typeof window !== 'undefined') {
     FIELD_TO_AUTOCOMPLETE,
     getFieldTypeFromAutocomplete,
     getAutocompleteForFieldType,
-    isValidAutocomplete
+    isValidAutocomplete,
+
+    // Registry integration - prefer registry if available
+    getFieldType(autocomplete) {
+      if (window.JobTrackerFieldRegistry) {
+        const fieldType = window.JobTrackerFieldRegistry.getFieldTypeByAutocomplete(autocomplete);
+        if (fieldType) return fieldType;
+      }
+      return getFieldTypeFromAutocomplete(autocomplete);
+    }
   };
+
+  // Register with namespace if available
+  if (window.JobTrackerNamespace) {
+    window.JobTrackerNamespace.registerModule('autocomplete-map');
+  }
 }

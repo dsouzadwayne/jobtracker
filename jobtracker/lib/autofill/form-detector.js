@@ -11,6 +11,10 @@ const JobTrackerFormDetector = {
     return window.JobTrackerDomUtils;
   },
 
+  _getShadowDomUtils() {
+    return window.JobTrackerShadowDomUtils;
+  },
+
   /**
    * Find form containing job application fields
    * Searches for forms with job-related attributes or fields
@@ -84,27 +88,49 @@ const JobTrackerFormDetector = {
   /**
    * Get all fillable inputs from a container
    * Excludes hidden, submit, button, and file inputs
+   * Includes inputs in Shadow DOM when available
    * @param {HTMLElement} container - Container element to search
+   * @param {Object} options - Options { includeShadowDom: boolean }
    * @returns {HTMLElement[]} Array of fillable input elements
    */
-  getFillableInputs(container) {
+  getFillableInputs(container, options = {}) {
     const domUtils = this._getDomUtils();
+    const shadowDomUtils = this._getShadowDomUtils();
     const inputs = new Set();
     const selector = 'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="file"]), select, textarea';
 
+    // Determine if we should include Shadow DOM
+    const includeShadowDom = options.includeShadowDom !== false && shadowDomUtils;
+
     // First, check for inputs with data-automation-id (modern frameworks)
     container.querySelectorAll('[data-automation-id], [data-testid], [name]').forEach(el => {
-      if (el.matches(selector) && !domUtils.isDisabledOrReadonly(el)) {
+      if (el && el.matches(selector) && domUtils && !domUtils.isDisabledOrReadonly(el)) {
         inputs.add(el);
       }
     });
 
-    // Then add remaining inputs
+    // Then add remaining inputs from regular DOM
     container.querySelectorAll(selector).forEach(el => {
-      if (!domUtils.isDisabledOrReadonly(el)) {
+      if (el && (!domUtils || !domUtils.isDisabledOrReadonly(el))) {
         inputs.add(el);
       }
     });
+
+    // Also search Shadow DOM if available
+    if (includeShadowDom) {
+      try {
+        const shadowInputs = shadowDomUtils.getFillableInputsDeep(container);
+        // Handle null/undefined shadowInputs safely
+        (shadowInputs || []).forEach(el => {
+          if (el && (!domUtils || !domUtils.isDisabledOrReadonly(el))) {
+            inputs.add(el);
+          }
+        });
+      } catch (e) {
+        // Shadow DOM search failed, continue with regular inputs
+        console.log('JobTracker: Shadow DOM search skipped:', e.message);
+      }
+    }
 
     return Array.from(inputs);
   },
@@ -116,7 +142,10 @@ const JobTrackerFormDetector = {
    */
   getVisibleFillableInputs(container) {
     const domUtils = this._getDomUtils();
-    return this.getFillableInputs(container).filter(input => domUtils.isVisible(input));
+    return this.getFillableInputs(container).filter(input => {
+      // If domUtils not available, assume visible
+      return !domUtils || !domUtils.isVisible || domUtils.isVisible(input);
+    });
   },
 
   /**

@@ -7,29 +7,44 @@
 /**
  * Certainty levels for multi-stage matching
  * Higher values indicate more reliable matches
+ *
+ * Uses centralized config if available, with local fallbacks for backward compatibility
  */
-const CERTAINTY_LEVELS = {
-  EXACT_ATTRIBUTE: 1.0,      // Direct attribute match (data-automation-id, autocomplete)
-  CUSTOM_RULE: 0.95,         // User-defined custom regex rule
-  INPUT_TYPE: 0.9,           // Input type match (email, tel)
-  DIRECT_PATTERN: 0.7,       // Pattern matches name/id directly
-  LABEL_MATCH: 0.5,          // Pattern matches label text
-  PARENT_LABEL: 0.3,         // Pattern matches parent container label
-  PLACEHOLDER: 0.25,         // Pattern matches placeholder
-  POSITION_FALLBACK: 0.15    // Position-based fallback
-};
+const CERTAINTY_LEVELS = (() => {
+  // If config is available, create a proxy to read from it
+  if (typeof window !== 'undefined' && window.JobTrackerConfig?.CERTAINTY) {
+    return window.JobTrackerConfig.CERTAINTY;
+  }
+  // Fallback for backward compatibility
+  return {
+    EXACT_ATTRIBUTE: 1.0,
+    CUSTOM_RULE: 0.95,
+    INPUT_TYPE: 0.9,
+    DIRECT_PATTERN: 0.7,
+    LABEL_MATCH: 0.5,
+    PARENT_LABEL: 0.3,
+    PLACEHOLDER: 0.25,
+    POSITION_FALLBACK: 0.15
+  };
+})();
 
 /**
  * Attribute priority for identification (modern frameworks first)
+ * Uses centralized config if available
  */
-const ATTRIBUTE_PRIORITY = [
-  'data-automation-id',
-  'data-testid',
-  'data-field',
-  'name',
-  'id',
-  'autocomplete'
-];
+const ATTRIBUTE_PRIORITY = (() => {
+  if (typeof window !== 'undefined' && window.JobTrackerConfig?.ATTRIBUTE_PRIORITY) {
+    return window.JobTrackerConfig.ATTRIBUTE_PRIORITY;
+  }
+  return [
+    'data-automation-id',
+    'data-testid',
+    'data-field',
+    'name',
+    'id',
+    'autocomplete'
+  ];
+})();
 
 /**
  * Expanded field patterns with international support
@@ -525,16 +540,22 @@ const FIELD_PATTERNS = {
 
 /**
  * Patterns for detecting confirmation fields (email confirm, password confirm, etc.)
+ * Uses centralized config if available
  */
-const CONFIRM_PATTERNS = [
-  /confirm/i,
-  /re-?enter/i,
-  /re-?type/i,
-  /repeat/i,
-  /secondary/i,
-  /verify/i,
-  /validation/i
-];
+const CONFIRM_PATTERNS = (() => {
+  if (typeof window !== 'undefined' && window.JobTrackerConfig?.CONFIRM_PATTERNS) {
+    return window.JobTrackerConfig.CONFIRM_PATTERNS;
+  }
+  return [
+    /confirm/i,
+    /re-?enter/i,
+    /re-?type/i,
+    /repeat/i,
+    /secondary/i,
+    /verify/i,
+    /validation/i
+  ];
+})();
 
 // Make available globally
 if (typeof window !== 'undefined') {
@@ -542,6 +563,30 @@ if (typeof window !== 'undefined') {
     CERTAINTY_LEVELS,
     ATTRIBUTE_PRIORITY,
     FIELD_PATTERNS,
-    CONFIRM_PATTERNS
+    CONFIRM_PATTERNS,
+
+    // Provide accessor methods for registry integration
+    getPattern(fieldType) {
+      // First try registry if available
+      if (window.JobTrackerFieldRegistry) {
+        const config = window.JobTrackerFieldRegistry.getFieldConfig(fieldType);
+        if (config) return config;
+      }
+      // Fall back to local FIELD_PATTERNS
+      return FIELD_PATTERNS[fieldType] || null;
+    },
+
+    getAllPatterns(fieldType) {
+      if (window.JobTrackerFieldRegistry) {
+        return window.JobTrackerFieldRegistry.getAllPatterns(fieldType);
+      }
+      const pattern = FIELD_PATTERNS[fieldType];
+      return pattern ? pattern.patterns : [];
+    }
   };
+
+  // Register with namespace if available
+  if (window.JobTrackerNamespace) {
+    window.JobTrackerNamespace.registerModule('field-patterns');
+  }
 }

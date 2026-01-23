@@ -5,11 +5,108 @@
 
 const JobTrackerDomUtils = {
   /**
-   * Check if element is visible on the page
+   * Get cache manager reference
+   */
+  _getCacheManager() {
+    return window.JobTrackerCacheManager;
+  },
+
+  /**
+   * Get cached computed style for an element
+   * @param {HTMLElement} element - Element to get style for
+   * @returns {CSSStyleDeclaration} Computed style
+   */
+  _getCachedComputedStyle(element) {
+    const cacheManager = this._getCacheManager();
+
+    if (cacheManager) {
+      const cached = cacheManager.getComputedStyle(element);
+      if (cached !== null) {
+        return cached;
+      }
+    }
+
+    const style = window.getComputedStyle(element);
+
+    if (cacheManager) {
+      cacheManager.setComputedStyle(element, style);
+    }
+
+    return style;
+  },
+
+  /**
+   * Check if element is visible on the page (with caching)
+   * Uses cached computed style and checks parent chain for hidden ancestors
    * @param {HTMLElement} element - Element to check
    * @returns {boolean} Whether the element is visible
    */
   isVisible(element) {
+    if (!element) return false;
+
+    const cacheManager = this._getCacheManager();
+
+    // Check cache first
+    if (cacheManager) {
+      const cached = cacheManager.getVisibility(element);
+      if (cached !== null) {
+        return cached;
+      }
+    }
+
+    // Check element and parent chain visibility
+    const visible = this._checkVisibilityWithParents(element);
+
+    // Cache result
+    if (cacheManager) {
+      cacheManager.setVisibility(element, visible);
+    }
+
+    return visible;
+  },
+
+  /**
+   * Check visibility including parent chain
+   * @param {HTMLElement} element - Element to check
+   * @returns {boolean} Whether element and all ancestors are visible
+   */
+  _checkVisibilityWithParents(element) {
+    let current = element;
+
+    // Check up to 10 levels of parent chain to avoid infinite loops
+    let depth = 0;
+    const maxDepth = 10;
+
+    while (current && current !== document.body && depth < maxDepth) {
+      const style = this._getCachedComputedStyle(current);
+
+      if (style.display === 'none' ||
+          style.visibility === 'hidden' ||
+          style.opacity === '0') {
+        return false;
+      }
+
+      // Check for common hidden patterns
+      if (current.hasAttribute('hidden') ||
+          current.getAttribute('aria-hidden') === 'true') {
+        return false;
+      }
+
+      current = current.parentElement;
+      depth++;
+    }
+
+    // Check bounding rect for the original element
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  },
+
+  /**
+   * Check if element is visible (uncached version for when you need fresh data)
+   * @param {HTMLElement} element - Element to check
+   * @returns {boolean} Whether the element is visible
+   */
+  isVisibleUncached(element) {
     if (!element) return false;
 
     const style = window.getComputedStyle(element);

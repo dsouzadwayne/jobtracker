@@ -111,6 +111,86 @@ const JobTrackerFieldMatcherModule = {
   },
 
   /**
+   * Async version of matchField - waits for enhanced detection initialization
+   * Use this on first page load to avoid race conditions
+   * @param {HTMLElement} input - The input element to match
+   * @param {Object} profile - User profile data
+   * @param {Array} customRules - Optional custom regex rules from settings
+   * @param {Object} matchSettings - Optional settings to control which sources to check
+   * @returns {Promise<Object|null>} Match object with fieldType, value, certainty, etc.
+   */
+  async matchFieldAsync(input, profile, customRules = [], matchSettings = null) {
+    const strategies = this._getStrategies();
+    const settings = matchSettings || this.DEFAULT_MATCH_SETTINGS;
+    const matches = [];
+
+    // Stage 0: Check custom rules first (highest priority for user rules)
+    const customMatch = strategies.matchByCustomRules(input, profile, customRules);
+    if (customMatch) {
+      matches.push(this._enrichMatch(customMatch, profile));
+    }
+
+    // Stage 0.5: Enhanced detection (JSON-LD + NLP + Readability) - ASYNC
+    // Waits for initialization to complete
+    if (strategies.matchByEnhancedDetectionAsync) {
+      const enhancedMatch = await strategies.matchByEnhancedDetectionAsync(input, profile);
+      if (enhancedMatch) {
+        matches.push(this._enrichMatch(enhancedMatch, profile));
+      }
+    }
+
+    // Stage 1: Check data-automation-id and autocomplete (highest certainty)
+    if (settings.matchDataAttributes) {
+      const exactMatch = strategies.matchByExactAttribute(input, profile);
+      if (exactMatch) {
+        matches.push(this._enrichMatch(exactMatch, profile));
+      }
+    }
+
+    // Stage 2: Check input type
+    const typeMatch = strategies.matchByInputType(input, profile);
+    if (typeMatch) {
+      matches.push(this._enrichMatch(typeMatch, profile));
+    }
+
+    // Stage 3: Check direct attributes (name, id) with patterns
+    if (settings.matchName || settings.matchId) {
+      const directMatch = strategies.matchByDirectAttributes(input, profile);
+      if (directMatch) {
+        matches.push(this._enrichMatch(directMatch, profile));
+      }
+    }
+
+    // Stage 4: Check label text
+    if (settings.matchLabel || settings.matchAriaLabel || settings.matchAriaLabelledBy) {
+      const labelMatch = strategies.matchByLabelText(input, profile);
+      if (labelMatch) {
+        matches.push(this._enrichMatch(labelMatch, profile));
+      }
+    }
+
+    // Stage 5: Check parent element text
+    const parentMatch = strategies.matchByParentText(input, profile);
+    if (parentMatch) {
+      matches.push(this._enrichMatch(parentMatch, profile));
+    }
+
+    // Stage 6: Check placeholder
+    if (settings.matchPlaceholder) {
+      const placeholderMatch = strategies.matchByPlaceholder(input, profile);
+      if (placeholderMatch) {
+        matches.push(this._enrichMatch(placeholderMatch, profile));
+      }
+    }
+
+    // Return highest certainty match
+    if (matches.length === 0) return null;
+
+    matches.sort((a, b) => b.certainty - a.certainty);
+    return matches[0];
+  },
+
+  /**
    * Enrich a match with value from profile
    * @param {Object} match - Basic match from strategy
    * @param {Object} profile - User profile
@@ -323,4 +403,9 @@ const JobTrackerFieldMatcherModule = {
 // Make available globally
 if (typeof window !== 'undefined') {
   window.JobTrackerFieldMatcherModule = JobTrackerFieldMatcherModule;
+
+  // Register with namespace if available
+  if (window.JobTrackerNamespace) {
+    window.JobTrackerNamespace.registerModule('field-matcher');
+  }
 }

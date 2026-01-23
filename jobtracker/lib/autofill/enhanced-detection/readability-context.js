@@ -451,3 +451,8 @@ const ReadabilityContext = {
 if (typeof window !== 'undefined') {
   window.ReadabilityContext = ReadabilityContext;
 }
+
+// Register with namespace system
+if (window.JobTrackerNamespace) {
+  window.JobTrackerNamespace.registerModule('readability-context');
+}

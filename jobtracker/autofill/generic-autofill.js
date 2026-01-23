@@ -10,6 +10,93 @@
   if (window.__jobTrackerGenericAutofillInitialized) return;
   window.__jobTrackerGenericAutofillInitialized = true;
 
+  // Store the current profile for dynamic field filling
+  let _currentProfile = null;
+  let _currentCustomRules = [];
+
+  /**
+   * Initialize dynamic observer for auto-filling new fields
+   */
+  function initDynamicObserver() {
+    const DynamicObserver = window.JobTrackerDynamicObserver;
+    if (!DynamicObserver) {
+      console.log('JobTracker: Dynamic observer not available');
+      return;
+    }
+
+    if (DynamicObserver.isInitialized()) {
+      return;
+    }
+
+    DynamicObserver.init(async (newInputs) => {
+      // Only auto-fill if we have a profile (from recent autofill)
+      if (!_currentProfile || newInputs.length === 0) return;
+
+      console.log(`JobTracker: ${newInputs.length} new field(s) detected`);
+
+      // Small delay to ensure fields are fully rendered
+      await new Promise(r => setTimeout(r, 100));
+
+      // Fill the new fields
+      const filledCount = await fillNewFields(newInputs, _currentProfile, _currentCustomRules);
+
+      if (filledCount > 0) {
+        showNotification(`Filled ${filledCount} new field${filledCount !== 1 ? 's' : ''}`, 'success');
+      }
+    });
+
+    console.log('JobTracker: Dynamic observer initialized for auto-fill');
+  }
+
+  /**
+   * Fill newly detected fields
+   * @param {HTMLElement[]} inputs - New input elements
+   * @param {Object} profile - User profile
+   * @param {Array} customRules - Custom matching rules
+   * @returns {Promise<number>} Number of fields filled
+   */
+  async function fillNewFields(inputs, profile, customRules = []) {
+    const Autofill = window.JobTrackerAutofill;
+    const FieldMatcher = window.JobTrackerFieldMatcher;
+
+    if (!Autofill || !FieldMatcher) return 0;
+
+    await Autofill.ensureReady();
+
+    const matches = [];
+
+    for (const input of inputs) {
+      // Skip if already filled
+      if (input.value && input.value.trim()) continue;
+
+      // Skip if not visible
+      if (Autofill.DomUtils && !Autofill.DomUtils.isVisible(input)) continue;
+
+      // Try to match the field
+      const match = await FieldMatcher.matchFieldAsync(input, profile, customRules);
+
+      if (match && match.value) {
+        matches.push({ input, ...match });
+      }
+    }
+
+    // Fill matched fields
+    if (matches.length > 0 && Autofill.InputFillers) {
+      return await Autofill.InputFillers.fillFieldsWithDelay(matches, 50);
+    }
+
+    return 0;
+  }
+
+  // Initialize dynamic observer when page is ready
+  if (document.readyState === 'complete') {
+    setTimeout(initDynamicObserver, 500);
+  } else {
+    window.addEventListener('load', () => {
+      setTimeout(initDynamicObserver, 500);
+    });
+  }
+
   // Listen for autofill trigger (fallback when no platform handler picks it up)
   window.addEventListener('jobtracker:autofill', async (e) => {
     // Only handle if no other handler has picked it up
@@ -40,6 +127,10 @@
    * Main autofill handler using modular system
    */
   async function handleGenericAutofill(profile, customRules = []) {
+    // Store profile for dynamic observer to use when new fields appear
+    _currentProfile = profile;
+    _currentCustomRules = customRules;
+
     try {
       // Use the modular autofill system
       const Autofill = window.JobTrackerAutofill;
@@ -51,6 +142,9 @@
         showNotification('Autofill modules not loaded', 'error');
         return 0;
       }
+
+      // Ensure all modules are initialized (fixes async race condition)
+      await Autofill.ensureReady();
 
       // Find the job application form
       const FormDetector = Autofill.FormDetector;
@@ -91,8 +185,8 @@
           }
         }
 
-        // Try standard matching
-        let match = FieldMatcher.matchField(input, profile, customRules);
+        // Try standard matching (use async for enhanced detection on first load)
+        let match = await FieldMatcher.matchFieldAsync(input, profile, customRules);
 
         // If no match, try confirmation field detection
         if (!match && Object.keys(filledValues).length > 0 && Autofill.MatchingStrategies?.matchByConfirmField) {

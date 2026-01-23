@@ -35,6 +35,7 @@ const JobTrackerMatchingStrategies = {
     const enhancedDetection = this._getEnhancedDetection();
     const patterns = this._getPatterns();
     const labelDetector = this._getLabelDetector();
+    const config = window.JobTrackerConfig;
 
     // Check if enhanced detection is available
     if (!enhancedDetection || !enhancedDetection.isAvailable()) {
@@ -57,8 +58,62 @@ const JobTrackerMatchingStrategies = {
       return null;
     }
 
-    // Minimum confidence threshold (0.6)
-    if (result.confidence < 0.60) {
+    // Minimum confidence threshold from config
+    const minThreshold = config?.THRESHOLDS?.MIN_ENHANCED_DETECTION || 0.60;
+    if (result.confidence < minThreshold) {
+      return null;
+    }
+
+    // Verify field type exists in patterns
+    if (patterns?.FIELD_PATTERNS && !patterns.FIELD_PATTERNS[result.fieldType]) {
+      return null;
+    }
+
+    return {
+      fieldType: result.fieldType,
+      certainty: result.confidence,
+      source: `enhanced-${result.source}`,
+      signals: result.signals
+    };
+  },
+
+  /**
+   * Match by enhanced detection (async version)
+   * Waits for initialization to complete - use on first page load
+   * @param {HTMLElement} input - Input element
+   * @param {Object} profile - User profile
+   * @returns {Promise<Object|null>} Match object or null
+   */
+  async matchByEnhancedDetectionAsync(input, profile) {
+    const enhancedDetection = this._getEnhancedDetection();
+    const patterns = this._getPatterns();
+    const labelDetector = this._getLabelDetector();
+    const config = window.JobTrackerConfig;
+
+    // Check if enhanced detection is available
+    if (!enhancedDetection || !enhancedDetection.isAvailable()) {
+      return null;
+    }
+
+    // Wait for initialization (key difference from sync version)
+    const ready = await enhancedDetection.ensureReady();
+    if (!ready) {
+      return null;
+    }
+
+    // Get label text
+    const labelText = labelDetector ? labelDetector.getLabelText(input) : '';
+
+    // Analyze field using enhanced detection (async)
+    const result = await enhancedDetection.analyzeFieldAsync(input, labelText);
+
+    if (!result || !result.fieldType) {
+      return null;
+    }
+
+    // Minimum confidence threshold from config
+    const minThreshold = config?.THRESHOLDS?.MIN_ENHANCED_DETECTION || 0.60;
+    if (result.confidence < minThreshold) {
       return null;
     }
 
@@ -433,4 +488,9 @@ const JobTrackerMatchingStrategies = {
 // Make available globally
 if (typeof window !== 'undefined') {
   window.JobTrackerMatchingStrategies = JobTrackerMatchingStrategies;
+
+  // Register with namespace if available
+  if (window.JobTrackerNamespace) {
+    window.JobTrackerNamespace.registerModule('matching-strategies');
+  }
 }

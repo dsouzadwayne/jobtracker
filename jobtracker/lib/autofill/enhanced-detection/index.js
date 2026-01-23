@@ -15,32 +15,42 @@ const EnhancedDetection = {
 
   // Initialization state
   _initialized: false,
+  _initializing: false,
   _initPromise: null,
 
   // Confidence scoring configuration
+  // Uses centralized config if available, with local fallbacks
   CONFIDENCE_CONFIG: {
     // Source weights (multipliers)
-    weights: {
-      'json-ld': 1.2,
-      'semantic-mapping': 1.0,
-      'question-extraction': 1.0,
-      'keyword-fallback': 1.0,
-      'section-context': 0.6
+    get weights() {
+      return window.JobTrackerConfig?.SOURCE_WEIGHTS || {
+        'json-ld': 1.2,
+        'semantic-mapping': 1.0,
+        'question-extraction': 1.0,
+        'keyword-fallback': 1.0,
+        'section-context': 0.6
+      };
     },
 
     // Minimum confidence threshold to return a match
-    minConfidence: 0.60,
+    get minConfidence() {
+      return window.JobTrackerConfig?.THRESHOLDS?.MIN_ENHANCED_DETECTION || 0.60;
+    },
 
     // Maximum confidence cap (to allow exact attributes to override)
-    maxConfidence: 0.95,
+    get maxConfidence() {
+      return window.JobTrackerConfig?.THRESHOLDS?.MAX_CONFIDENCE_CAP || 0.95;
+    },
 
     // Confidence ranges by source
-    ranges: {
-      'json-ld': { min: 0.80, max: 0.90 },
-      'semantic-mapping': { min: 0.75, max: 0.85 },
-      'question-extraction': { min: 0.70, max: 0.80 },
-      'section-context': { min: 0.50, max: 0.60 },
-      'keyword-fallback': { min: 0.55, max: 0.65 }
+    get ranges() {
+      return window.JobTrackerConfig?.CONFIDENCE_RANGES || {
+        'json-ld': { min: 0.80, max: 0.90 },
+        'semantic-mapping': { min: 0.75, max: 0.85 },
+        'question-extraction': { min: 0.70, max: 0.80 },
+        'section-context': { min: 0.50, max: 0.60 },
+        'keyword-fallback': { min: 0.55, max: 0.65 }
+      };
     }
   },
 
@@ -55,8 +65,29 @@ const EnhancedDetection = {
     // Return existing promise if initialization is in progress
     if (this._initPromise) return this._initPromise;
 
+    // Prevent re-entry before _initPromise is set
+    if (this._initializing) return this._initPromise;
+    this._initializing = true;
+
     this._initPromise = this._doInit();
     return this._initPromise;
+  },
+
+  /**
+   * Ensure enhanced detection is ready before use
+   * Safe to call multiple times - returns immediately if already initialized
+   * @returns {Promise<boolean>} True if ready, false if init failed
+   */
+  async ensureReady() {
+    if (this._initialized) return true;
+
+    try {
+      await this.init();
+      return this._initialized;
+    } catch (e) {
+      console.warn('[EnhancedDetection] Init failed:', e);
+      return false;
+    }
   },
 
   /**
@@ -94,7 +125,7 @@ const EnhancedDetection = {
 
   /**
    * Analyze a field and return enhanced detection result
-   * Main API for the enhanced detection layer
+   * Main API for the enhanced detection layer (synchronous version)
    * @param {HTMLElement} input - Input element to analyze
    * @param {string} labelText - Optional pre-extracted label text
    * @returns {Object|null} { fieldType, confidence, source, signals }
@@ -106,6 +137,28 @@ const EnhancedDetection = {
       this.init().catch(() => {});
     }
 
+    return this._analyzeFieldSync(input, labelText);
+  },
+
+  /**
+   * Analyze a field asynchronously (waits for initialization)
+   * Preferred method to avoid race conditions on first page load
+   * @param {HTMLElement} input - Input element to analyze
+   * @param {string} labelText - Optional pre-extracted label text
+   * @returns {Promise<Object|null>} { fieldType, confidence, source, signals }
+   */
+  async analyzeFieldAsync(input, labelText = null) {
+    await this.ensureReady();
+    return this._analyzeFieldSync(input, labelText);
+  },
+
+  /**
+   * Internal synchronous analysis (assumes init complete or will use available modules)
+   * @param {HTMLElement} input - Input element to analyze
+   * @param {string} labelText - Optional pre-extracted label text
+   * @returns {Object|null} { fieldType, confidence, source, signals }
+   */
+  _analyzeFieldSync(input, labelText = null) {
     const signals = [];
 
     // Get label text if not provided
@@ -396,6 +449,7 @@ const EnhancedDetection = {
    */
   reset() {
     this._initialized = false;
+    this._initializing = false;
     this._initPromise = null;
     this.clearCache();
   }
@@ -404,4 +458,9 @@ const EnhancedDetection = {
 // Make available globally
 if (typeof window !== 'undefined') {
   window.EnhancedDetection = EnhancedDetection;
+
+  // Register with namespace if available
+  if (window.JobTrackerNamespace) {
+    window.JobTrackerNamespace.registerModule('enhanced-detection');
+  }
 }

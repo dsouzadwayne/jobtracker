@@ -16,6 +16,10 @@ const JobTrackerInputFillers = {
     return window.JobTrackerDomUtils;
   },
 
+  _getMaskHandler() {
+    return window.JobTrackerMaskHandler;
+  },
+
   /**
    * Fill an input element with a value, triggering proper events
    * Works with React, Angular, Vue, and vanilla JS forms
@@ -47,6 +51,7 @@ const JobTrackerInputFillers = {
 
   /**
    * Fill text input or textarea with framework-aware approach
+   * Handles masked inputs (phone, SSN, ZIP, etc.) automatically
    * @param {HTMLElement} input - Input element
    * @param {*} value - Value to fill
    * @param {string} type - 'input' or 'textarea'
@@ -54,8 +59,22 @@ const JobTrackerInputFillers = {
    */
   fillTextInput(input, value, type = 'input') {
     const dispatcher = this._getEventDispatcher();
+    const maskHandler = this._getMaskHandler();
 
     try {
+      // Check if input has a mask applied (verify methods exist)
+      if (maskHandler?.detectMask && type !== 'textarea') {
+        const maskInfo = maskHandler.detectMask(input);
+        if (maskInfo && maskHandler.fillMaskedInput) {
+          // Use mask handler for masked inputs
+          const filled = maskHandler.fillMaskedInput(input, String(value));
+          if (filled) {
+            return true;
+          }
+          // If mask handler failed, fall through to standard filling
+        }
+      }
+
       // Get native setter to bypass React/Vue/Angular controlled components
       const prototype = type === 'textarea'
         ? window.HTMLTextAreaElement.prototype
