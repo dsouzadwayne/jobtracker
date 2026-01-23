@@ -132,10 +132,14 @@ function isValidISODate(string) {
 function sanitizeString(str) {
   if (!str || typeof str !== 'string') return str;
   return str
+    .replace(/&/g, '&amp;')      // Must come first
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
     .replace(/javascript:/gi, '')
     .replace(/data:/gi, '')
+    .replace(/vbscript:/gi, '')
     .replace(/on\w+\s*=/gi, '');
 }
 
@@ -330,6 +334,9 @@ function validatePayload(type, payload) {
       }
       // Validate outcome if provided (normalize to lowercase for backwards compatibility)
       if (payload.outcome) {
+        if (typeof payload.outcome !== 'string') {
+          return { valid: false, error: 'Outcome must be a string' };
+        }
         const normalizedOutcome = payload.outcome.toLowerCase();
         if (!INTERVIEW_OUTCOMES.includes(normalizedOutcome)) {
           return { valid: false, error: `Invalid outcome. Must be one of: ${INTERVIEW_OUTCOMES.join(', ')}` };
@@ -994,7 +1001,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               const feedbackData = {
                 applicationId,
                 url,
-                domain: domain || new URL(url).hostname,
+                domain: domain || (() => {
+                  try { return new URL(url).hostname; }
+                  catch { return 'unknown'; }
+                })(),
                 extracted,
                 corrected,
                 corrections,
@@ -1091,11 +1101,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     } catch (error) {
       console.error('JobTracker: Error handling message:', error);
       if (!responseSent) {
-        sendResponse({ error: error.message });
+        sendResponse({ error: error?.message || String(error) || 'An unknown error occurred' });
         responseSent = true;
       }
     }
-  })();
+  })().catch((error) => {
+    console.error('JobTracker: Unhandled async error:', error);
+    if (!responseSent) {
+      sendResponse({ error: 'An unexpected error occurred' });
+    }
+  });
 
   return true; // Keep message channel open for async response
 });

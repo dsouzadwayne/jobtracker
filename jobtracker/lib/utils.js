@@ -273,7 +273,7 @@ const JobTrackerUtils = {
       } else if (key === 'textContent') {
         element.textContent = value;
       } else if (key === 'innerHTML') {
-        element.innerHTML = value;
+        element.innerHTML = this.sanitizeHTML(value);
       } else if (key.startsWith('on')) {
         element.addEventListener(key.substring(2).toLowerCase(), value);
       } else if (key === 'style' && typeof value === 'object') {

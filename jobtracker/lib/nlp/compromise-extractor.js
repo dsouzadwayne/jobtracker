@@ -8,6 +8,15 @@
 let nlp = null;
 let loadingPromise = null;
 
+// Plugin configuration - always enabled
+const COMPROMISE_PLUGINS = {
+  paragraphs: { file: 'compromise-paragraphs.min.js', globalName: 'compromiseParagraphs' },
+  sentences: { file: 'compromise-sentences.min.js', globalName: 'compromiseSentences' },
+  dates: { file: 'compromise-dates.min.js', globalName: 'compromiseDates' },
+  numbers: { file: 'compromise-numbers.min.js', globalName: 'compromiseNumbers' }
+};
+let pluginsLoaded = false;
+
 /**
  * Check if running in service worker context (no DOM)
  */
@@ -107,6 +116,79 @@ async function loadCompromise() {
 }
 
 /**
+ * Load Compromise.js plugins (paragraphs, sentences, dates, numbers)
+ * Called automatically after base library loads
+ */
+async function loadCompromisePlugins() {
+  if (pluginsLoaded || !nlp) return;
+
+  const getPluginUrl = (filename) => {
+    if (typeof chrome !== 'undefined' && chrome.runtime) {
+      return chrome.runtime.getURL(`lib/vendor/${filename}`);
+    }
+    return `./vendor/${filename}`;
+  };
+
+  // Service worker context - use importScripts
+  if (isServiceWorker()) {
+    for (const [name, config] of Object.entries(COMPROMISE_PLUGINS)) {
+      try {
+        const url = getPluginUrl(config.file);
+        importScripts(url);
+        const plugin = globalThis[config.globalName];
+        if (plugin) {
+          nlp.extend(plugin);
+          console.log(`[CompromiseExtractor] Loaded plugin: ${name}`);
+        } else {
+          console.warn(`[CompromiseExtractor] Plugin ${name} loaded but global not found`);
+        }
+      } catch (error) {
+        console.warn(`[CompromiseExtractor] Failed to load plugin ${name}:`, error.message);
+      }
+    }
+    pluginsLoaded = true;
+    return;
+  }
+
+  // Content script context - inject script tags sequentially
+  for (const [name, config] of Object.entries(COMPROMISE_PLUGINS)) {
+    try {
+      await new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = getPluginUrl(config.file);
+
+        const timeout = setTimeout(() => {
+          reject(new Error(`Timeout loading plugin: ${name}`));
+        }, 5000);
+
+        script.onload = () => {
+          clearTimeout(timeout);
+          const plugin = window[config.globalName];
+          if (plugin) {
+            nlp.extend(plugin);
+            console.log(`[CompromiseExtractor] Loaded plugin: ${name}`);
+          } else {
+            console.warn(`[CompromiseExtractor] Plugin ${name} loaded but global not found`);
+          }
+          resolve();
+        };
+
+        script.onerror = (error) => {
+          clearTimeout(timeout);
+          console.warn(`[CompromiseExtractor] Failed to load plugin ${name}:`, error);
+          resolve(); // Continue loading other plugins even if one fails
+        };
+
+        document.head.appendChild(script);
+      });
+    } catch (error) {
+      console.warn(`[CompromiseExtractor] Error loading plugin ${name}:`, error.message);
+    }
+  }
+  pluginsLoaded = true;
+}
+
+/**
  * Compromise Extractor class
  * Provides lightweight NLP extraction using Compromise.js
  */
@@ -116,11 +198,12 @@ class CompromiseExtractor {
   }
 
   /**
-   * Initialize the extractor by loading Compromise.js
+   * Initialize the extractor by loading Compromise.js and plugins
    */
   async init() {
     if (this.initialized) return;
     await loadCompromise();
+    await loadCompromisePlugins();
     this.initialized = true;
   }
 
@@ -351,8 +434,6 @@ class CompromiseExtractor {
    */
   async extractDates(text) {
     await this.init();
-
-    const dates = [];
 
     // If nlp is not loaded, fall back to regex-only extraction
     if (!nlp) {
@@ -591,6 +672,712 @@ class CompromiseExtractor {
       dates: dates.map(d => d.date),
       nameConfidence: names[0]?.confidence || 0
     };
+  }
+
+  // ============================================
+  // Plugin-based extraction methods
+  // ============================================
+
+  /**
+   * Extract paragraphs from text (uses compromise-paragraphs plugin)
+   * Useful for resume section detection and bullet point grouping
+   * @param {string} text - Text to analyze
+   * @returns {Object} Extracted paragraphs with metadata
+   */
+  async extractParagraphs(text) {
+    await this.init();
+
+    if (!nlp) {
+      console.warn('[CompromiseExtractor] nlp not loaded, using fallback paragraph extraction');
+      return this.extractParagraphsWithRegex(text);
+    }
+
+    const doc = nlp(text);
+
+    // Check if paragraphs plugin is available
+    if (typeof doc.paragraphs !== 'function') {
+      console.warn('[CompromiseExtractor] paragraphs plugin not available, using fallback');
+      return this.extractParagraphsWithRegex(text);
+    }
+
+    const paragraphs = doc.paragraphs();
+    const result = {
+      count: paragraphs.length,
+      paragraphs: [],
+      sections: []
+    };
+
+    // Process each paragraph
+    paragraphs.forEach((p, index) => {
+      const paragraphText = p.text();
+      const sentences = p.sentences ? p.sentences() : null;
+
+      result.paragraphs.push({
+        index,
+        text: paragraphText,
+        sentenceCount: sentences ? sentences.length : paragraphText.split(/[.!?]+/).filter(s => s.trim()).length,
+        hasBullets: /^[\s]*[-•*]\s/.test(paragraphText) || /\n[\s]*[-•*]\s/.test(paragraphText),
+        isHeader: paragraphText.length < 50 && /^[A-Z]/.test(paragraphText) && !/[.!?]$/.test(paragraphText.trim())
+      });
+    });
+
+    // Detect resume sections based on common headers
+    const sectionHeaders = [
+      'experience', 'work experience', 'employment', 'professional experience',
+      'education', 'academic', 'qualifications',
+      'skills', 'technical skills', 'core competencies',
+      'summary', 'professional summary', 'objective', 'profile',
+      'projects', 'certifications', 'awards', 'publications', 'references'
+    ];
+
+    result.paragraphs.forEach((p, index) => {
+      const textLower = p.text.toLowerCase().trim();
+      const matchedSection = sectionHeaders.find(header =>
+        textLower === header || textLower.startsWith(header + ':') || textLower.startsWith(header + '\n')
+      );
+      if (matchedSection || p.isHeader) {
+        result.sections.push({
+          header: p.text.trim(),
+          type: matchedSection || 'unknown',
+          startIndex: index
+        });
+      }
+    });
+
+    return result;
+  }
+
+  /**
+   * Fallback paragraph extraction using regex
+   */
+  extractParagraphsWithRegex(text) {
+    const rawParagraphs = text.split(/\n\s*\n/).filter(p => p.trim());
+    return {
+      count: rawParagraphs.length,
+      paragraphs: rawParagraphs.map((p, index) => ({
+        index,
+        text: p.trim(),
+        sentenceCount: p.split(/[.!?]+/).filter(s => s.trim()).length,
+        hasBullets: /^[\s]*[-•*]\s/.test(p) || /\n[\s]*[-•*]\s/.test(p),
+        isHeader: p.trim().length < 50 && /^[A-Z]/.test(p) && !/[.!?]$/.test(p.trim())
+      })),
+      sections: []
+    };
+  }
+
+  /**
+   * Extract sentences from text (uses compromise-sentences plugin)
+   * Useful for splitting job descriptions and classifying requirements vs benefits
+   * @param {string} text - Text to analyze
+   * @returns {Object} Extracted sentences with classification
+   */
+  async extractSentences(text) {
+    await this.init();
+
+    if (!nlp) {
+      console.warn('[CompromiseExtractor] nlp not loaded, using fallback sentence extraction');
+      return this.extractSentencesWithRegex(text);
+    }
+
+    const doc = nlp(text);
+
+    // Check if sentences plugin is available
+    if (typeof doc.sentences !== 'function') {
+      console.warn('[CompromiseExtractor] sentences plugin not available, using fallback');
+      return this.extractSentencesWithRegex(text);
+    }
+
+    const sentences = doc.sentences();
+    const result = {
+      count: sentences.length,
+      sentences: [],
+      requirements: [],
+      benefits: [],
+      responsibilities: []
+    };
+
+    // Keywords for classification
+    const requirementKeywords = /\b(require|must|should|need|essential|mandatory|minimum|at least|proficient|experience in|knowledge of|degree in)\b/i;
+    const benefitKeywords = /\b(offer|provide|benefit|bonus|salary|compensation|insurance|vacation|remote|flexible|401k|health|dental|vision|pto|equity|stock)\b/i;
+    const responsibilityKeywords = /\b(responsible|will|duties|manage|develop|create|build|design|implement|maintain|support|lead|coordinate)\b/i;
+
+    sentences.forEach((s, index) => {
+      const sentenceText = s.text();
+      const sentenceData = {
+        index,
+        text: sentenceText,
+        type: 'statement'
+      };
+
+      // Classify sentence type using plugin if available
+      if (typeof s.isQuestion === 'function' && s.isQuestion().found) {
+        sentenceData.type = 'question';
+      } else if (typeof s.isExclamation === 'function' && s.isExclamation().found) {
+        sentenceData.type = 'exclamation';
+      }
+
+      result.sentences.push(sentenceData);
+
+      // Classify by content
+      if (requirementKeywords.test(sentenceText)) {
+        result.requirements.push({ index, text: sentenceText });
+      }
+      if (benefitKeywords.test(sentenceText)) {
+        result.benefits.push({ index, text: sentenceText });
+      }
+      if (responsibilityKeywords.test(sentenceText)) {
+        result.responsibilities.push({ index, text: sentenceText });
+      }
+    });
+
+    return result;
+  }
+
+  /**
+   * Fallback sentence extraction using regex
+   */
+  extractSentencesWithRegex(text) {
+    const rawSentences = text.split(/(?<=[.!?])\s+/).filter(s => s.trim());
+    return {
+      count: rawSentences.length,
+      sentences: rawSentences.map((s, index) => ({
+        index,
+        text: s.trim(),
+        type: /\?$/.test(s.trim()) ? 'question' : /!$/.test(s.trim()) ? 'exclamation' : 'statement'
+      })),
+      requirements: [],
+      benefits: [],
+      responsibilities: []
+    };
+  }
+
+  /**
+   * Enhanced date extraction with duration calculation (uses compromise-dates plugin)
+   * Parses date ranges like "Jan 2020 - Present" and calculates durations
+   * @param {string} text - Text to analyze
+   * @returns {Object} Extracted dates with parsed values and durations
+   */
+  async extractDatesEnhanced(text) {
+    await this.init();
+
+    if (!nlp) {
+      console.warn('[CompromiseExtractor] nlp not loaded, using basic date extraction');
+      return { dates: this.extractDatesWithRegex(text), parsed: [], totalDuration: null };
+    }
+
+    const doc = nlp(text);
+    const result = {
+      dates: [],
+      parsed: [],
+      ranges: [],
+      totalDuration: null
+    };
+
+    // Check if dates plugin provides enhanced functionality
+    const docDates = doc.dates();
+
+    if (docDates.found) {
+      // Try to get parsed date objects if available
+      const dateTexts = docDates.out('array');
+
+      dateTexts.forEach(dateText => {
+        const dateEntry = {
+          text: dateText,
+          confidence: 0.9
+        };
+
+        // Try to parse with plugin's json method if available
+        try {
+          const dateDoc = nlp(dateText).dates();
+          if (typeof dateDoc.json === 'function') {
+            const jsonData = dateDoc.json();
+            if (jsonData && jsonData[0]) {
+              dateEntry.parsed = jsonData[0];
+              if (jsonData[0].start) dateEntry.start = jsonData[0].start;
+              if (jsonData[0].end) dateEntry.end = jsonData[0].end;
+            }
+          }
+        } catch (e) {
+          // Plugin method not available, continue with text only
+        }
+
+        result.dates.push(dateEntry);
+      });
+    }
+
+    // Extract and parse date ranges with duration calculation
+    const rangePatterns = [
+      { regex: /(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s*\d{4}\s*[-–to]+\s*(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s*\d{4}/gi, type: 'month-range' },
+      { regex: /(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s*\d{4}\s*[-–to]+\s*(?:Present|Current|Now)/gi, type: 'ongoing' },
+      { regex: /\d{4}\s*[-–to]+\s*\d{4}/g, type: 'year-range' },
+      { regex: /\d{4}\s*[-–to]+\s*(?:Present|Current|Now)/gi, type: 'ongoing-year' }
+    ];
+
+    for (const { regex, type } of rangePatterns) {
+      const matches = text.match(regex);
+      if (matches) {
+        matches.forEach(match => {
+          const range = this.parseDateRange(match, type);
+          if (range && !result.ranges.some(r => r.text === match)) {
+            result.ranges.push(range);
+          }
+        });
+      }
+    }
+
+    // Calculate total duration from ranges
+    if (result.ranges.length > 0) {
+      let totalMonths = 0;
+      result.ranges.forEach(range => {
+        if (range.durationMonths) {
+          totalMonths += range.durationMonths;
+        }
+      });
+      if (totalMonths > 0) {
+        result.totalDuration = {
+          months: totalMonths,
+          years: Math.floor(totalMonths / 12),
+          remainingMonths: totalMonths % 12,
+          formatted: `${Math.floor(totalMonths / 12)} years, ${totalMonths % 12} months`
+        };
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Parse a date range string and calculate duration
+   * @param {string} rangeText - Date range text like "Jan 2020 - Present"
+   * @param {string} type - Type of range pattern matched
+   * @returns {Object} Parsed range with start, end, and duration
+   */
+  parseDateRange(rangeText, type) {
+    const monthMap = {
+      jan: 0, january: 0, feb: 1, february: 1, mar: 2, march: 2,
+      apr: 3, april: 3, may: 4, jun: 5, june: 5, jul: 6, july: 6,
+      aug: 7, august: 7, sep: 8, sept: 8, september: 8, oct: 9, october: 9,
+      nov: 10, november: 10, dec: 11, december: 11
+    };
+
+    const result = { text: rangeText, type };
+
+    try {
+      const parts = rangeText.split(/\s*[-–]\s*|\s+to\s+/i);
+      if (parts.length !== 2) return result;
+
+      const startPart = parts[0].trim();
+      const endPart = parts[1].trim();
+
+      // Parse start date
+      const startMonthMatch = startPart.match(/^(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)/i);
+      const startYearMatch = startPart.match(/(\d{4})/);
+
+      if (startYearMatch) {
+        result.startYear = parseInt(startYearMatch[1]);
+        result.startMonth = startMonthMatch ? monthMap[startMonthMatch[1].toLowerCase().substring(0, 3)] : 0;
+      }
+
+      // Parse end date
+      const isOngoing = /present|current|now/i.test(endPart);
+      if (isOngoing) {
+        result.ongoing = true;
+        const now = new Date();
+        result.endYear = now.getFullYear();
+        result.endMonth = now.getMonth();
+      } else {
+        const endMonthMatch = endPart.match(/^(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)/i);
+        const endYearMatch = endPart.match(/(\d{4})/);
+
+        if (endYearMatch) {
+          result.endYear = parseInt(endYearMatch[1]);
+          result.endMonth = endMonthMatch ? monthMap[endMonthMatch[1].toLowerCase().substring(0, 3)] : 11;
+        }
+      }
+
+      // Calculate duration
+      if (result.startYear && result.endYear) {
+        const startDate = new Date(result.startYear, result.startMonth || 0);
+        const endDate = new Date(result.endYear, result.endMonth || 11);
+        const diffMonths = (endDate.getFullYear() - startDate.getFullYear()) * 12 + (endDate.getMonth() - startDate.getMonth()) + 1;
+        result.durationMonths = Math.max(0, diffMonths);
+        result.durationYears = Math.floor(result.durationMonths / 12);
+      }
+    } catch (e) {
+      // Parsing failed, return basic result
+    }
+
+    return result;
+  }
+
+  /**
+   * Extract structured work history with promotion detection
+   * @param {string} text - Resume text
+   * @returns {Object} Work history with positions and promotions
+   */
+  async extractWorkHistory(text) {
+    await this.init();
+
+    const result = {
+      positions: [],
+      promotions: [],
+      companies: new Set(),
+      totalExperience: null
+    };
+
+    // Date range pattern to find job entries
+    const dateRangePattern = /(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s*\d{4}\s*[-–to]+\s*(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s*\d{4}|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s*\d{4}\s*[-–to]+\s*(?:Present|Current|Now)|\d{4}\s*[-–to]+\s*(?:\d{4}|Present|Current|Now)/gi;
+
+    // Find all date ranges and their positions in text
+    const dateMatches = [...text.matchAll(dateRangePattern)];
+
+    // Track last company for inheritance (when company is listed once for multiple roles)
+    let lastCompany = null;
+
+    for (let i = 0; i < dateMatches.length; i++) {
+      const dateMatch = dateMatches[i];
+      const dateRange = this.parseDateRange(dateMatch[0], 'auto');
+
+      // Get context around this date (100 chars before, 500 chars after)
+      const contextStart = Math.max(0, dateMatch.index - 100);
+      const contextEnd = Math.min(text.length, dateMatch.index + dateMatch[0].length + 500);
+      const context = text.substring(contextStart, contextEnd);
+
+      // Extract job title and company from context
+      const titleResult = await this.extractJobTitle(context);
+      const companyResult = await this.extractCompanies(context);
+
+      const position = {
+        title: titleResult.title,
+        company: companyResult[0]?.name || null,
+        dateRange: dateMatch[0],
+        startDate: dateRange.startYear ? `${(dateRange.startMonth || 0) + 1}/${dateRange.startYear}` : null,
+        endDate: dateRange.ongoing ? 'Present' : (dateRange.endYear ? `${(dateRange.endMonth || 11) + 1}/${dateRange.endYear}` : null),
+        durationMonths: dateRange.durationMonths || null,
+        context: context.trim()
+      };
+
+      // Track company for inheritance
+      if (position.company) {
+        lastCompany = position.company;
+        result.companies.add(position.company);
+      } else if (lastCompany) {
+        position.company = lastCompany;
+        position.inheritedCompany = true;
+      }
+
+      result.positions.push(position);
+    }
+
+    // Detect promotions: same company, different titles, consecutive dates
+    const companyPositions = {};
+    for (const pos of result.positions) {
+      if (pos.company) {
+        const key = pos.company.toLowerCase();
+        if (!companyPositions[key]) companyPositions[key] = [];
+        companyPositions[key].push(pos);
+      }
+    }
+
+    for (const [company, positions] of Object.entries(companyPositions)) {
+      if (positions.length > 1) {
+        // Sort by start date (oldest first)
+        positions.sort((a, b) => {
+          const aDate = a.startDate ? new Date(a.startDate) : new Date(0);
+          const bDate = b.startDate ? new Date(b.startDate) : new Date(0);
+          return aDate - bDate;
+        });
+
+        // Each consecutive pair is a potential promotion
+        for (let i = 0; i < positions.length - 1; i++) {
+          result.promotions.push({
+            company: positions[i].company,
+            from: positions[i].title,
+            to: positions[i + 1].title,
+            fromDate: positions[i].dateRange,
+            toDate: positions[i + 1].dateRange
+          });
+        }
+      }
+    }
+
+    // Calculate total experience
+    const totalMonths = result.positions.reduce((sum, p) => sum + (p.durationMonths || 0), 0);
+    if (totalMonths > 0) {
+      result.totalExperience = {
+        months: totalMonths,
+        years: Math.floor(totalMonths / 12),
+        remainingMonths: totalMonths % 12,
+        formatted: `${Math.floor(totalMonths / 12)} years, ${totalMonths % 12} months`
+      };
+    }
+
+    // Convert Set to Array for serialization
+    result.companies = [...result.companies];
+    return result;
+  }
+
+  /**
+   * Extract salary information from text (uses compromise-numbers plugin)
+   * Normalizes salary ranges like "$120k-$150k" to structured data
+   * @param {string} text - Text to analyze
+   * @returns {Object} Extracted salary information
+   */
+  async extractSalary(text) {
+    await this.init();
+
+    const result = {
+      found: false,
+      salaries: [],
+      normalized: null
+    };
+
+    if (!nlp) {
+      console.warn('[CompromiseExtractor] nlp not loaded, using regex-only salary extraction');
+      return this.extractSalaryWithRegex(text);
+    }
+
+    const doc = nlp(text);
+
+    // Check if money method is available from numbers plugin
+    if (typeof doc.money === 'function') {
+      const moneyMatches = doc.money();
+      if (moneyMatches.found) {
+        const moneyData = moneyMatches.json();
+        moneyData.forEach(m => {
+          result.salaries.push({
+            text: m.text,
+            value: m.number || null,
+            currency: this.detectCurrency(m.text)
+          });
+        });
+        result.found = result.salaries.length > 0;
+      }
+    }
+
+    // Also use regex patterns for common salary formats
+    const regexResult = this.extractSalaryWithRegex(text);
+    regexResult.salaries.forEach(s => {
+      if (!result.salaries.some(existing => existing.text === s.text)) {
+        result.salaries.push(s);
+      }
+    });
+    result.found = result.salaries.length > 0;
+
+    // Normalize to min/max range
+    if (result.salaries.length > 0) {
+      const values = result.salaries.map(s => s.value).filter(v => v !== null);
+      if (values.length >= 2) {
+        result.normalized = {
+          min: Math.min(...values),
+          max: Math.max(...values),
+          currency: result.salaries[0].currency || 'USD'
+        };
+      } else if (values.length === 1) {
+        result.normalized = {
+          min: values[0],
+          max: values[0],
+          currency: result.salaries[0].currency || 'USD'
+        };
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Regex-based salary extraction fallback
+   */
+  extractSalaryWithRegex(text) {
+    const result = {
+      found: false,
+      salaries: [],
+      normalized: null
+    };
+
+    // Common salary patterns
+    const salaryPatterns = [
+      // $120k - $150k, $120K-$150K
+      /\$\s*(\d{2,3})\s*k\s*[-–to]+\s*\$?\s*(\d{2,3})\s*k/gi,
+      // $120,000 - $150,000
+      /\$\s*([\d,]+)\s*[-–to]+\s*\$?\s*([\d,]+)/g,
+      // Single values: $120k, $120,000
+      /\$\s*(\d{2,3})\s*k(?!\s*[-–to])/gi,
+      /\$\s*([\d,]+)(?:\s*(?:per|\/)\s*(?:year|yr|annum|annual))?(?!\s*[-–to])/gi,
+      // Range with "to": $120k to $150k
+      /\$\s*(\d{2,3})\s*k\s+to\s+\$?\s*(\d{2,3})\s*k/gi
+    ];
+
+    const textClean = text.replace(/,/g, '');
+
+    for (const pattern of salaryPatterns) {
+      let match;
+      while ((match = pattern.exec(text)) !== null) {
+        const matchText = match[0];
+
+        // Parse values
+        if (match[2]) {
+          // Range pattern
+          const val1 = this.parseSalaryValue(match[1]);
+          const val2 = this.parseSalaryValue(match[2]);
+          result.salaries.push({
+            text: matchText,
+            value: val1,
+            currency: 'USD',
+            isRange: true,
+            min: Math.min(val1, val2),
+            max: Math.max(val1, val2)
+          });
+        } else if (match[1]) {
+          // Single value
+          const val = this.parseSalaryValue(match[1]);
+          result.salaries.push({
+            text: matchText,
+            value: val,
+            currency: 'USD',
+            isRange: false
+          });
+        }
+      }
+    }
+
+    result.found = result.salaries.length > 0;
+
+    // Create normalized range
+    if (result.salaries.length > 0) {
+      const rangeMatch = result.salaries.find(s => s.isRange);
+      if (rangeMatch) {
+        result.normalized = {
+          min: rangeMatch.min,
+          max: rangeMatch.max,
+          currency: 'USD'
+        };
+      } else {
+        const values = result.salaries.map(s => s.value).filter(v => v !== null);
+        if (values.length > 0) {
+          result.normalized = {
+            min: Math.min(...values),
+            max: Math.max(...values),
+            currency: 'USD'
+          };
+        }
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Parse salary value string to number
+   */
+  parseSalaryValue(str) {
+    if (!str) return null;
+    const cleaned = str.replace(/[,$]/g, '').trim();
+    const num = parseFloat(cleaned);
+    if (isNaN(num)) return null;
+    // Check if it's in thousands (k notation or small number)
+    if (num < 1000) {
+      return num * 1000;
+    }
+    return num;
+  }
+
+  /**
+   * Detect currency from text
+   */
+  detectCurrency(text) {
+    if (/\$|USD|dollars?/i.test(text)) return 'USD';
+    if (/€|EUR|euros?/i.test(text)) return 'EUR';
+    if (/£|GBP|pounds?/i.test(text)) return 'GBP';
+    if (/¥|JPY|yen/i.test(text)) return 'JPY';
+    if (/₹|INR|rupees?/i.test(text)) return 'INR';
+    if (/CAD|C\$/i.test(text)) return 'CAD';
+    if (/AUD|A\$/i.test(text)) return 'AUD';
+    return 'USD'; // Default
+  }
+
+  /**
+   * Extract experience requirements from text (uses compromise-numbers plugin)
+   * Parses patterns like "5+ years experience" or "3-5 years"
+   * @param {string} text - Text to analyze
+   * @returns {Object} Extracted experience requirements
+   */
+  async extractExperienceRequirements(text) {
+    await this.init();
+
+    const result = {
+      found: false,
+      requirements: [],
+      minimumYears: null,
+      maximumYears: null
+    };
+
+    // Experience patterns
+    const experiencePatterns = [
+      // "5+ years", "5+ yrs"
+      { regex: /(\d+)\+?\s*(?:years?|yrs?)(?:\s+of)?\s+(?:experience|exp)?/gi, type: 'minimum' },
+      // "3-5 years", "3 to 5 years"
+      { regex: /(\d+)\s*[-–to]+\s*(\d+)\s*(?:years?|yrs?)(?:\s+of)?\s+(?:experience|exp)?/gi, type: 'range' },
+      // "at least 5 years"
+      { regex: /(?:at\s+least|minimum(?:\s+of)?)\s+(\d+)\s*(?:years?|yrs?)/gi, type: 'minimum' },
+      // "up to 10 years"
+      { regex: /(?:up\s+to|maximum(?:\s+of)?)\s+(\d+)\s*(?:years?|yrs?)/gi, type: 'maximum' },
+      // "experience: 5 years"
+      { regex: /experience[:\s]+(\d+)\s*(?:years?|yrs?)/gi, type: 'exact' }
+    ];
+
+    // Use numbers plugin if available for better extraction
+    if (nlp) {
+      const doc = nlp(text);
+      if (typeof doc.numbers === 'function') {
+        // Plugin is available - can use for validation
+      }
+    }
+
+    for (const { regex, type } of experiencePatterns) {
+      let match;
+      regex.lastIndex = 0; // Reset regex state
+      while ((match = regex.exec(text)) !== null) {
+        const entry = {
+          text: match[0],
+          type
+        };
+
+        if (type === 'range' && match[2]) {
+          entry.minYears = parseInt(match[1]);
+          entry.maxYears = parseInt(match[2]);
+        } else if (type === 'minimum') {
+          entry.minYears = parseInt(match[1]);
+        } else if (type === 'maximum') {
+          entry.maxYears = parseInt(match[1]);
+        } else {
+          entry.years = parseInt(match[1]);
+        }
+
+        result.requirements.push(entry);
+      }
+    }
+
+    result.found = result.requirements.length > 0;
+
+    // Calculate overall min/max
+    if (result.requirements.length > 0) {
+      const allMins = result.requirements
+        .map(r => r.minYears || r.years)
+        .filter(v => v !== undefined);
+      const allMaxs = result.requirements
+        .map(r => r.maxYears || r.years)
+        .filter(v => v !== undefined);
+
+      if (allMins.length > 0) {
+        result.minimumYears = Math.min(...allMins);
+      }
+      if (allMaxs.length > 0) {
+        result.maximumYears = Math.max(...allMaxs);
+      }
+    }
+
+    return result;
   }
 }
 

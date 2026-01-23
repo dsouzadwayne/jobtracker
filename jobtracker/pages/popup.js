@@ -120,11 +120,14 @@ const elements = {
 // BroadcastChannel for cross-page real-time updates
 const applicationChannel = new BroadcastChannel('jobtracker-applications');
 applicationChannel.onmessage = async (event) => {
-  if (event.data.type === 'DATA_CHANGED') {
+  if (event.data?.type === 'DATA_CHANGED') {
     await loadStats();
     await loadRecentApplications();
   }
 };
+
+// Race condition guard for handleTrackJob
+let isTrackingJob = false;
 
 // Initialize popup
 document.addEventListener('DOMContentLoaded', async () => {
@@ -139,6 +142,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 async function loadStats() {
   try {
     const stats = await chrome.runtime.sendMessage({ type: MessageTypes.GET_APPLICATION_STATS });
+    if (!stats || stats.error) {
+      console.log('Error loading stats:', stats?.error || 'No stats returned');
+      return;
+    }
     elements.statTotal.textContent = stats.total || 0;
     elements.statWeek.textContent = stats.thisWeek || 0;
     elements.statInterview.textContent = stats.byStatus?.interview || 0;
@@ -153,7 +160,7 @@ async function loadRecentApplications() {
   try {
     const applications = await chrome.runtime.sendMessage({ type: MessageTypes.GET_APPLICATIONS });
 
-    if (!applications || applications.length === 0) {
+    if (!applications || applications.error || !Array.isArray(applications) || applications.length === 0) {
       elements.emptyState.classList.remove('hidden');
       return;
     }
@@ -366,6 +373,10 @@ function escapeHtml(str) {
 
 // Handle Track This Job button click
 async function handleTrackJob() {
+  // Prevent double-clicks / race conditions
+  if (isTrackingJob) return;
+  isTrackingJob = true;
+
   const btn = elements.trackJobBtn;
   const btnText = btn.querySelector('.btn-text');
   const btnLoading = btn.querySelector('.btn-loading');
@@ -557,7 +568,6 @@ async function handleTrackJob() {
       `;
       btnText.classList.remove('hidden');
       btnLoading.classList.add('hidden');
-      btn.disabled = false;
 
       setTimeout(() => {
         btnText.innerHTML = `
@@ -568,6 +578,8 @@ async function handleTrackJob() {
           </svg>
           Track This Job
         `;
+        btn.disabled = false;
+        isTrackingJob = false;
       }, 2000);
       return;
     }
@@ -598,6 +610,7 @@ async function handleTrackJob() {
           Track This Job
         `;
         btn.disabled = false;
+        isTrackingJob = false;
       }, 2000);
 
       return;
@@ -615,6 +628,7 @@ async function handleTrackJob() {
     btn.disabled = false;
     btnText.classList.remove('hidden');
     btnLoading.classList.add('hidden');
+    isTrackingJob = false;
   }
 }
 

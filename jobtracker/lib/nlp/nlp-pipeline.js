@@ -99,6 +99,11 @@ async function extractJobInfo(text, options = {}) {
     location: null,
     skills: {},
     dates: [],
+    salary: null,
+    experienceRequired: null,
+    requirements: [],
+    benefits: [],
+    responsibilities: [],
     confidence: 0,
     source: null
   };
@@ -115,6 +120,23 @@ async function extractJobInfo(text, options = {}) {
       result.dates = compromiseResult.dates?.map(d => d.date) || [];
       result.confidence = Math.min(compromiseResult.positionConfidence || 0, compromiseResult.companyConfidence || 0);
       result.source = 'compromise';
+
+      // Extract additional data using plugin methods (salary, experience, sentences)
+      try {
+        const [salaryData, experienceData, sentenceData] = await Promise.all([
+          compromiseExtractor.extractSalary(text),
+          compromiseExtractor.extractExperienceRequirements(text),
+          compromiseExtractor.extractSentences(text)
+        ]);
+
+        result.salary = salaryData.normalized;
+        result.experienceRequired = experienceData.minimumYears;
+        result.requirements = sentenceData.requirements || [];
+        result.benefits = sentenceData.benefits || [];
+        result.responsibilities = sentenceData.responsibilities || [];
+      } catch (pluginError) {
+        console.warn('[NLP Pipeline] Plugin extraction failed:', pluginError.message);
+      }
 
       // Check if we have all required fields
       const missingFields = requireFields.filter(f => !result[f]);
@@ -194,6 +216,11 @@ async function extractResumeInfo(text, options = {}) {
     skills: {},
     locations: [],
     dates: [],
+    workDuration: null,
+    dateRanges: [],
+    sections: [],
+    workHistory: null,
+    promotions: [],
     confidence: 0,
     source: null
   };
@@ -217,6 +244,23 @@ async function extractResumeInfo(text, options = {}) {
 
       const phoneMatch = text.match(/(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4}/);
       if (phoneMatch) result.phone = phoneMatch[0];
+
+      // Extract additional data using plugin methods (enhanced dates, paragraphs, work history)
+      try {
+        const [enhancedDates, paragraphData, workHistoryData] = await Promise.all([
+          compromiseExtractor.extractDatesEnhanced(text),
+          compromiseExtractor.extractParagraphs(text),
+          compromiseExtractor.extractWorkHistory(text)
+        ]);
+
+        result.workDuration = enhancedDates.totalDuration;
+        result.dateRanges = enhancedDates.ranges || [];
+        result.sections = paragraphData.sections || [];
+        result.workHistory = workHistoryData.positions || [];
+        result.promotions = workHistoryData.promotions || [];
+      } catch (pluginError) {
+        console.warn('[NLP Pipeline] Plugin extraction failed:', pluginError.message);
+      }
 
     } catch (error) {
       console.warn('[NLP Pipeline] Compromise resume extraction failed:', error.message);
