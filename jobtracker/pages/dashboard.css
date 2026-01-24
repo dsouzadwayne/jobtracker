@@ -3947,3 +3947,75 @@ input[type="file"].hidden-input {
     width: 100%;
   }
 }
+
+/* ==================== CRM PHASE 1: PRIORITY & ACTIVITY BADGES ==================== */
+
+/* Priority Badges */
+.priority-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: 6px;
+  border-radius: var(--radius-sm);
+  vertical-align: middle;
+}
+
+.priority-badge.priority-high {
+  background: var(--color-danger-light);
+  color: var(--color-danger);
+}
+
+.priority-badge.priority-low {
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+}
+
+/* Activity/Stale Badges */
+.activity-badge {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.activity-badge.activity-warning {
+  background: var(--color-warning-light);
+  color: var(--color-warning);
+}
+
+.activity-badge.activity-stale {
+  background: var(--color-danger-light);
+  color: var(--color-danger);
+}
+
+/* Rejection Reason Field (shown conditionally) */
+#rejection-reason-group {
+  transition: opacity var(--transition-normal), max-height var(--transition-normal);
+}
+
+#rejection-reason-group.hidden {
+  display: none;
+}
+
+/* Priority filter/sort option styles */
+.priority-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+
+.priority-indicator.high { background: var(--color-danger); }
+.priority-indicator.medium { background: var(--color-warning); }
+.priority-indicator.low { background: var(--text-muted); }
+
+/* Table view priority badge alignment */
+.table-company .priority-badge {
+  margin-left: 4px;
+  flex-shrink: 0;
+}

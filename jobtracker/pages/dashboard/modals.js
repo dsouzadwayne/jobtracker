@@ -20,6 +20,14 @@ let loadApplicationsCallback = null;
 let loadTagsCallback = null;
 let updateStatsCallback = null;
 
+// Toggle rejection reason field visibility
+function toggleRejectionReasonField(show) {
+  const rejectionGroup = document.getElementById('rejection-reason-group');
+  if (rejectionGroup) {
+    rejectionGroup.classList.toggle('hidden', !show);
+  }
+}
+
 export function setModalCallbacks(callbacks) {
   loadApplicationsCallback = callbacks.loadApplications;
   loadTagsCallback = callbacks.loadTags;
@@ -163,12 +171,29 @@ export function openModal(app = null) {
     // CRM Enhancement: Tags and Deadline
     document.getElementById('app-tags').value = (app.tags || []).join(', ');
     document.getElementById('app-deadline').value = formatDateInput(app.deadline);
+    // CRM Enhancement Phase 1: New fields
+    document.getElementById('app-priority').value = app.priority || 'medium';
+    document.getElementById('app-referred-by').value = app.referredBy || '';
+    document.getElementById('app-resume-version').value = app.resumeVersion || '';
+    document.getElementById('app-last-contacted').value = formatDateInput(app.lastContacted);
+    document.getElementById('app-rejection-reason').value = app.rejectionReason || '';
+    document.getElementById('app-company-notes').value = app.companyNotes || '';
+    // Show rejection reason field if status is rejected
+    toggleRejectionReasonField(app.status === 'rejected');
   } else {
     document.getElementById('app-id').value = '';
     document.getElementById('app-date').value = new Date().toISOString().split('T')[0];
     // CRM Enhancement: Clear tags and deadline
     document.getElementById('app-tags').value = '';
     document.getElementById('app-deadline').value = '';
+    // CRM Enhancement Phase 1: Clear new fields
+    document.getElementById('app-priority').value = 'medium';
+    document.getElementById('app-referred-by').value = '';
+    document.getElementById('app-resume-version').value = '';
+    document.getElementById('app-last-contacted').value = '';
+    document.getElementById('app-rejection-reason').value = '';
+    document.getElementById('app-company-notes').value = '';
+    toggleRejectionReasonField(false);
   }
 
   elements.modal.classList.remove('hidden');
@@ -221,11 +246,14 @@ export async function handleSubmit(e) {
   const tagsInput = document.getElementById('app-tags')?.value || '';
   const tags = tagsInput.split(',').map(t => t.trim()).filter(t => t.length > 0);
 
+  const status = document.getElementById('app-status').value;
+  const lastContactedValue = document.getElementById('app-last-contacted')?.value;
+
   const appData = {
     company: document.getElementById('app-company').value.trim(),
     position: document.getElementById('app-position').value.trim(),
     jobUrl: document.getElementById('app-url').value.trim(),
-    status: document.getElementById('app-status').value,
+    status: status,
     dateApplied: document.getElementById('app-date').value
       ? new Date(document.getElementById('app-date').value).toISOString()
       : new Date().toISOString(),
@@ -239,7 +267,14 @@ export async function handleSubmit(e) {
     // CRM Enhancement: Tags and Deadline
     tags: tags,
     deadline: document.getElementById('app-deadline')?.value || null,
-    deadlineAlert: true
+    deadlineAlert: true,
+    // CRM Enhancement Phase 1: New fields
+    priority: document.getElementById('app-priority')?.value || 'medium',
+    referredBy: document.getElementById('app-referred-by')?.value.trim() || '',
+    resumeVersion: document.getElementById('app-resume-version')?.value.trim() || '',
+    lastContacted: lastContactedValue ? new Date(lastContactedValue).toISOString() : null,
+    rejectionReason: status === 'rejected' ? (document.getElementById('app-rejection-reason')?.value || null) : null,
+    companyNotes: document.getElementById('app-company-notes')?.value.trim() || ''
   };
 
   // Validate form data
@@ -300,6 +335,12 @@ export function setupModalListeners(deleteApplicationCallback) {
   // Track form changes for dirty state
   elements.appForm?.addEventListener('input', () => {
     setFormDirty(true);
+  });
+
+  // CRM Enhancement Phase 1: Show/hide rejection reason based on status
+  const statusSelect = document.getElementById('app-status');
+  statusSelect?.addEventListener('change', (e) => {
+    toggleRejectionReasonField(e.target.value === 'rejected');
   });
 
   // AI tag suggestions - trigger when job description changes

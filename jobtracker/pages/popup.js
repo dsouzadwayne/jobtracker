@@ -195,7 +195,8 @@ function createApplicationItem(app) {
   item.className = 'app-item';
   item.dataset.id = app.id;
 
-  const initial = escapeHtml((app.company || 'U')[0].toUpperCase());
+  const companyName = String(app.company || '').trim();
+  const initial = escapeHtml(((companyName || 'Unknown')[0] || 'U').toUpperCase());
   const dateStr = formatRelativeDate(app.dateApplied || app.meta?.createdAt || new Date().toISOString());
   const statusClass = `status-${sanitizeStatus(app.status)}`;
 
@@ -226,7 +227,12 @@ function setupEventListeners() {
   // Autofill button
   elements.autofillBtn.addEventListener('click', async () => {
     try {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tabs || !tabs.length) {
+        alert('No active tab found. Please open a job application page.');
+        return;
+      }
+      const tab = tabs[0];
       if (tab?.id) {
         await chrome.tabs.sendMessage(tab.id, { type: MessageTypes.TRIGGER_AUTOFILL });
         window.close();
@@ -396,7 +402,12 @@ async function handleTrackJob() {
     const pageUrl = tab.url;
 
     // Check if we can access this page
-    if (pageUrl.startsWith('chrome://') || pageUrl.startsWith('chrome-extension://') || pageUrl.startsWith('about:')) {
+    if (pageUrl.startsWith('chrome://') ||
+        pageUrl.startsWith('chrome-extension://') ||
+        pageUrl.startsWith('about:') ||
+        pageUrl.startsWith('data:') ||
+        pageUrl.startsWith('file:') ||
+        pageUrl.startsWith('javascript:')) {
       throw new Error('Cannot scan browser pages. Please navigate to a job posting.');
     }
 

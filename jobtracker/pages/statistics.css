@@ -1382,3 +1382,99 @@
     max-width: 180px;
   }
 }
+
+/* ==================== CRM PHASE 4: REJECTION ANALYTICS ==================== */
+
+/* Chart Empty State */
+.chart-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  text-align: center;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+/* Rejection Insights */
+.rejection-insights {
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.rejection-insight {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  border-left: 3px solid transparent;
+}
+
+.rejection-insight-warning {
+  border-left-color: var(--color-warning);
+}
+
+.rejection-insight-info {
+  border-left-color: var(--color-info);
+}
+
+.rejection-insight-action {
+  border-left-color: var(--color-primary);
+}
+
+.rejection-insight-success {
+  border-left-color: var(--color-success);
+}
+
+.rejection-insight-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.rejection-insight-warning .rejection-insight-icon {
+  background: var(--color-warning-light);
+  color: var(--color-warning);
+}
+
+.rejection-insight-info .rejection-insight-icon {
+  background: var(--color-info-light);
+  color: var(--color-info);
+}
+
+.rejection-insight-action .rejection-insight-icon {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.rejection-insight-success .rejection-insight-icon {
+  background: var(--color-success-light);
+  color: var(--color-success);
+}
+
+.rejection-insight-message {
+  flex: 1;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.rejection-insight-empty {
+  text-align: center;
+  padding: var(--space-md);
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}

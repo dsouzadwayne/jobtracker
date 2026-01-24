@@ -9,6 +9,7 @@ const JobTrackerIframeBridge = {
   _messageHandlers: new Map(),
   _pendingRequests: new Map(),
   _requestId: 0,
+  _boundMessageHandler: null,
 
   // Message types
   MESSAGE_TYPES: {
@@ -28,8 +29,9 @@ const JobTrackerIframeBridge = {
   init() {
     if (this._initialized) return;
 
-    // Set up message listener
-    window.addEventListener('message', (event) => this._handleMessage(event));
+    // Set up message listener with saved reference for cleanup
+    this._boundMessageHandler = (event) => this._handleMessage(event);
+    window.addEventListener('message', this._boundMessageHandler);
 
     // Determine if we're in an iframe
     this._isIframe = window !== window.top;
@@ -540,6 +542,12 @@ const JobTrackerIframeBridge = {
    * Removes event listeners and clears pending requests
    */
   disconnect() {
+    // Remove the window message listener
+    if (this._boundMessageHandler) {
+      window.removeEventListener('message', this._boundMessageHandler);
+      this._boundMessageHandler = null;
+    }
+
     // Clear pending requests with timeout errors
     for (const [requestId, pending] of this._pendingRequests) {
       pending.resolve({ filledCount: 0, disconnected: true });

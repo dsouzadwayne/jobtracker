@@ -20,6 +20,26 @@
   let readabilityLoadPromise = null;
 
   /**
+   * Safe wrapper for chrome.runtime.sendMessage with error handling
+   * @param {object} message - Message to send
+   * @param {any} defaultValue - Default value to return on error
+   * @returns {Promise<any>} Response or default value
+   */
+  async function safeSendMessage(message, defaultValue = null) {
+    try {
+      const result = await chrome.runtime.sendMessage(message);
+      if (chrome.runtime.lastError) {
+        console.log('JobTracker AI: Runtime error:', chrome.runtime.lastError.message);
+        return defaultValue;
+      }
+      return result;
+    } catch (error) {
+      console.log('JobTracker AI: Message error:', error.message || error);
+      return defaultValue;
+    }
+  }
+
+  /**
    * Decode HTML entities in text
    * @param {string} text - Text with potential HTML entities
    * @returns {string} Decoded text
@@ -370,21 +390,17 @@
    * Extract job info using AI (via background script)
    */
   async function extractWithAI(text) {
-    try {
-      const response = await chrome.runtime.sendMessage({
-        type: 'AI_EXTRACT_JOB',
-        payload: { text }
-      });
+    const response = await safeSendMessage({
+      type: 'AI_EXTRACT_JOB',
+      payload: { text }
+    }, null);
 
-      if (response?.success && response.data) {
-        return response.data;
-      }
+    if (response?.success && response.data) {
+      return response.data;
+    }
 
-      if (response?.error) {
-        console.log('JobTracker AI: Extraction error:', response.error);
-      }
-    } catch (error) {
-      console.log('JobTracker AI: Extraction failed:', error.message || error);
+    if (response?.error) {
+      console.log('JobTracker AI: Extraction error:', response.error);
     }
     return null;
   }
@@ -415,13 +431,8 @@
       const pipeline = await loadExtractionPipeline();
       if (pipeline) {
         // Get settings to check if LLM is enabled
-        let llmEnabled = false;
-        try {
-          const settings = await chrome.runtime.sendMessage({ type: 'GET_SETTINGS' });
-          llmEnabled = settings?.ai?.llmEnabled || false;
-        } catch (e) {
-          // Settings not available
-        }
+        const settings = await safeSendMessage({ type: 'GET_SETTINGS' }, {});
+        const llmEnabled = settings?.ai?.llmEnabled || false;
 
         // Create pipeline with ML extractor
         const extractor = pipeline.createPipeline({
@@ -430,15 +441,11 @@
             return extractWithAI(text);
           },
           llmExtractor: llmEnabled ? async (text, currentResults) => {
-            try {
-              const response = await chrome.runtime.sendMessage({
-                type: 'LLM_EXTRACT_JOB',
-                payload: { text, currentResults, url }
-              });
-              return response?.success ? response.data : null;
-            } catch (e) {
-              return null;
-            }
+            const response = await safeSendMessage({
+              type: 'LLM_EXTRACT_JOB',
+              payload: { text, currentResults, url }
+            }, null);
+            return response?.success ? response.data : null;
           } : null
         });
 

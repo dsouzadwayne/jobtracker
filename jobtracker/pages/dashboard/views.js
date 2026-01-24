@@ -135,6 +135,43 @@ export function getDeadlineBadge(app) {
   return '';
 }
 
+// Get priority badge HTML (CRM Phase 1)
+export function getPriorityBadge(app) {
+  const priority = app.priority || 'medium';
+  if (priority === 'medium') return ''; // Don't show badge for default priority
+
+  const icons = {
+    high: `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 2L2 22h20L12 2z"/></svg>`,
+    low: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>`
+  };
+
+  return `<span class="priority-badge priority-${escapeHtml(priority)}" title="${escapeHtml(priority.charAt(0).toUpperCase() + priority.slice(1))} Priority">${icons[priority] || ''}</span>`;
+}
+
+// Get days since activity indicator (CRM Phase 1)
+export function getDaysSinceActivityBadge(app) {
+  // Skip for terminal statuses
+  if (['rejected', 'withdrawn', 'offer'].includes(app.status)) return '';
+
+  const now = new Date();
+  const lastContact = app.lastContacted ? new Date(app.lastContacted) : null;
+  const lastUpdate = app.meta?.updatedAt ? new Date(app.meta.updatedAt) : null;
+  const dateApplied = app.dateApplied ? new Date(app.dateApplied) : null;
+
+  // Use the most recent activity date
+  const lastActivity = lastContact || lastUpdate || dateApplied;
+  if (!lastActivity) return '';
+
+  const daysSince = Math.floor((now - lastActivity) / (1000 * 60 * 60 * 24));
+
+  if (daysSince >= 14) {
+    return `<span class="activity-badge activity-stale" title="No activity in ${daysSince} days">${daysSince}d ago</span>`;
+  } else if (daysSince >= 7) {
+    return `<span class="activity-badge activity-warning" title="Last activity ${daysSince} days ago">${daysSince}d ago</span>`;
+  }
+  return '';
+}
+
 // Render tag chips for an application
 export function renderTagChips(tags) {
   if (!tags || tags.length === 0) return '';
@@ -162,11 +199,15 @@ export function createAppCard(app) {
   // CRM Enhancement: Tags
   const tagsHtml = renderTagChips(app.tags);
 
+  // CRM Enhancement Phase 1: Priority and activity badges
+  const priorityBadge = getPriorityBadge(app);
+  const activityBadge = getDaysSinceActivityBadge(app);
+
   card.innerHTML = `
     <div class="app-card-header">
       <div class="app-icon">${initial}</div>
       <div class="app-info">
-        <div class="app-company">${safeText(app.company || 'Unknown Company')}</div>
+        <div class="app-company">${safeText(app.company || 'Unknown Company')}${priorityBadge}</div>
         <div class="app-position">${safeText(app.position || 'Unknown Position')}</div>
       </div>
       <span class="status-badge ${statusClass}" aria-label="Status: ${escapeHtml(capitalizeStatus(app.status))}">${escapeHtml(capitalizeStatus(app.status))}</span>
@@ -184,6 +225,7 @@ export function createAppCard(app) {
       </span>
       ${app.location ? `<span class="app-location">${safeText(app.location)}</span>` : ''}
       ${deadlineBadge}
+      ${activityBadge}
     </div>
     <div class="app-card-actions">
       <button class="action-btn edit-btn" title="Edit">
@@ -242,16 +284,18 @@ export function renderTable() {
     const tableAppliedDate = app.dateApplied || app.meta?.createdAt;
     const tableDateStr = tableAppliedDate ? formatDate(tableAppliedDate) : 'Unknown';
     const tableRelativeTime = tableAppliedDate ? formatDateRelative(tableAppliedDate) : '';
+    const tablePriorityBadge = getPriorityBadge(app);
+    const tableActivityBadge = getDaysSinceActivityBadge(app);
 
     row.innerHTML = `
       <td>
         <div class="table-company">
           <span class="table-icon">${tableInitial}</span>
-          <span>${safeText(app.company || 'Unknown')}</span>
+          <span>${safeText(app.company || 'Unknown')}${tablePriorityBadge}</span>
         </div>
       </td>
       <td>${safeText(app.position || 'Unknown')}</td>
-      <td><span class="status-badge ${tableStatusClass}">${escapeHtml(capitalizeStatus(app.status))}</span></td>
+      <td><span class="status-badge ${tableStatusClass}">${escapeHtml(capitalizeStatus(app.status))}</span>${tableActivityBadge}</td>
       <td title="${escapeHtml(tableDateStr)}">${escapeHtml(tableRelativeTime || tableDateStr)}</td>
       <td>${safeText(app.location || '-')}</td>
       <td>${safeText(app.salary || '-')}</td>

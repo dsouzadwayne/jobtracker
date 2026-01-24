@@ -236,9 +236,12 @@ export class Reminder {
   }
 }
 
-// Generate unique IDs
+// Generate cryptographically secure unique IDs
 function generateId() {
-  return `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const arr = new Uint8Array(8);
+  crypto.getRandomValues(arr);
+  const randomPart = [...arr].map(b => b.toString(16).padStart(2, '0')).join('');
+  return `task_${Date.now()}_${randomPart}`;
 }
 
 /**

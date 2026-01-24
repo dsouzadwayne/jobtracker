@@ -6,9 +6,34 @@
 // Valid application statuses
 const APPLICATION_STATUSES = ['saved', 'applied', 'screening', 'interview', 'offer', 'rejected', 'withdrawn'];
 
+// Rejection reason options
+const REJECTION_REASONS = [
+  'no_response',        // Never heard back
+  'rejected_resume',    // Rejected at resume screen
+  'rejected_phone',     // Rejected after phone screen
+  'rejected_interview', // Rejected after interview
+  'position_filled',    // Position filled by another candidate
+  'position_cancelled', // Position cancelled/closed
+  'salary_mismatch',    // Salary expectations didn't match
+  'withdrew',           // I withdrew my application
+  'other'               // Other reason
+];
+
+// Priority levels
+const PRIORITY_LEVELS = ['high', 'medium', 'low'];
+
+// Contact types
+const CONTACT_TYPES = ['recruiter', 'hiring_manager', 'referral', 'networking', 'other'];
+
+// Contact sources
+const CONTACT_SOURCES = ['linkedin', 'email', 'referral', 'job_board', 'event', 'other'];
+
+// Communication types
+const COMMUNICATION_TYPES = ['email', 'call', 'linkedin', 'meeting', 'other'];
+
 const JobTrackerDB = {
   DB_NAME: 'JobTrackerDB',
-  DB_VERSION: 4,
+  DB_VERSION: 5,
   db: null,
   loadingPromise: null,
 
@@ -22,7 +47,9 @@ const JobTrackerDB = {
     TASKS: 'tasks',
     ACTIVITIES: 'activities',
     MODELS_METADATA: 'models_metadata',
-    EXTRACTION_FEEDBACK: 'extraction_feedback'
+    EXTRACTION_FEEDBACK: 'extraction_feedback',
+    CONTACTS: 'contacts',
+    COMMUNICATIONS: 'communications'
   },
 
   /**
@@ -123,6 +150,37 @@ const JobTrackerDB = {
           feedbackStore.createIndex('timestamp', 'timestamp', { unique: false });
         }
 
+        // Contacts store (CRM Enhancement - Phase 2)
+        if (!db.objectStoreNames.contains(this.STORES.CONTACTS)) {
+          const contactStore = db.createObjectStore(this.STORES.CONTACTS, { keyPath: 'id' });
+          contactStore.createIndex('company', 'company', { unique: false });
+          contactStore.createIndex('type', 'type', { unique: false });
+          contactStore.createIndex('email', 'email', { unique: false });
+          contactStore.createIndex('createdAt', 'createdAt', { unique: false });
+        }
+
+        // Communications store (CRM Enhancement - Phase 2)
+        if (!db.objectStoreNames.contains(this.STORES.COMMUNICATIONS)) {
+          const commStore = db.createObjectStore(this.STORES.COMMUNICATIONS, { keyPath: 'id' });
+          commStore.createIndex('contactId', 'contactId', { unique: false });
+          commStore.createIndex('applicationId', 'applicationId', { unique: false });
+          commStore.createIndex('type', 'type', { unique: false });
+          commStore.createIndex('date', 'date', { unique: false });
+          commStore.createIndex('followUpDate', 'followUpDate', { unique: false });
+        }
+
+        // Add priority index to applications (CRM Enhancement - Phase 1)
+        if (oldVersion < 5) {
+          const appTransaction = event.target.transaction;
+          const appStore = appTransaction.objectStore(this.STORES.APPLICATIONS);
+          if (!appStore.indexNames.contains('priority')) {
+            appStore.createIndex('priority', 'priority', { unique: false });
+          }
+          if (!appStore.indexNames.contains('lastContacted')) {
+            appStore.createIndex('lastContacted', 'lastContacted', { unique: false });
+          }
+        }
+
         console.log('JobTracker: Database schema created/upgraded');
       };
     });
@@ -131,14 +189,19 @@ const JobTrackerDB = {
   },
 
   /**
-   * Generate UUID
+   * Generate cryptographically secure UUID v4
    */
   generateId() {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-      const r = Math.random() * 16 | 0;
-      const v = c === 'x' ? r : (r & 0x3 | 0x8);
-      return v.toString(16);
-    });
+    const arr = new Uint8Array(16);
+    crypto.getRandomValues(arr);
+    // Set version to 4 (0100xxxx)
+    arr[6] = (arr[6] & 0x0f) | 0x40;
+    // Set variant to RFC 4122 (10xxxxxx)
+    arr[8] = (arr[8] & 0x3f) | 0x80;
+    return [...arr].map((b, i) =>
+      (i === 4 || i === 6 || i === 8 || i === 10 ? '-' : '') +
+      b.toString(16).padStart(2, '0')
+    ).join('');
   },
 
   // ==================== APPLICATIONS ====================
@@ -156,9 +219,18 @@ const JobTrackerDB = {
       request.onsuccess = () => {
         // Sort by dateApplied descending (newest first)
         const apps = request.result.sort((a, b) => {
-          const dateA = new Date(a.dateApplied || a.meta?.createdAt);
-          const dateB = new Date(b.dateApplied || b.meta?.createdAt);
-          return dateB - dateA;
+          // Use null sentinel for missing dates (will become NaN)
+          const dateSourceA = a.dateApplied || a.meta?.createdAt || null;
+          const dateSourceB = b.dateApplied || b.meta?.createdAt || null;
+          const dateA = dateSourceA ? new Date(dateSourceA) : new Date(NaN);
+          const dateB = dateSourceB ? new Date(dateSourceB) : new Date(NaN);
+          // Handle Invalid Date - push to end of list
+          const timeA = dateA.getTime();
+          const timeB = dateB.getTime();
+          if (isNaN(timeA) && isNaN(timeB)) return 0;
+          if (isNaN(timeA)) return 1;  // Push invalid to end
+          if (isNaN(timeB)) return -1; // Push invalid to end
+          return timeB - timeA;
         });
         resolve(apps);
       };
@@ -238,6 +310,14 @@ const JobTrackerDB = {
       tags: application.tags || [],
       deadline: application.deadline || null,
       deadlineAlert: application.deadlineAlert !== false,
+      // CRM Enhancement Phase 1: New fields
+      priority: application.priority || 'medium',
+      referredBy: application.referredBy || '',
+      rejectionReason: application.rejectionReason || null,
+      resumeVersion: application.resumeVersion || '',
+      lastContacted: application.lastContacted || null,
+      companyNotes: application.companyNotes || '',
+      contacts: application.contacts || [],  // Array of contact IDs
       meta: {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -705,8 +785,14 @@ const JobTrackerDB = {
 
       request.onsuccess = () => {
         const interviews = request.result.sort((a, b) => {
-          const dateA = new Date(a.scheduledDate);
-          const dateB = new Date(b.scheduledDate);
+          const dateA = new Date(a.scheduledDate || 0);
+          const dateB = new Date(b.scheduledDate || 0);
+          // Handle Invalid Date - push to end of list
+          const timeA = dateA.getTime();
+          const timeB = dateB.getTime();
+          if (isNaN(timeA) && isNaN(timeB)) return 0;
+          if (isNaN(timeA)) return 1;  // Push invalid to end
+          if (isNaN(timeB)) return -1; // Push invalid to end
           return dateA - dateB;
         });
         resolve(interviews);
@@ -1259,7 +1345,8 @@ const JobTrackerDB = {
         enabled: false,           // Disabled by default - user must opt-in
         autoSuggestTags: true,    // When AI enabled, auto-suggest tags
         enhanceResumeParsing: true // When AI enabled, enhance resume parsing
-      }
+      },
+      customJobSites: []  // User-added job sites for quick access
     };
   },
 
@@ -1302,18 +1389,29 @@ const JobTrackerDB = {
         console.log('JobTracker: Profile migrated');
       }
 
-      // Migrate applications
+      // Migrate applications (continue on individual errors)
       if (chromeData.jobtracker_applications?.length > 0) {
+        let migratedCount = 0;
+        const migrationErrors = [];
         for (const app of chromeData.jobtracker_applications) {
-          await new Promise((resolve, reject) => {
-            const transaction = this.db.transaction([this.STORES.APPLICATIONS], 'readwrite');
-            const store = transaction.objectStore(this.STORES.APPLICATIONS);
-            const request = store.put(app);
-            request.onsuccess = () => resolve();
-            request.onerror = () => reject(request.error);
-          });
+          try {
+            await new Promise((resolve, reject) => {
+              const transaction = this.db.transaction([this.STORES.APPLICATIONS], 'readwrite');
+              const store = transaction.objectStore(this.STORES.APPLICATIONS);
+              const request = store.put(app);
+              request.onsuccess = () => resolve();
+              request.onerror = () => reject(request.error);
+            });
+            migratedCount++;
+          } catch (err) {
+            console.warn('JobTracker: Failed to migrate application:', app?.id || 'unknown', err?.message || err);
+            migrationErrors.push({ id: app?.id, error: err?.message || 'Unknown error' });
+          }
         }
-        console.log(`JobTracker: ${chromeData.jobtracker_applications.length} applications migrated`);
+        console.log(`JobTracker: ${migratedCount}/${chromeData.jobtracker_applications.length} applications migrated`);
+        if (migrationErrors.length > 0) {
+          console.warn(`JobTracker: ${migrationErrors.length} application(s) failed to migrate`);
+        }
       }
 
       // Migrate settings
@@ -1503,15 +1601,25 @@ const JobTrackerDB = {
           request.onerror = () => reject(request.error);
         });
 
-        // Add new applications
+        // Add new applications (continue on individual errors)
+        const importErrors = [];
         for (const app of data.applications) {
-          await new Promise((resolve, reject) => {
-            const transaction = this.db.transaction([this.STORES.APPLICATIONS], 'readwrite');
-            const store = transaction.objectStore(this.STORES.APPLICATIONS);
-            const request = store.add(app);
-            request.onsuccess = () => resolve();
-            request.onerror = () => reject(request.error);
-          });
+          try {
+            await new Promise((resolve, reject) => {
+              const transaction = this.db.transaction([this.STORES.APPLICATIONS], 'readwrite');
+              const store = transaction.objectStore(this.STORES.APPLICATIONS);
+              const request = store.add(app);
+              request.onsuccess = () => resolve();
+              request.onerror = () => reject(request.error);
+            });
+          } catch (err) {
+            // Log but continue with remaining applications
+            console.warn('JobTracker: Failed to import application:', app?.id || 'unknown', err?.message || err);
+            importErrors.push({ id: app?.id, error: err?.message || 'Unknown error' });
+          }
+        }
+        if (importErrors.length > 0) {
+          console.warn(`JobTracker: ${importErrors.length} application(s) failed to import`);
         }
       }
 
@@ -1907,8 +2015,345 @@ const JobTrackerDB = {
       };
       request.onerror = () => reject(request.error);
     });
+  },
+
+  // ==================== CONTACTS (CRM Phase 2) ====================
+
+  /**
+   * Get all contacts
+   */
+  async getAllContacts() {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.CONTACTS], 'readonly');
+      const store = transaction.objectStore(this.STORES.CONTACTS);
+      const request = store.getAll();
+
+      request.onsuccess = () => {
+        const contacts = request.result.sort((a, b) => {
+          return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+        });
+        resolve(contacts);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Get contact by ID
+   */
+  async getContact(id) {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.CONTACTS], 'readonly');
+      const store = transaction.objectStore(this.STORES.CONTACTS);
+      const request = store.get(id);
+
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Get contacts by company
+   */
+  async getContactsByCompany(company) {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.CONTACTS], 'readonly');
+      const store = transaction.objectStore(this.STORES.CONTACTS);
+      const index = store.index('company');
+      const request = index.getAll(company);
+
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Add contact
+   */
+  async addContact(contact) {
+    await this.init();
+
+    const contactData = {
+      ...contact,
+      id: contact.id || this.generateId(),
+      tags: contact.tags || [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.CONTACTS], 'readwrite');
+      const store = transaction.objectStore(this.STORES.CONTACTS);
+      const request = store.add(contactData);
+
+      request.onsuccess = () => resolve({ success: true, contact: contactData });
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Update contact
+   */
+  async updateContact(contact) {
+    await this.init();
+
+    const existing = await this.getContact(contact.id);
+    if (!existing) {
+      throw new Error('Contact not found');
+    }
+
+    const updated = {
+      ...existing,
+      ...contact,
+      updatedAt: new Date().toISOString()
+    };
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.CONTACTS], 'readwrite');
+      const store = transaction.objectStore(this.STORES.CONTACTS);
+      const request = store.put(updated);
+
+      request.onsuccess = () => resolve({ success: true, contact: updated });
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Delete contact
+   */
+  async deleteContact(id) {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.CONTACTS], 'readwrite');
+      const store = transaction.objectStore(this.STORES.CONTACTS);
+      const request = store.delete(id);
+
+      request.onsuccess = () => resolve({ success: true });
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Search contacts
+   */
+  async searchContacts(query) {
+    const contacts = await this.getAllContacts();
+    if (!query) return contacts;
+
+    const lowerQuery = query.toLowerCase();
+    return contacts.filter(c => {
+      return (c.name || '').toLowerCase().includes(lowerQuery) ||
+             (c.email || '').toLowerCase().includes(lowerQuery) ||
+             (c.company || '').toLowerCase().includes(lowerQuery) ||
+             (c.title || '').toLowerCase().includes(lowerQuery);
+    });
+  },
+
+  // ==================== COMMUNICATIONS (CRM Phase 2) ====================
+
+  /**
+   * Get all communications
+   */
+  async getAllCommunications() {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.COMMUNICATIONS], 'readonly');
+      const store = transaction.objectStore(this.STORES.COMMUNICATIONS);
+      const request = store.getAll();
+
+      request.onsuccess = () => {
+        const comms = request.result.sort((a, b) => {
+          return new Date(b.date || 0) - new Date(a.date || 0);
+        });
+        resolve(comms);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Get communications by contact ID
+   */
+  async getCommunicationsByContact(contactId) {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.COMMUNICATIONS], 'readonly');
+      const store = transaction.objectStore(this.STORES.COMMUNICATIONS);
+      const index = store.index('contactId');
+      const request = index.getAll(contactId);
+
+      request.onsuccess = () => {
+        const comms = request.result.sort((a, b) => {
+          return new Date(b.date || 0) - new Date(a.date || 0);
+        });
+        resolve(comms);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Get communication by ID
+   */
+  async getCommunication(id) {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.COMMUNICATIONS], 'readonly');
+      const store = transaction.objectStore(this.STORES.COMMUNICATIONS);
+      const request = store.get(id);
+
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Get communications by application ID
+   */
+  async getCommunicationsByApplication(applicationId) {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.COMMUNICATIONS], 'readonly');
+      const store = transaction.objectStore(this.STORES.COMMUNICATIONS);
+      const index = store.index('applicationId');
+      const request = index.getAll(applicationId);
+
+      request.onsuccess = () => {
+        const comms = request.result.sort((a, b) => {
+          return new Date(b.date || 0) - new Date(a.date || 0);
+        });
+        resolve(comms);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Get communications needing follow-up
+   */
+  async getCommunicationsNeedingFollowUp() {
+    const comms = await this.getAllCommunications();
+    const now = new Date();
+    return comms.filter(c => {
+      if (!c.followUpDate) return false;
+      const followUpDate = new Date(c.followUpDate);
+      return followUpDate <= now;
+    });
+  },
+
+  /**
+   * Add communication
+   */
+  async addCommunication(communication) {
+    await this.init();
+
+    const commData = {
+      ...communication,
+      id: communication.id || this.generateId(),
+      createdAt: new Date().toISOString()
+    };
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.COMMUNICATIONS], 'readwrite');
+      const store = transaction.objectStore(this.STORES.COMMUNICATIONS);
+      const request = store.add(commData);
+
+      request.onsuccess = () => resolve({ success: true, communication: commData });
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Update communication
+   */
+  async updateCommunication(communication) {
+    await this.init();
+
+    // Add existence check
+    const existing = await this.getCommunication(communication.id);
+    if (!existing) {
+      throw new Error('Communication not found');
+    }
+
+    const updated = {
+      ...existing,
+      ...communication,
+      updatedAt: new Date().toISOString()
+    };
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.COMMUNICATIONS], 'readwrite');
+      const store = transaction.objectStore(this.STORES.COMMUNICATIONS);
+      const request = store.put(updated);
+
+      request.onsuccess = () => resolve({ success: true, communication: updated });
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Delete communication
+   */
+  async deleteCommunication(id) {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.COMMUNICATIONS], 'readwrite');
+      const store = transaction.objectStore(this.STORES.COMMUNICATIONS);
+      const request = store.delete(id);
+
+      request.onsuccess = () => resolve({ success: true });
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  // ==================== REJECTION ANALYTICS (CRM Phase 4) ====================
+
+  /**
+   * Get rejection distribution
+   */
+  async getRejectionDistribution() {
+    const applications = await this.getAllApplications();
+    const rejected = applications.filter(app => app.status === 'rejected');
+
+    return rejected.reduce((acc, app) => {
+      const reason = app.rejectionReason || 'unknown';
+      acc[reason] = (acc[reason] || 0) + 1;
+      return acc;
+    }, {});
+  },
+
+  /**
+   * Get applications by priority
+   */
+  async getApplicationsByPriority(priority) {
+    const applications = await this.getAllApplications();
+    return applications.filter(app => app.priority === priority);
+  },
+
+  /**
+   * Get applications needing follow-up (no contact in X days)
+   */
+  async getApplicationsNeedingFollowUp(daysSinceContact = 7) {
+    const applications = await this.getAllApplications();
+    const now = new Date();
+    const threshold = new Date(now.getTime() - daysSinceContact * 24 * 60 * 60 * 1000);
+
+    return applications.filter(app => {
+      // Skip rejected, withdrawn, or offer applications
+      if (['rejected', 'withdrawn', 'offer'].includes(app.status)) return false;
+
+      const lastContact = app.lastContacted ? new Date(app.lastContacted) : null;
+      const lastUpdate = app.meta?.updatedAt ? new Date(app.meta.updatedAt) : null;
+      const lastActivity = lastContact || lastUpdate;
+
+      if (!lastActivity) return true; // No activity recorded
+      return lastActivity < threshold;
+    });
   }
 };
 
 // Export for ES modules
-export { JobTrackerDB };
+export { JobTrackerDB, REJECTION_REASONS, PRIORITY_LEVELS, CONTACT_TYPES, CONTACT_SOURCES, COMMUNICATION_TYPES };

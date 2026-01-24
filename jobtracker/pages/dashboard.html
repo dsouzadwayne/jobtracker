@@ -33,6 +33,15 @@
           </svg>
           <span>Applications</span>
         </a>
+        <a href="contacts.html" class="nav-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+          </svg>
+          <span>Contacts</span>
+        </a>
         <a href="statistics.html" class="nav-item">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <line x1="18" y1="20" x2="18" y2="10"></line>
@@ -41,20 +50,20 @@
           </svg>
           <span>Statistics</span>
         </a>
+        <a href="job-sites.html" class="nav-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="2" y1="12" x2="22" y2="12"></line>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+          </svg>
+          <span>Job Sites</span>
+        </a>
         <a href="profile.html" class="nav-item">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
             <circle cx="12" cy="7" r="4"></circle>
           </svg>
           <span>Profile</span>
-        </a>
-        <a href="supported-sites.html" class="nav-item">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="2" y1="12" x2="22" y2="12"></line>
-            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
-          </svg>
-          <span>Supported Sites</span>
         </a>
         <a href="settings.html" class="nav-item">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -394,6 +403,57 @@
             <label for="app-deadline">Application Deadline</label>
             <input type="date" id="app-deadline">
           </div>
+        </div>
+
+        <!-- CRM Enhancement Phase 1: Priority and Referral -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="app-priority">Priority</label>
+            <select id="app-priority">
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="app-referred-by">Referred By</label>
+            <input type="text" id="app-referred-by" placeholder="e.g., John Doe, LinkedIn connection">
+          </div>
+        </div>
+
+        <!-- CRM Enhancement Phase 1: Resume Version and Last Contacted -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="app-resume-version">Resume Version</label>
+            <input type="text" id="app-resume-version" placeholder="e.g., Software Engineer v2, General">
+          </div>
+          <div class="form-group">
+            <label for="app-last-contacted">Last Contacted</label>
+            <input type="date" id="app-last-contacted">
+          </div>
+        </div>
+
+        <!-- CRM Enhancement Phase 1: Rejection Reason (shown when status is rejected) -->
+        <div class="form-group hidden" id="rejection-reason-group">
+          <label for="app-rejection-reason">Rejection Reason</label>
+          <select id="app-rejection-reason">
+            <option value="">Select reason...</option>
+            <option value="no_response">Never heard back</option>
+            <option value="rejected_resume">Rejected at resume screen</option>
+            <option value="rejected_phone">Rejected after phone screen</option>
+            <option value="rejected_interview">Rejected after interview</option>
+            <option value="position_filled">Position filled by another</option>
+            <option value="position_cancelled">Position cancelled/closed</option>
+            <option value="salary_mismatch">Salary expectations mismatch</option>
+            <option value="withdrew">I withdrew my application</option>
+            <option value="other">Other reason</option>
+          </select>
+        </div>
+
+        <!-- CRM Enhancement Phase 1: Company Notes -->
+        <div class="form-group">
+          <label for="app-company-notes">Company Notes</label>
+          <textarea id="app-company-notes" rows="2" placeholder="Notes about the company, culture, interview process..."></textarea>
         </div>
 
         <div class="form-actions">

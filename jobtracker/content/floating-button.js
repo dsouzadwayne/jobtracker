@@ -18,6 +18,31 @@
   let settings = null;
   let currentJobId = null; // Track current job to detect changes
 
+  // Default settings for graceful degradation when background script fails
+  const DEFAULT_SETTINGS = {
+    autofill: { enabled: true, showFloatingButton: true, autoDetectForms: true, confirmBeforeFill: false }
+  };
+
+  /**
+   * Safe wrapper for chrome.runtime.sendMessage with error handling
+   * @param {object} message - Message to send
+   * @param {any} defaultValue - Default value to return on error
+   * @returns {Promise<any>} Response or default value
+   */
+  async function safeSendMessage(message, defaultValue = null) {
+    try {
+      const result = await chrome.runtime.sendMessage(message);
+      if (chrome.runtime.lastError) {
+        console.log('JobTracker: Runtime error:', chrome.runtime.lastError.message);
+        return defaultValue;
+      }
+      return result;
+    } catch (error) {
+      console.log('JobTracker: Message error:', error.message || error);
+      return defaultValue;
+    }
+  }
+
   // Form detection indicators
   const JOB_FORM_INDICATORS = {
     urlPatterns: [
@@ -52,8 +77,8 @@
   // Initialize
   async function init() {
     try {
-      // Get settings
-      settings = await chrome.runtime.sendMessage({ type: 'GET_SETTINGS' });
+      // Get settings with fallback to defaults
+      settings = await safeSendMessage({ type: 'GET_SETTINGS' }, DEFAULT_SETTINGS);
 
       if (!settings?.autofill?.showFloatingButton) {
         return;
@@ -287,41 +312,41 @@
       Object.assign(jobInfo, result);
     }
 
-    try {
-      const response = await chrome.runtime.sendMessage({
-        type: 'ADD_APPLICATION',
-        payload: {
-          ...jobInfo,
-          status: 'applied',
-          dateApplied: new Date().toISOString(),
-          source: 'manual-button'
-        }
-      });
-
-      // Check for duplicate
-      if (response?.duplicate) {
-        if (window.JobTrackerContent) {
-          window.JobTrackerContent.showNotification(
-            `Already tracked: ${response.existing?.position || 'This job'} at ${response.existing?.company || 'this company'}`,
-            'warning'
-          );
-        }
-        // Still update button to show it's tracked
-        setAppliedState();
-        return;
+    const response = await safeSendMessage({
+      type: 'ADD_APPLICATION',
+      payload: {
+        ...jobInfo,
+        status: 'applied',
+        dateApplied: new Date().toISOString(),
+        source: 'manual-button'
       }
+    }, null);
 
-      // Update button to show applied state
+    if (!response) {
+      if (window.JobTrackerContent) {
+        window.JobTrackerContent.showNotification('Failed to save application. Extension may be reloading.', 'error');
+      }
+      return;
+    }
+
+    // Check for duplicate
+    if (response?.duplicate) {
+      if (window.JobTrackerContent) {
+        window.JobTrackerContent.showNotification(
+          `Already tracked: ${response.existing?.position || 'This job'} at ${response.existing?.company || 'this company'}`,
+          'warning'
+        );
+      }
+      // Still update button to show it's tracked
       setAppliedState();
+      return;
+    }
 
-      if (window.JobTrackerContent) {
-        window.JobTrackerContent.showNotification('Application tracked!', 'success');
-      }
-    } catch (error) {
-      console.log('JobTracker: Error tracking application:', error);
-      if (window.JobTrackerContent) {
-        window.JobTrackerContent.showNotification('Failed to save application', 'error');
-      }
+    // Update button to show applied state
+    setAppliedState();
+
+    if (window.JobTrackerContent) {
+      window.JobTrackerContent.showNotification('Application tracked!', 'success');
     }
   }
 
@@ -392,16 +417,11 @@
 
   // Check if a job URL is already tracked
   async function checkIfJobTracked(jobUrl) {
-    try {
-      const response = await chrome.runtime.sendMessage({
-        type: 'CHECK_DUPLICATE',
-        payload: { jobUrl }
-      });
-      return response?.exists || false;
-    } catch (error) {
-      console.log('JobTracker: Error checking if job tracked:', error);
-      return false;
-    }
+    const response = await safeSendMessage({
+      type: 'CHECK_DUPLICATE',
+      payload: { jobUrl }
+    }, { exists: false });
+    return response?.exists || false;
   }
 
   // Update button state based on whether current job is tracked
@@ -587,7 +607,7 @@
   async function triggerAutofill() {
     try {
       // Get profile to validate before autofill
-      const profile = await chrome.runtime.sendMessage({ type: 'GET_PROFILE' });
+      const profile = await safeSendMessage({ type: 'GET_PROFILE' }, null);
 
       // Check if profile has minimum required fields
       if (!profile || !profile.personal?.email) {
@@ -603,7 +623,7 @@
       }
 
       window.dispatchEvent(new CustomEvent('jobtracker:trigger-autofill'));
-      chrome.runtime.sendMessage({ type: 'TRIGGER_AUTOFILL' });
+      await safeSendMessage({ type: 'TRIGGER_AUTOFILL' });
     } catch (error) {
       console.log('JobTracker: Error triggering autofill:', error);
       if (window.JobTrackerContent) {
@@ -640,32 +660,35 @@
       Object.assign(jobInfo, result);
     }
 
-    try {
-      const response = await chrome.runtime.sendMessage({
-        type: 'ADD_APPLICATION',
-        payload: {
-          ...jobInfo,
-          status: status,
-          dateApplied: new Date().toISOString()
-        }
-      });
-
-      // Check for duplicate
-      if (response?.duplicate) {
-        if (window.JobTrackerContent) {
-          window.JobTrackerContent.showNotification(
-            `Already tracked: ${response.existing?.position || 'This job'} at ${response.existing?.company || 'this company'}`,
-            'warning'
-          );
-        }
-        return;
+    const response = await safeSendMessage({
+      type: 'ADD_APPLICATION',
+      payload: {
+        ...jobInfo,
+        status: status,
+        dateApplied: new Date().toISOString()
       }
+    }, null);
 
+    if (!response) {
       if (window.JobTrackerContent) {
-        window.JobTrackerContent.showNotification('Application saved to tracker!', 'success');
+        window.JobTrackerContent.showNotification('Failed to save application. Extension may be reloading.', 'error');
       }
-    } catch (error) {
-      console.log('JobTracker: Error tracking application:', error);
+      return;
+    }
+
+    // Check for duplicate
+    if (response?.duplicate) {
+      if (window.JobTrackerContent) {
+        window.JobTrackerContent.showNotification(
+          `Already tracked: ${response.existing?.position || 'This job'} at ${response.existing?.company || 'this company'}`,
+          'warning'
+        );
+      }
+      return;
+    }
+
+    if (window.JobTrackerContent) {
+      window.JobTrackerContent.showNotification('Application saved to tracker!', 'success');
     }
   }
 
@@ -1124,7 +1147,7 @@
         // URL parsing failed
       }
 
-      await chrome.runtime.sendMessage({
+      await safeSendMessage({
         type: 'TRACK_EXTRACTION_CORRECTION',
         payload: {
           extracted: {

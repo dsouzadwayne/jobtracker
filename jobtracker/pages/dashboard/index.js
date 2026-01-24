@@ -221,13 +221,18 @@ async function loadSettings() {
       settings.ui = settings.ui || {};
       settings.ui.dashboardView = localStorageView;
       try {
-        await chrome.runtime.sendMessage({
+        const saveResult = await chrome.runtime.sendMessage({
           type: MessageTypes.SAVE_SETTINGS,
           payload: settings
         });
-        localStorage.removeItem('dashboardView');
-        console.log('JobTracker: Migrated dashboardView from localStorage to IndexedDB');
-        setCachedSettings(settings);
+        // Only remove localStorage after confirmed successful save
+        if (saveResult?.success !== false) {
+          localStorage.removeItem('dashboardView');
+          console.log('JobTracker: Migrated dashboardView from localStorage to IndexedDB');
+          setCachedSettings(settings);
+        } else {
+          console.error('Settings migration failed, keeping localStorage');
+        }
       } catch (error) {
         console.error('Settings migration failed, keeping localStorage:', error);
       }

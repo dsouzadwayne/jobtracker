@@ -33,7 +33,8 @@
     MaskHandler: window.JobTrackerMaskHandler,
 
     // Enhanced detection modules (lazy-loaded)
-    _enhancedDetectionLoaded: false,
+    _enhancedDetectionAttempted: false,
+    _enhancedDetectionAvailable: false,
     _allInitialized: false,
 
     /**
@@ -77,7 +78,7 @@
      * @returns {boolean}
      */
     isReady() {
-      return this._allInitialized && this._enhancedDetectionLoaded;
+      return this._allInitialized && this._enhancedDetectionAttempted;
     },
 
     /**
@@ -94,23 +95,27 @@
      * @returns {Promise<Object|null>} EnhancedDetection module or null
      */
     async initEnhancedDetection() {
-      if (this._enhancedDetectionLoaded) {
-        return window.EnhancedDetection;
+      // Return cached result if already attempted
+      if (this._enhancedDetectionAttempted) {
+        return this._enhancedDetectionAvailable ? window.EnhancedDetection : null;
       }
+
+      this._enhancedDetectionAttempted = true;
 
       // Check if modules are available
       if (!window.EnhancedDetection) {
         console.log('JobTracker: Enhanced detection module not loaded');
-        this._enhancedDetectionLoaded = true;  // Mark as "loaded" (even if unavailable)
+        this._enhancedDetectionAvailable = false;
         return null;
       }
 
       try {
         await window.EnhancedDetection.init();
-        this._enhancedDetectionLoaded = true;
+        this._enhancedDetectionAvailable = true;
         console.log('JobTracker: Enhanced detection initialized');
         return window.EnhancedDetection;
       } catch (error) {
+        this._enhancedDetectionAvailable = false;
         console.warn('JobTracker: Failed to initialize enhanced detection:', error.message);
         return null;
       }

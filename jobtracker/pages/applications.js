@@ -6,6 +6,8 @@
 // Uses separate storage key to avoid conflict with data migration
 const ThemeManager = {
   STORAGE_KEY: 'jobtracker_ui_prefs',
+  _mediaQueryListener: null,
+  _storageListener: null,
 
   async init() {
     const theme = await this.getTheme();
@@ -45,20 +47,34 @@ const ThemeManager = {
   },
 
   setupListeners() {
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', async () => {
+    // Store reference for cleanup
+    this._mediaQueryListener = async () => {
       const theme = await this.getTheme();
       if (theme === 'system') {
         this.applyTheme('system');
       }
-    });
+    };
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', this._mediaQueryListener);
 
     // Listen for storage changes from other extension pages
-    chrome.storage.onChanged.addListener((changes, areaName) => {
+    this._storageListener = (changes, areaName) => {
       if (areaName === 'local' && changes[this.STORAGE_KEY]) {
         const newTheme = changes[this.STORAGE_KEY].newValue?.theme || 'system';
         this.applyTheme(newTheme);
       }
-    });
+    };
+    chrome.storage.onChanged.addListener(this._storageListener);
+  },
+
+  cleanup() {
+    if (this._mediaQueryListener) {
+      window.matchMedia('(prefers-color-scheme: dark)').removeEventListener('change', this._mediaQueryListener);
+      this._mediaQueryListener = null;
+    }
+    if (this._storageListener) {
+      chrome.storage.onChanged.removeListener(this._storageListener);
+      this._storageListener = null;
+    }
   }
 };
 

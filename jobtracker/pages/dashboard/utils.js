@@ -210,17 +210,24 @@ export function formatJobDescription(text) {
   const hasHtmlTags = /<[a-z][\s\S]*>/i.test(decoded);
 
   if (hasHtmlTags) {
-    // Content has HTML - sanitize and render it
-    // Create a temporary div to parse HTML safely
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = decoded;
+    // Content has HTML - sanitize BEFORE parsing to prevent script execution
+    // Use DOMParser which doesn't execute scripts (unlike innerHTML assignment)
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(decoded, 'text/html');
+    const tempDiv = doc.body;
 
     // Remove any script tags and event handlers for security
-    tempDiv.querySelectorAll('script, style').forEach(el => el.remove());
+    tempDiv.querySelectorAll('script, style, iframe, object, embed, form').forEach(el => el.remove());
     tempDiv.querySelectorAll('*').forEach(el => {
-      // Remove all event handlers
+      // Remove all event handlers and dangerous attributes
       Array.from(el.attributes).forEach(attr => {
-        if (attr.name.startsWith('on') || attr.name === 'href' && attr.value.startsWith('javascript:')) {
+        const attrName = attr.name.toLowerCase();
+        const attrValue = (attr.value || '').toLowerCase().trim();
+        if (attrName.startsWith('on') ||
+            (attrName === 'href' && (attrValue.startsWith('javascript:') || attrValue.startsWith('data:'))) ||
+            (attrName === 'src' && (attrValue.startsWith('javascript:') || attrValue.startsWith('data:'))) ||
+            attrName === 'formaction' ||
+            attrName === 'xlink:href') {
           el.removeAttribute(attr.name);
         }
       });

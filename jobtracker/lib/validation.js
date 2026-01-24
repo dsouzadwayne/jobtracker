@@ -39,6 +39,46 @@ const TASK_PRIORITIES = ['low', 'medium', 'high'];
  */
 const INTERVIEW_OUTCOMES = ['pending', 'passed', 'failed', 'cancelled'];
 
+/**
+ * Application priority levels (CRM Phase 1)
+ */
+const APPLICATION_PRIORITIES = ['high', 'medium', 'low'];
+
+/**
+ * Rejection reason options (CRM Phase 1)
+ */
+const REJECTION_REASONS = [
+  'no_response',        // Never heard back
+  'rejected_resume',    // Rejected at resume screen
+  'rejected_phone',     // Rejected after phone screen
+  'rejected_interview', // Rejected after interview
+  'position_filled',    // Position filled by another candidate
+  'position_cancelled', // Position cancelled/closed
+  'salary_mismatch',    // Salary expectations didn't match
+  'withdrew',           // I withdrew my application
+  'other'               // Other reason
+];
+
+/**
+ * Contact types (CRM Phase 2)
+ */
+const CONTACT_TYPES = ['recruiter', 'hiring_manager', 'referral', 'networking', 'other'];
+
+/**
+ * Contact sources (CRM Phase 2)
+ */
+const CONTACT_SOURCES = ['linkedin', 'email', 'referral', 'job_board', 'event', 'other'];
+
+/**
+ * Communication types (CRM Phase 2)
+ */
+const COMMUNICATION_TYPES = ['email', 'call', 'linkedin', 'meeting', 'other'];
+
+/**
+ * Communication directions (CRM Phase 2)
+ */
+const COMMUNICATION_DIRECTIONS = ['inbound', 'outbound'];
+
 // ==================== SCHEMAS ====================
 
 /**
@@ -73,10 +113,50 @@ if (z) {
     deadline: z.string().datetime().optional(),
     statusHistory: z.array(StatusHistoryEntrySchema).optional(),
     autoDetected: z.boolean().optional(),
+    // CRM Enhancement Phase 1: New fields
+    priority: z.enum(APPLICATION_PRIORITIES).optional().default('medium'),
+    referredBy: z.string().optional(),
+    rejectionReason: z.enum(REJECTION_REASONS).optional().nullable(),
+    resumeVersion: z.string().optional(),
+    lastContacted: z.string().datetime().optional().nullable(),
+    companyNotes: z.string().optional(),
+    contacts: z.array(z.string()).optional(), // Array of contact IDs
     meta: z.object({
       createdAt: z.string().datetime().optional(),
       updatedAt: z.string().datetime().optional()
     }).optional()
+  });
+
+  // Contact schema (CRM Phase 2)
+  const ContactSchema = z.object({
+    id: z.string().uuid().optional(),
+    name: z.string().min(1, 'Name is required'),
+    email: z.string().email().optional().or(z.literal('')),
+    phone: z.string().optional(),
+    linkedin: z.string().url().optional().or(z.literal('')),
+    company: z.string().optional(),
+    title: z.string().optional(),
+    type: z.enum(CONTACT_TYPES).default('other'),
+    source: z.enum(CONTACT_SOURCES).default('other'),
+    agency: z.string().optional().nullable(),
+    notes: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+    createdAt: z.string().datetime().optional(),
+    updatedAt: z.string().datetime().optional()
+  });
+
+  // Communication schema (CRM Phase 2)
+  const CommunicationSchema = z.object({
+    id: z.string().uuid().optional(),
+    contactId: z.string().uuid(),
+    applicationId: z.string().uuid().optional().nullable(),
+    type: z.enum(COMMUNICATION_TYPES).default('email'),
+    direction: z.enum(COMMUNICATION_DIRECTIONS).default('outbound'),
+    subject: z.string().optional(),
+    notes: z.string().optional(),
+    date: z.string().datetime(),
+    followUpDate: z.string().datetime().optional().nullable(),
+    createdAt: z.string().datetime().optional()
   });
 
   // Profile schema
@@ -258,7 +338,9 @@ if (z) {
     Task: TaskSchema,
     Activity: ActivitySchema,
     ImportData: ImportDataSchema,
-    StatusHistoryEntry: StatusHistoryEntrySchema
+    StatusHistoryEntry: StatusHistoryEntrySchema,
+    Contact: ContactSchema,
+    Communication: CommunicationSchema
   };
 }
 
@@ -289,6 +371,12 @@ function performBasicValidation(schemaName, data) {
         if (data.platform && !PLATFORMS.includes(data.platform)) {
           errors.push({ path: 'platform', message: `Invalid platform: ${data.platform}`, code: 'invalid_enum' });
         }
+        if (data.priority && !APPLICATION_PRIORITIES.includes(data.priority)) {
+          errors.push({ path: 'priority', message: `Invalid priority: ${data.priority}`, code: 'invalid_enum' });
+        }
+        if (data.rejectionReason && !REJECTION_REASONS.includes(data.rejectionReason)) {
+          errors.push({ path: 'rejectionReason', message: `Invalid rejection reason: ${data.rejectionReason}`, code: 'invalid_enum' });
+        }
       }
       break;
 
@@ -317,6 +405,38 @@ function performBasicValidation(schemaName, data) {
         errors.push({ path: '', message: 'Task must be an object', code: 'invalid_type' });
       } else if (data.priority && !TASK_PRIORITIES.includes(data.priority)) {
         errors.push({ path: 'priority', message: `Invalid priority: ${data.priority}`, code: 'invalid_enum' });
+      }
+      break;
+
+    case 'Contact':
+      if (typeof data !== 'object') {
+        errors.push({ path: '', message: 'Contact must be an object', code: 'invalid_type' });
+      } else {
+        if (!data.name || typeof data.name !== 'string') {
+          errors.push({ path: 'name', message: 'Name is required', code: 'required' });
+        }
+        if (data.type && !CONTACT_TYPES.includes(data.type)) {
+          errors.push({ path: 'type', message: `Invalid contact type: ${data.type}`, code: 'invalid_enum' });
+        }
+        if (data.source && !CONTACT_SOURCES.includes(data.source)) {
+          errors.push({ path: 'source', message: `Invalid contact source: ${data.source}`, code: 'invalid_enum' });
+        }
+      }
+      break;
+
+    case 'Communication':
+      if (typeof data !== 'object') {
+        errors.push({ path: '', message: 'Communication must be an object', code: 'invalid_type' });
+      } else {
+        if (!data.contactId) {
+          errors.push({ path: 'contactId', message: 'Contact ID is required', code: 'required' });
+        }
+        if (data.type && !COMMUNICATION_TYPES.includes(data.type)) {
+          errors.push({ path: 'type', message: `Invalid communication type: ${data.type}`, code: 'invalid_enum' });
+        }
+        if (data.direction && !COMMUNICATION_DIRECTIONS.includes(data.direction)) {
+          errors.push({ path: 'direction', message: `Invalid direction: ${data.direction}`, code: 'invalid_enum' });
+        }
       }
       break;
 
@@ -506,25 +626,48 @@ function sanitizeString(str) {
 function sanitizeUrl(url) {
   if (!url || typeof url !== 'string') return '';
 
-  const trimmed = url.trim().toLowerCase();
+  // Remove leading/trailing whitespace and control characters
+  let sanitized = url.trim().replace(/[\x00-\x1f\x7f]/g, '');
 
-  // Block javascript: and data: URLs
-  if (trimmed.startsWith('javascript:') || trimmed.startsWith('data:')) {
-    console.warn('JobTracker: Blocked potentially malicious URL:', url.substring(0, 50));
-    return '';
+  // Normalize the URL for protocol checking (handles case and whitespace tricks)
+  const normalized = sanitized.toLowerCase().replace(/\s/g, '');
+
+  // Block dangerous protocols (with various bypass attempts)
+  const dangerousProtocols = ['javascript:', 'data:', 'vbscript:', 'file:'];
+  for (const proto of dangerousProtocols) {
+    if (normalized.startsWith(proto) || normalized.includes('\t' + proto) || normalized.includes('\n' + proto)) {
+      console.warn('JobTracker: Blocked potentially malicious URL:', url.substring(0, 50));
+      return '';
+    }
   }
 
-  // Only allow http, https, and mailto protocols
-  if (!trimmed.startsWith('http://') &&
-      !trimmed.startsWith('https://') &&
-      !trimmed.startsWith('mailto:') &&
-      !trimmed.startsWith('/') &&
-      trimmed.includes(':')) {
-    console.warn('JobTracker: Blocked URL with unknown protocol:', url.substring(0, 50));
-    return '';
+  // Only allow http, https, mailto protocols, or relative paths
+  const allowedProtocols = ['http://', 'https://', 'mailto:'];
+  const hasProtocol = normalized.includes(':');
+  const isRelative = sanitized.startsWith('/') || sanitized.startsWith('./') || sanitized.startsWith('../');
+
+  if (hasProtocol && !isRelative) {
+    const isAllowed = allowedProtocols.some(proto => normalized.startsWith(proto));
+    if (!isAllowed) {
+      console.warn('JobTracker: Blocked URL with unknown protocol:', url.substring(0, 50));
+      return '';
+    }
   }
 
-  return url;
+  // For http/https URLs, validate and normalize using URL constructor
+  if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
+    try {
+      const parsed = new URL(sanitized);
+      // Return the normalized URL from the URL constructor
+      return parsed.href;
+    } catch (e) {
+      console.warn('JobTracker: Invalid URL format:', url.substring(0, 50));
+      return '';
+    }
+  }
+
+  // For mailto and relative URLs, return the sanitized (trimmed, control chars removed) version
+  return sanitized;
 }
 
 /**
@@ -570,6 +713,24 @@ function isWithinLengthLimit(str, maxLength = 10000) {
 
 // ==================== EXPORTS ====================
 
+/**
+ * Validate a contact
+ * @param {any} contact
+ * @returns {ValidationResult}
+ */
+function validateContact(contact) {
+  return validate('Contact', contact);
+}
+
+/**
+ * Validate a communication
+ * @param {any} communication
+ * @returns {ValidationResult}
+ */
+function validateCommunication(communication) {
+  return validate('Communication', communication);
+}
+
 const JobTrackerValidation = {
   validate,
   validateApplication,
@@ -578,6 +739,8 @@ const JobTrackerValidation = {
   validateImportData,
   validateInterview,
   validateTask,
+  validateContact,
+  validateCommunication,
   isAvailable: isValidationAvailable,
   formatErrors: formatValidationErrors,
   ValidationResult,
@@ -593,7 +756,14 @@ const JobTrackerValidation = {
   REMOTE_TYPES,
   PLATFORMS,
   TASK_PRIORITIES,
-  INTERVIEW_OUTCOMES
+  INTERVIEW_OUTCOMES,
+  // CRM Enhancement constants
+  APPLICATION_PRIORITIES,
+  REJECTION_REASONS,
+  CONTACT_TYPES,
+  CONTACT_SOURCES,
+  COMMUNICATION_TYPES,
+  COMMUNICATION_DIRECTIONS
 };
 
 // Export for module systems

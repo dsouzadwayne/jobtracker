@@ -535,6 +535,39 @@ const FIELD_PATTERNS = {
     ],
     autoCheck: true,
     profilePath: null  // No profile path - always auto-check
+  },
+
+  // ============ CRM Enhancement: Referral Source ============
+
+  referredBy: {
+    patterns: [
+      /referr/i,                           // "referred", "referral"
+      /how.?did.?you.?hear/i,              // "How did you hear about us?"
+      /how.?did.?you.?find/i,              // "How did you find us?"
+      /source/i,                           // "Source", "Application source"
+      /heard.?about/i,                     // "Where did you hear about..."
+      /learn.?about.?(?:this|the)?.?position/i,  // "How did you learn about this position?"
+      /who.?referred/i,                    // "Who referred you?"
+      /referral.?source/i,                 // "Referral source"
+      /where.?did.?you.?(?:hear|find|learn)/i,   // "Where did you hear/find/learn..."
+      /application.?source/i               // "Application source"
+    ],
+    profilePath: 'applications.current.referredBy',
+    priority: 5
+  },
+
+  // ============ CRM Enhancement: Resume Version ============
+
+  resumeVersion: {
+    patterns: [
+      /resume.?version/i,                  // "Resume version"
+      /cv.?version/i,                      // "CV version"
+      /which.?resume/i,                    // "Which resume are you submitting?"
+      /resume.?(?:type|name)/i,            // "Resume type", "Resume name"
+      /cv.?(?:type|name)/i                 // "CV type", "CV name"
+    ],
+    profilePath: 'applications.current.resumeVersion',
+    priority: 3
   }
 };
 

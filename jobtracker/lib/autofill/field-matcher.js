@@ -279,7 +279,8 @@ const JobTrackerFieldMatcherModule = {
     if (arrayMatch) {
       const [, arrayName, index, subPath] = arrayMatch;
       const array = profile[arrayName];
-      if (!Array.isArray(array) || !array[index]) return '';
+      // Check for undefined/null explicitly to allow falsy values (0, '', false)
+      if (!Array.isArray(array) || array[index] == null) return '';
       return this.getValueFromProfile(subPath, array[index]);
     }
 

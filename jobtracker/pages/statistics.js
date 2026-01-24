@@ -12,7 +12,7 @@ function showNotification(message, type = 'info') {
   const notification = document.createElement('div');
   notification.className = `stats-notification stats-notification-${type}`;
   notification.innerHTML = `
-    <span>${message}</span>
+    <span>${escapeHtml(message)}</span>
     <button class="notification-close">&times;</button>
   `;
 
@@ -265,7 +265,7 @@ function updateStatsDisplay(stats) {
 }
 
 // Chart initialization
-let statusChart, timelineChart, platformChart, funnelChart, timeStatusChart;
+let statusChart, timelineChart, platformChart, funnelChart, timeStatusChart, rejectionChart;
 
 function initCharts(apps) {
   if (typeof Chart === 'undefined') {
@@ -480,6 +480,204 @@ function initCharts(apps) {
         }
       }
     });
+  }
+
+  // Rejection Analytics Chart (CRM Phase 4)
+  initRejectionChart(apps);
+}
+
+// Rejection reason labels
+const REJECTION_REASON_LABELS = {
+  'no_response': 'No Response',
+  'rejected_resume': 'Resume Screen',
+  'rejected_phone': 'Phone Screen',
+  'rejected_interview': 'Interview',
+  'position_filled': 'Position Filled',
+  'position_cancelled': 'Position Cancelled',
+  'salary_mismatch': 'Salary Mismatch',
+  'withdrew': 'Withdrew',
+  'other': 'Other',
+  'unknown': 'Unknown'
+};
+
+// Initialize rejection analytics chart
+function initRejectionChart(apps) {
+  const rejectionCtx = document.getElementById('rejection-chart')?.getContext('2d');
+  if (!rejectionCtx) return;
+
+  // Get rejection distribution
+  const rejected = apps.filter(app => app.status === 'rejected');
+  const distribution = rejected.reduce((acc, app) => {
+    const reason = app.rejectionReason || 'unknown';
+    acc[reason] = (acc[reason] || 0) + 1;
+    return acc;
+  }, {});
+
+  // Only show chart if there are rejections
+  const chartCard = document.getElementById('rejection-chart-card');
+  if (rejected.length === 0) {
+    if (chartCard) {
+      chartCard.innerHTML = `
+        <h3 class="chart-title">Rejection Analysis</h3>
+        <div class="chart-empty-state">
+          <p>No rejected applications to analyze yet</p>
+        </div>
+      `;
+    }
+    return;
+  }
+
+  // Sort by count descending
+  const sortedReasons = Object.entries(distribution)
+    .sort((a, b) => b[1] - a[1]);
+
+  const labels = sortedReasons.map(([reason]) => REJECTION_REASON_LABELS[reason] || reason);
+  const data = sortedReasons.map(([, count]) => count);
+
+  // Color scale based on stage
+  const getReasonColor = (reason) => {
+    const colors = {
+      'no_response': '#6B7280',      // Gray - early stage
+      'rejected_resume': '#F59E0B',  // Amber - resume screen
+      'rejected_phone': '#3B82F6',   // Blue - phone screen
+      'rejected_interview': '#8B5CF6', // Purple - interview
+      'position_filled': '#10B981',  // Green - external
+      'position_cancelled': '#6366F1', // Indigo - external
+      'salary_mismatch': '#EF4444', // Red - negotiation
+      'withdrew': '#14B8A6',        // Teal - self
+      'other': '#9CA3AF',           // Gray
+      'unknown': '#D1D5DB'          // Light gray
+    };
+    return colors[reason] || '#9CA3AF';
+  };
+
+  const backgroundColors = sortedReasons.map(([reason]) => getReasonColor(reason));
+
+  if (rejectionChart) rejectionChart.destroy();
+  rejectionChart = new Chart(rejectionCtx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: data,
+        backgroundColor: backgroundColors,
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      indexAxis: 'y',
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (context) => {
+              const total = rejected.length;
+              const percentage = ((context.raw / total) * 100).toFixed(0);
+              return `${context.raw} (${percentage}%)`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { beginAtZero: true, ticks: { stepSize: 1 } }
+      }
+    }
+  });
+
+  // Generate rejection insights
+  generateRejectionInsights(apps, rejected, sortedReasons);
+}
+
+// Generate insights about rejection patterns
+function generateRejectionInsights(apps, rejected, sortedReasons) {
+  const insightsContainer = document.getElementById('rejection-insights');
+  if (!insightsContainer) return;
+
+  const insights = [];
+
+  // Calculate percentages
+  const totalApps = apps.length;
+  const rejectionRate = totalApps > 0 ? ((rejected.length / totalApps) * 100).toFixed(0) : 0;
+
+  // Find the most common rejection reason
+  if (sortedReasons.length > 0) {
+    const [topReason, topCount] = sortedReasons[0];
+    const topPercentage = ((topCount / rejected.length) * 100).toFixed(0);
+    const reasonLabel = REJECTION_REASON_LABELS[topReason] || topReason;
+
+    if (topPercentage >= 40) {
+      insights.push({
+        type: 'warning',
+        icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+        message: `${topPercentage}% of rejections are at "${reasonLabel}" stage`
+      });
+    }
+  }
+
+  // Check for high no-response rate
+  const noResponseCount = sortedReasons.find(([r]) => r === 'no_response')?.[1] || 0;
+  const noResponseRate = rejected.length > 0 ? ((noResponseCount / rejected.length) * 100).toFixed(0) : 0;
+  if (noResponseRate >= 50) {
+    insights.push({
+      type: 'info',
+      icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`,
+      message: `${noResponseRate}% of rejections are "No Response" - consider following up after 1-2 weeks`
+    });
+  }
+
+  // Check for phone screen issues
+  const phoneRejects = sortedReasons.find(([r]) => r === 'rejected_phone')?.[1] || 0;
+  const phoneRate = rejected.length > 0 ? ((phoneRejects / rejected.length) * 100).toFixed(0) : 0;
+  if (phoneRate >= 30) {
+    insights.push({
+      type: 'action',
+      icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,
+      message: `${phoneRate}% fail at phone screen - consider practicing common phone interview questions`
+    });
+  }
+
+  // Check for interview stage issues
+  const interviewRejects = sortedReasons.find(([r]) => r === 'rejected_interview')?.[1] || 0;
+  const interviewRate = rejected.length > 0 ? ((interviewRejects / rejected.length) * 100).toFixed(0) : 0;
+  if (interviewRate >= 25) {
+    insights.push({
+      type: 'action',
+      icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+      message: `${interviewRate}% fail at interview stage - consider reviewing interview feedback`
+    });
+  }
+
+  // Overall rejection rate
+  if (rejectionRate >= 70 && totalApps >= 10) {
+    insights.push({
+      type: 'warning',
+      icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>`,
+      message: `High rejection rate (${rejectionRate}%) - consider reviewing resume and targeting strategy`
+    });
+  } else if (rejectionRate <= 30 && totalApps >= 10) {
+    insights.push({
+      type: 'success',
+      icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>`,
+      message: `Low rejection rate (${rejectionRate}%) - your applications are well-targeted!`
+    });
+  }
+
+  // Render insights
+  if (insights.length === 0) {
+    insightsContainer.innerHTML = `
+      <div class="rejection-insight-empty">
+        <p>Add rejection reasons to your applications to see insights</p>
+      </div>
+    `;
+  } else {
+    insightsContainer.innerHTML = insights.map(insight => `
+      <div class="rejection-insight rejection-insight-${insight.type}">
+        <span class="rejection-insight-icon">${insight.icon}</span>
+        <span class="rejection-insight-message">${insight.message}</span>
+      </div>
+    `).join('');
   }
 }
 
@@ -727,10 +925,10 @@ async function loadUpcomingInterviews() {
             <span class="interview-hour">${date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>
           </div>
           <div class="interview-details">
-            <div class="interview-type">${interview.type || 'Interview'}</div>
-            <div class="interview-company">${app?.company || 'Unknown'}</div>
+            <div class="interview-type">${escapeHtml(interview.type || 'Interview')}</div>
+            <div class="interview-company">${escapeHtml(app?.company || 'Unknown')}</div>
           </div>
-          <span class="interview-round">Round ${interview.round || 1}</span>
+          <span class="interview-round">Round ${parseInt(interview.round) || 1}</span>
         </div>
       `;
     }).join('');
