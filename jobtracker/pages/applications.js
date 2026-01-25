@@ -700,38 +700,88 @@ function toggleDescription(btn) {
   btn.classList.toggle('expanded', !isExpanded);
 }
 
+// Decode HTML entities using he library
+function decodeHtmlEntities(str) {
+  if (!str) return '';
+  // Use he library for robust decoding, decode twice for double-encoded content
+  if (typeof he !== 'undefined') {
+    return he.decode(he.decode(str));
+  }
+  // Fallback to textarea method if he not loaded
+  const textarea = document.createElement('textarea');
+  textarea.innerHTML = str;
+  return textarea.value;
+}
+
 // Format job description with bullet points and structure
 function formatJobDescription(text) {
   if (!text) return '';
 
-  // Escape HTML first
-  let formatted = escapeHtml(text);
+  // First decode any HTML entities (e.g., &lt;p&gt; -> <p>)
+  let decoded = decodeHtmlEntities(text);
 
-  // Convert lines starting with bullet-like characters to proper bullets
-  formatted = formatted
-    // Handle lines starting with •, -, *, or similar
-    .replace(/^[\s]*[•\-\*\●\○\■\□\►\▸]\s*/gm, '<li>')
-    // Handle numbered lists (1. 2. etc)
-    .replace(/^[\s]*\d+[\.\)]\s+/gm, '<li>')
-    // Wrap consecutive <li> items in <ul>
-    .replace(/(<li>.*?)(?=(?:<li>|$))/gs, '$1</li>');
+  // Check if the decoded text contains HTML tags
+  const hasHtmlTags = /<[a-z][\s\S]*>/i.test(decoded);
 
-  // Wrap sequences of list items in ul tags
-  formatted = formatted.replace(/((?:<li>.*?<\/li>\s*)+)/gs, '<ul class="job-desc-list">$1</ul>');
+  if (hasHtmlTags) {
+    // Content has HTML - sanitize using DOMPurify (already loaded in page)
+    let sanitized;
+    if (typeof DOMPurify !== 'undefined') {
+      sanitized = DOMPurify.sanitize(decoded, {
+        ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'u', 'p', 'br', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a', 'span', 'table', 'thead', 'tbody', 'tr', 'th', 'td'],
+        ALLOWED_ATTR: ['href', 'target', 'rel', 'class'],
+        ALLOW_DATA_ATTR: false
+      });
+    } else {
+      // Fallback: strip all HTML if DOMPurify not available
+      sanitized = escapeHtml(decoded);
+    }
 
-  // Convert double line breaks to paragraph breaks
-  formatted = formatted.replace(/\n\n+/g, '</p><p>');
+    // Parse sanitized HTML and add styling classes
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(sanitized, 'text/html');
+    doc.body.querySelectorAll('ul, ol').forEach(el => {
+      el.classList.add('job-desc-list');
+    });
 
-  // Convert remaining single line breaks
-  formatted = formatted.replace(/\n/g, '<br>');
-
-  // Wrap in paragraph if not empty
-  if (formatted.trim()) {
-    formatted = '<p>' + formatted + '</p>';
+    return doc.body.innerHTML;
   }
 
-  // Clean up empty paragraphs
-  formatted = formatted.replace(/<p>\s*<\/p>/g, '');
+  // Plain text - format with bullet detection
+  let escaped = escapeHtml(decoded);
 
-  return formatted;
+  const lines = escaped.split('\n');
+  const result = [];
+  let inList = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmedLine = line.trim();
+
+    const bulletMatch = trimmedLine.match(/^[•\-\*\●\○\■\□\►\▸]\s*(.*)$/);
+    const numberMatch = trimmedLine.match(/^\d+[\.\)]\s+(.*)$/);
+
+    if (bulletMatch || numberMatch) {
+      if (!inList) {
+        result.push('<ul class="job-desc-list">');
+        inList = true;
+      }
+      const content = bulletMatch ? bulletMatch[1] : numberMatch[1];
+      result.push(`<li>${content}</li>`);
+    } else {
+      if (inList) {
+        result.push('</ul>');
+        inList = false;
+      }
+      if (trimmedLine) {
+        result.push(`<p>${trimmedLine}</p>`);
+      }
+    }
+  }
+
+  if (inList) {
+    result.push('</ul>');
+  }
+
+  return result.join('');
 }

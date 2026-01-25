@@ -100,7 +100,10 @@ const JobTrackerStorage = {
       const result = await chrome.storage.local.get(this.KEYS.PROFILE);
       return result[this.KEYS.PROFILE] || this.getDefaultProfile();
     } catch (error) {
-      console.log('JobTracker: Error getting profile:', error);
+      // Log error with more context to help diagnose storage issues
+      console.error('JobTracker: Error getting profile from storage:', error);
+      console.error('JobTracker: Storage error details - this may indicate quota exceeded or corrupted storage');
+      // Still return default profile to prevent UI crashes, but the error is now clearly logged
       return this.getDefaultProfile();
     }
   },

@@ -133,11 +133,67 @@ const JobTrackerUtils = {
   },
 
   // Sanitize HTML to prevent XSS
+  // Uses DOMPurify if available, falls back to basic escaping
   sanitizeHTML(str) {
     if (!str) return '';
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
+
+    // Use DOMPurify if available (recommended)
+    if (typeof DOMPurify !== 'undefined') {
+      return DOMPurify.sanitize(str, {
+        ALLOWED_TAGS: [
+          'b', 'i', 'em', 'strong', 'u', 's',
+          'p', 'br', 'hr',
+          'ul', 'ol', 'li',
+          'a', 'span', 'div'
+        ],
+        ALLOWED_ATTR: ['href', 'target', 'rel', 'class'],
+        ALLOW_DATA_ATTR: false
+      });
+    }
+
+    // Fallback: escape all HTML entities (returns text only, no HTML preserved)
+    // This returns HTML-encoded text that can be safely used in innerHTML
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#x27;');
+  },
+
+  // Sanitize and set innerHTML safely
+  // This is the preferred method for setting innerHTML
+  setInnerHTML(element, html) {
+    if (!element) return;
+
+    if (typeof DOMPurify !== 'undefined') {
+      element.innerHTML = DOMPurify.sanitize(html, {
+        ALLOWED_TAGS: [
+          'b', 'i', 'em', 'strong', 'u', 's',
+          'p', 'br', 'hr',
+          'ul', 'ol', 'li',
+          'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+          'a', 'span', 'div', 'table', 'tr', 'td', 'th', 'thead', 'tbody',
+          'svg', 'path', 'line', 'circle', 'rect', 'polyline', 'polygon'
+        ],
+        ALLOWED_ATTR: [
+          'href', 'target', 'rel', 'class', 'id', 'title',
+          'width', 'height', 'viewBox', 'fill', 'stroke', 'stroke-width',
+          'd', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'cx', 'cy', 'r', 'rx', 'ry',
+          'points', 'aria-hidden', 'aria-label', 'role'
+        ],
+        ALLOW_DATA_ATTR: false
+      });
+    } else {
+      // Fallback: use textContent for safety when DOMPurify is unavailable
+      // This strips all HTML but ensures no XSS vulnerabilities
+      element.textContent = html;
+    }
+  },
+
+  // Check if DOMPurify is available
+  isPurifyAvailable() {
+    return typeof DOMPurify !== 'undefined';
   },
 
   // Escape special regex characters

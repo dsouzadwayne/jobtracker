@@ -65,14 +65,58 @@ import {
   setKeyboardCallbacks
 } from './keyboard.js';
 
-// Import AI features
-import {
-  initAI, getSmartTags, parseResumeText, parseJobText,
-  matchResumeToJob, extractSkills, renderTagSuggestions,
-  getAIStatus, isAIEnabled, enableAI, disableAI,
-  cleanup as cleanupAI, setupModelDownloadListeners,
-  setupSettingsListeners, loadStorageSizes, loadDashboardSettings
-} from './ai-features.js';
+// AI features - loaded lazily to prevent crash if AI module has issues
+let aiModule = null;
+async function loadAIModule() {
+  if (aiModule) return aiModule;
+  try {
+    aiModule = await import('./ai-features.js');
+    return aiModule;
+  } catch (error) {
+    console.error('[Dashboard] Failed to load AI module:', error);
+    return null;
+  }
+}
+
+// Wrapper functions for AI features (load module on first use)
+async function initAI() {
+  const mod = await loadAIModule();
+  return mod?.initAI?.() ?? false;
+}
+function getAIStatus() {
+  return aiModule?.getAIStatus?.() ?? { mode: 'disabled' };
+}
+function isAIEnabled() {
+  return aiModule?.isAIEnabled?.() ?? false;
+}
+async function enableAI() {
+  const mod = await loadAIModule();
+  return mod?.enableAI?.() ?? false;
+}
+function disableAI() {
+  aiModule?.disableAI?.();
+}
+function setupModelDownloadListeners() {
+  aiModule?.setupModelDownloadListeners?.();
+}
+function setupSettingsListeners() {
+  aiModule?.setupSettingsListeners?.();
+}
+async function getSmartTags(...args) {
+  const mod = await loadAIModule();
+  return mod?.getSmartTags?.(...args) ?? [];
+}
+async function parseJobText(...args) {
+  const mod = await loadAIModule();
+  return mod?.parseJobText?.(...args) ?? null;
+}
+function renderTagSuggestions(...args) {
+  aiModule?.renderTagSuggestions?.(...args);
+}
+async function matchResumeToJob(...args) {
+  const mod = await loadAIModule();
+  return mod?.matchResumeToJob?.(...args) ?? null;
+}
 
 // Search index (Fuse.js)
 let searchIndex = null;
@@ -101,58 +145,109 @@ applicationChannel.onmessage = async (event) => {
 
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
-  // Initialize DOM elements
-  initElements();
-
-  // Setup callbacks for modules
-  setupModuleCallbacks();
-
-  // Initialize theme
-  await ThemeManager.init();
-  setUpdateStatsCallback(updateStats);
-
-  // Load data
-  await loadSettings();
-  await loadApplications();
-  await loadTags();
-  await updateStats();
-
-  // Initialize enhanced task manager (Planify-inspired)
   try {
-    await taskManager.init();
-    // Request notification permission for task reminders
-    await taskManager.requestNotificationPermission();
-    console.log('JobTracker: Enhanced task manager initialized');
-  } catch (error) {
-    console.log('JobTracker: Enhanced task manager initialization failed:', error);
-  }
+    console.log('[Dashboard] Starting initialization...');
 
-  // Setup AI model download listeners (for progress toasts)
-  setupModelDownloadListeners();
+    // Initialize DOM elements
+    initElements();
+    console.log('[Dashboard] Elements initialized');
 
-  // Setup settings page listeners
-  setupSettingsListeners();
+    // Setup callbacks for modules
+    setupModuleCallbacks();
+    console.log('[Dashboard] Callbacks set up');
 
-  // Initialize AI features (non-blocking)
-  initAI().then(initialized => {
-    if (initialized) {
-      const status = getAIStatus();
-      console.log(`JobTracker: AI features initialized (${status.mode})`);
+    // Initialize theme
+    await ThemeManager.init();
+    setUpdateStatsCallback(updateStats);
+    console.log('[Dashboard] Theme initialized');
+
+    // Load data with error handling
+    try {
+      await loadSettings();
+      console.log('[Dashboard] Settings loaded');
+    } catch (settingsError) {
+      console.error('[Dashboard] Failed to load settings:', settingsError);
     }
-  }).catch(error => {
-    console.log('JobTracker: AI features initialization failed:', error);
-  });
 
-  // Setup UI
-  setupEventListeners();
-  setupKeyboardShortcuts();
-  setupEscapeHandler();
-  initViewToggle();
-  setupNavigation();
-  initDateRangeFilter();
-  setupIntelligencePanel();
-  setupCRMFeatures();
-  checkUrlParams();
+    try {
+      await loadApplications();
+      console.log('[Dashboard] Applications loaded');
+    } catch (appsError) {
+      console.error('[Dashboard] Failed to load applications:', appsError);
+    }
+
+    try {
+      await loadTags();
+      console.log('[Dashboard] Tags loaded');
+    } catch (tagsError) {
+      console.error('[Dashboard] Failed to load tags:', tagsError);
+    }
+
+    try {
+      await updateStats();
+      console.log('[Dashboard] Stats updated');
+    } catch (statsError) {
+      console.error('[Dashboard] Failed to update stats:', statsError);
+    }
+
+    // Initialize enhanced task manager (Planify-inspired)
+    try {
+      await taskManager.init();
+      // Request notification permission for task reminders
+      await taskManager.requestNotificationPermission();
+      console.log('JobTracker: Enhanced task manager initialized');
+    } catch (error) {
+      console.log('JobTracker: Enhanced task manager initialization failed:', error);
+    }
+
+    // Initialize AI features (non-blocking, lazy loaded)
+    // This loads the AI module first, then sets up listeners
+    loadAIModule().then(mod => {
+      if (mod) {
+        // Setup AI model download listeners (for progress toasts)
+        setupModelDownloadListeners();
+        // Setup settings page listeners
+        setupSettingsListeners();
+
+        // Initialize AI
+        initAI().then(initialized => {
+          if (initialized) {
+            const status = getAIStatus();
+            console.log(`JobTracker: AI features initialized (${status.mode})`);
+          }
+        }).catch(error => {
+          console.log('JobTracker: AI features initialization failed:', error);
+        });
+      }
+    }).catch(error => {
+      console.log('JobTracker: AI module load failed:', error);
+    });
+
+    // Setup UI
+    setupEventListeners();
+    setupKeyboardShortcuts();
+    setupEscapeHandler();
+    initViewToggle();
+    setupNavigation();
+    initDateRangeFilter();
+    setupIntelligencePanel();
+    setupCRMFeatures();
+    checkUrlParams();
+
+    console.log('[Dashboard] Initialization complete');
+  } catch (error) {
+    console.error('[Dashboard] Critical initialization error:', error);
+    // Show error to user
+    document.body.innerHTML = `
+      <div style="padding: 20px; font-family: system-ui, sans-serif;">
+        <h1 style="color: #dc2626;">Dashboard Error</h1>
+        <p>An error occurred while loading the dashboard.</p>
+        <p><strong>Error:</strong> ${error.message || 'Unknown error'}</p>
+        <p>Please try refreshing the page or clearing extension data.</p>
+        <button onclick="location.reload()" style="padding: 10px 20px; cursor: pointer;">Reload</button>
+      </div>
+    `;
+  }
 });
 
 // Setup module callbacks

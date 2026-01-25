@@ -3,6 +3,29 @@
  * Provides a proper database for storing applications, profile, and settings
  */
 
+// ==================== CONFIGURATION CONSTANTS ====================
+
+// Timeouts and intervals (in milliseconds)
+const CONFIG = {
+  MIGRATION_TIMEOUT_MS: 10000,      // 10 seconds for migration operations
+  AI_REQUEST_TIMEOUT_MS: 120000,    // 2 minutes for AI requests
+  STALE_REQUEST_CLEANUP_MS: 60000,  // 1 minute interval for cleanup
+
+  // Date range presets (in days)
+  DATE_RANGE_WEEK: 7,
+  DATE_RANGE_MONTH: 30,
+  DATE_RANGE_YEAR: 365,
+
+  // Pagination defaults
+  DEFAULT_UPCOMING_LIMIT: 10,
+  DEFAULT_EXPIRING_DAYS: 3,
+  DEFAULT_FOLLOWUP_DAYS: 7,
+
+  // Application limits
+  MAX_STRING_LENGTH: 50000,
+  MAX_TAG_LENGTH: 100,
+};
+
 // Valid application statuses
 const APPLICATION_STATUSES = ['saved', 'applied', 'screening', 'interview', 'offer', 'rejected', 'withdrawn'];
 
@@ -712,11 +735,21 @@ const JobTrackerDB = {
         const status = current.status;
 
         if (daysAccumulator[status] !== undefined) {
-          const days = Math.floor(
-            (new Date(next.date) - new Date(current.date)) / (1000 * 60 * 60 * 24)
-          );
-          if (days >= 0) {
+          const currentTime = new Date(current.date).getTime();
+          const nextTime = new Date(next.date).getTime();
+          const diffMs = nextTime - currentTime;
+
+          // Handle same-timestamp transitions: treat as 0 days but still count
+          // This prevents division issues and provides accurate "instant" transition data
+          if (diffMs >= 0) {
+            const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
             daysAccumulator[status].push(days);
+          } else {
+            // Log warning for backward-moving transitions (negative time difference)
+            // This can happen due to data entry errors or timezone issues
+            console.warn(`[JobTracker] Backward status transition detected in application: ${status} -> ${next.status} (${diffMs}ms difference)`);
+            // Still count as 0 days to not lose the data point
+            daysAccumulator[status].push(0);
           }
         }
       }
@@ -784,6 +817,9 @@ const JobTrackerDB = {
       const request = store.getAll();
 
       request.onsuccess = () => {
+        // Sort interviews by scheduled date ascending (soonest first)
+        // This is intentionally different from applications (newest first)
+        // because upcoming interviews are more time-sensitive
         const interviews = request.result.sort((a, b) => {
           const dateA = new Date(a.scheduledDate || 0);
           const dateB = new Date(b.scheduledDate || 0);
@@ -793,7 +829,7 @@ const JobTrackerDB = {
           if (isNaN(timeA) && isNaN(timeB)) return 0;
           if (isNaN(timeA)) return 1;  // Push invalid to end
           if (isNaN(timeB)) return -1; // Push invalid to end
-          return dateA - dateB;
+          return dateA - dateB; // Ascending: soonest first
         });
         resolve(interviews);
       };
@@ -948,10 +984,21 @@ const JobTrackerDB = {
       const request = store.getAll();
 
       request.onsuccess = () => {
+        // Sort tasks by due date ascending (soonest first)
+        // Tasks without due dates are pushed to the end
         const tasks = request.result.sort((a, b) => {
-          const dateA = new Date(a.dueDate || '9999-12-31');
-          const dateB = new Date(b.dueDate || '9999-12-31');
-          return dateA - dateB;
+          const dateA = a.dueDate ? new Date(a.dueDate) : null;
+          const dateB = b.dueDate ? new Date(b.dueDate) : null;
+
+          // Handle missing/invalid dates - push to end
+          const timeA = dateA ? dateA.getTime() : NaN;
+          const timeB = dateB ? dateB.getTime() : NaN;
+
+          if (isNaN(timeA) && isNaN(timeB)) return 0;
+          if (isNaN(timeA)) return 1;  // Push tasks without due date to end
+          if (isNaN(timeB)) return -1; // Push tasks without due date to end
+
+          return timeA - timeB; // Ascending: soonest first
         });
         resolve(tasks);
       };
@@ -1365,10 +1412,16 @@ const JobTrackerDB = {
       return false;
     }
 
-    // Check if Chrome storage has data
-    const chromeData = await new Promise(resolve => {
-      chrome.storage.local.get(['jobtracker_profile', 'jobtracker_applications', 'jobtracker_settings'], resolve);
-    });
+    // Check if Chrome storage has data (with timeout to prevent indefinite hangs)
+    // Uses CONFIG.MIGRATION_TIMEOUT_MS constant for consistency
+    const chromeData = await Promise.race([
+      new Promise(resolve => {
+        chrome.storage.local.get(['jobtracker_profile', 'jobtracker_applications', 'jobtracker_settings'], resolve);
+      }),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(`Chrome storage access timed out after ${CONFIG.MIGRATION_TIMEOUT_MS}ms`)), CONFIG.MIGRATION_TIMEOUT_MS)
+      )
+    ]);
 
     const hasData = chromeData.jobtracker_profile ||
                     chromeData.jobtracker_applications?.length > 0 ||

@@ -5,9 +5,14 @@
 
 import { VALID_STATUSES } from './state.js';
 
-// Decode HTML entities in text
+// Decode HTML entities using he library
 export function decodeHtmlEntities(str) {
   if (!str) return '';
+  // Use he library for robust decoding, decode twice for double-encoded content
+  if (typeof he !== 'undefined') {
+    return he.decode(he.decode(str));
+  }
+  // Fallback to textarea method if he not loaded
   const textarea = document.createElement('textarea');
   textarea.innerHTML = str;
   return textarea.value;

@@ -12,6 +12,10 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "dependencies": {
+    "dompurify": "^3.0.8",
+    "he": "^1.2.0"
+  },
   "devDependencies": {
     "@mozilla/readability": "^0.6.0",
     "compromise": "^14.14.5",

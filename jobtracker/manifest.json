@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "JobTracker",
-  "version": "0.4.13",
+  "version": "0.4.14",
   "description": "Track job applications and autofill forms. 100% local, privacy-first, open source.",
   "author": "Dwayne",
   "homepage_url": "https://github.com/dsouzadwayne/jobtracker",
@@ -46,6 +46,7 @@
       "matches": ["<all_urls>"],
       "all_frames": true,
       "js": [
+        "lib/vendor/dompurify.min.js",
         "lib/storage.js",
         "lib/utils.js",
         "lib/format-utils.js",

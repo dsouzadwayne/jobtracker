@@ -618,6 +618,12 @@
     </div>
   </div>
 
+  <!-- XSS Sanitization (DOMPurify) - must load before scripts that use innerHTML -->
+  <script src="../lib/vendor/dompurify.min.js"></script>
+
+  <!-- HTML Entity Decoding (he) -->
+  <script src="../lib/vendor/he.min.js"></script>
+
   <!-- Search library (Fuse.js) -->
   <script src="../lib/vendor/fuse.min.js"></script>
   <script src="../lib/search.js"></script>

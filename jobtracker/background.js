@@ -108,7 +108,10 @@ const VALID_MESSAGE_TYPES = new Set(Object.values(MessageTypes));
 const APPLICATION_STATUSES = ['saved', 'applied', 'screening', 'interview', 'offer', 'rejected', 'withdrawn'];
 const PLATFORMS = ['linkedin', 'indeed', 'glassdoor', 'greenhouse', 'lever', 'workday', 'icims', 'smartrecruiters', 'naukri', 'other'];
 const INTERVIEW_OUTCOMES = ['pending', 'passed', 'failed', 'cancelled'];
-const TASK_PRIORITIES = ['low', 'medium', 'high', 1, 2, 3, 4]; // Support both string and numeric (Planify-style) priorities
+// Task priorities - separated for type safety and validation
+const TASK_PRIORITIES_STRING = ['low', 'medium', 'high'];
+const TASK_PRIORITIES_NUMERIC = [1, 2, 3, 4]; // Planify-style numeric priorities
+const TASK_PRIORITIES = [...TASK_PRIORITIES_STRING, ...TASK_PRIORITIES_NUMERIC]; // Combined for backwards compatibility
 
 // Helper to validate URL format
 function isValidUrl(string) {
@@ -129,29 +132,94 @@ function isValidISODate(string) {
 }
 
 // Helper to sanitize a string (XSS prevention)
+// SECURITY FIX: Don't decode HTML entities first - this allows bypass attacks
+// like &#x6a;avascript: becoming javascript: after decode
 function sanitizeString(str) {
   if (!str || typeof str !== 'string') return str;
-  return str
+
+  // HTML encode FIRST to neutralize all special characters
+  // This must happen before any pattern removal to prevent bypass attacks
+  let sanitized = str
     .replace(/&/g, '&amp;')      // Must come first
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#x27;')
-    .replace(/javascript:/gi, '')
-    .replace(/data:/gi, '')
-    .replace(/vbscript:/gi, '')
+    .replace(/'/g, '&#x27;');
+
+  // Now remove dangerous URI schemes from the encoded string
+  // These patterns match the encoded versions of dangerous schemes
+  sanitized = sanitized
+    .replace(/javascript\s*:/gi, '')
+    .replace(/data\s*:/gi, '')
+    .replace(/vbscript\s*:/gi, '')
     .replace(/on\w+\s*=/gi, '');
+
+  return sanitized;
+}
+
+// Allowed URL protocols (strict whitelist)
+const ALLOWED_URL_PROTOCOLS = ['http:', 'https:', 'mailto:'];
+
+// Safe characters for relative URLs (path and fragment)
+// Only allows alphanumeric, path separators, query strings, and common URL characters
+const SAFE_RELATIVE_URL_PATTERN = /^[a-zA-Z0-9\-._~:/?#[\]@!$&'()*+,;=%]+$/;
+
+// Helper to HTML-encode a URL for safe use in HTML attributes
+// NOTE: This should ONLY be used at render time in the UI, NOT when storing URLs
+// Storing HTML-encoded URLs breaks URL parsing and navigation
+function htmlEncodeUrl(url) {
+  return url
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 // Helper to sanitize a URL
+// Returns a validated URL safe for storage. HTML-encoding should be done at render time, not storage time.
 function sanitizeUrl(url) {
   if (!url || typeof url !== 'string') return '';
-  const trimmed = url.trim().toLowerCase();
-  if (trimmed.startsWith('javascript:') || trimmed.startsWith('data:')) {
-    console.warn('JobTracker: Blocked potentially malicious URL');
+
+  // Normalize and trim the URL
+  const trimmed = url.trim();
+
+  // Use URL constructor for proper validation (handles Unicode escapes, etc.)
+  try {
+    const parsed = new URL(trimmed);
+
+    // Strict protocol whitelist check
+    if (!ALLOWED_URL_PROTOCOLS.includes(parsed.protocol.toLowerCase())) {
+      console.warn('JobTracker: Blocked URL with disallowed protocol:', parsed.protocol);
+      return '';
+    }
+
+    // Return the validated URL as-is for storage
+    // HTML-encoding should only happen at render time in the UI, not at storage time
+    return trimmed;
+  } catch (error) {
+    // If it's not a valid URL, check for relative URLs
+    if (trimmed.startsWith('/') || trimmed.startsWith('#')) {
+      // Validate relative URL contains only safe characters
+      if (!SAFE_RELATIVE_URL_PATTERN.test(trimmed)) {
+        console.warn('JobTracker: Blocked relative URL with unsafe characters');
+        return '';
+      }
+      // Return validated relative URL as-is
+      return trimmed;
+    }
+
+    // Additional safety check for protocol-like patterns (handles Unicode bypass attempts)
+    const protocolMatch = trimmed.match(/^([a-z0-9+.-]+):/i);
+    if (protocolMatch && !ALLOWED_URL_PROTOCOLS.includes(protocolMatch[0].toLowerCase())) {
+      console.warn('JobTracker: Blocked potentially malicious URL pattern');
+      return '';
+    }
+
+    // For other invalid URLs, return empty to be safe
+    console.warn('JobTracker: Invalid URL format:', trimmed.substring(0, 50));
     return '';
   }
-  return url;
 }
 
 // Sanitize application data before storing (deep sanitization)
