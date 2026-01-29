@@ -32,10 +32,8 @@
   async function safeSendMessage(message, defaultValue = null) {
     try {
       const result = await chrome.runtime.sendMessage(message);
-      if (chrome.runtime.lastError) {
-        console.log('JobTracker: Runtime error:', chrome.runtime.lastError.message);
-        return defaultValue;
-      }
+      // Note: chrome.runtime.lastError is only valid in callback context, not async/await.
+      // In async/await, errors are thrown and caught by the try/catch block.
       return result;
     } catch (error) {
       console.log('JobTracker: Message error:', error.message || error);
@@ -858,7 +856,7 @@
           }
         } catch (e) {
           // Selector query may fail for complex selectors
-          console.warn('JobTracker: Selector query failed', selector, e.message);
+          console.log('JobTracker: Selector query failed', selector, e.message);
         }
       }
     }
@@ -874,7 +872,7 @@
           }
         } catch (e) {
           // Selector query may fail for complex selectors
-          console.warn('JobTracker: Selector query failed', selector, e.message);
+          console.log('JobTracker: Selector query failed', selector, e.message);
         }
       }
     }
@@ -893,7 +891,7 @@
           }
         } catch (e) {
           // Selector query may fail for complex selectors
-          console.warn('JobTracker: Selector query failed', selector, e.message);
+          console.log('JobTracker: Selector query failed', selector, e.message);
         }
       }
     }

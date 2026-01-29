@@ -54,7 +54,7 @@ async function loadSettings() {
       fallbackToTransformers: true
     };
   } catch (error) {
-    console.warn('[NLP Pipeline] Failed to load settings:', error.message);
+    console.log('[NLP Pipeline] Failed to load settings:', error.message);
     // Default settings if message fails
     nlpSettings = {
       enabled: true,
@@ -135,7 +135,7 @@ async function extractJobInfo(text, options = {}) {
         result.benefits = sentenceData.benefits || [];
         result.responsibilities = sentenceData.responsibilities || [];
       } catch (pluginError) {
-        console.warn('[NLP Pipeline] Plugin extraction failed:', pluginError.message);
+        console.log('[NLP Pipeline] Plugin extraction failed:', pluginError.message);
       }
 
       // Check if we have all required fields
@@ -149,7 +149,7 @@ async function extractJobInfo(text, options = {}) {
         console.log('[NLP Pipeline] Missing fields from Compromise:', missingFields, '- trying BERT NER');
       }
     } catch (error) {
-      console.warn('[NLP Pipeline] Compromise extraction failed:', error.message);
+      console.log('[NLP Pipeline] Compromise extraction failed:', error.message);
     }
   }
 
@@ -182,7 +182,7 @@ async function extractJobInfo(text, options = {}) {
         result.source = result.source ? `${result.source}+transformers` : 'transformers';
       }
     } catch (error) {
-      console.warn('[NLP Pipeline] Transformer extraction failed:', error.message);
+      console.log('[NLP Pipeline] Transformer extraction failed:', error.message);
     }
   }
 
@@ -259,11 +259,11 @@ async function extractResumeInfo(text, options = {}) {
         result.workHistory = workHistoryData.positions || [];
         result.promotions = workHistoryData.promotions || [];
       } catch (pluginError) {
-        console.warn('[NLP Pipeline] Plugin extraction failed:', pluginError.message);
+        console.log('[NLP Pipeline] Plugin extraction failed:', pluginError.message);
       }
 
     } catch (error) {
-      console.warn('[NLP Pipeline] Compromise resume extraction failed:', error.message);
+      console.log('[NLP Pipeline] Compromise resume extraction failed:', error.message);
     }
   }
 
@@ -296,7 +296,7 @@ async function extractResumeInfo(text, options = {}) {
         result.source = result.source ? `${result.source}+transformers` : 'transformers';
       }
     } catch (error) {
-      console.warn('[NLP Pipeline] Transformer resume extraction failed:', error.message);
+      console.log('[NLP Pipeline] Transformer resume extraction failed:', error.message);
     }
   }
 
@@ -318,7 +318,7 @@ async function normalizeLabel(labelText) {
   try {
     return await compromiseExtractor.normalizeLabel(labelText);
   } catch (error) {
-    console.warn('[NLP Pipeline] Label normalization failed:', error.message);
+    console.log('[NLP Pipeline] Label normalization failed:', error.message);
     return { field: null, confidence: 0 };
   }
 }
@@ -338,7 +338,7 @@ async function extractSkills(text) {
   try {
     return await compromiseExtractor.extractSkills(text);
   } catch (error) {
-    console.warn('[NLP Pipeline] Skill extraction failed:', error.message);
+    console.log('[NLP Pipeline] Skill extraction failed:', error.message);
     return {};
   }
 }
@@ -370,7 +370,7 @@ async function extractWithTransformers(text) {
       };
     }
   } catch (error) {
-    console.warn('[NLP Pipeline] Transformer job extraction failed:', error.message);
+    console.log('[NLP Pipeline] Transformer job extraction failed:', error.message);
   }
 
   return null;
@@ -404,7 +404,7 @@ async function extractResumeWithTransformers(text) {
       };
     }
   } catch (error) {
-    console.warn('[NLP Pipeline] Transformer resume extraction failed:', error.message);
+    console.log('[NLP Pipeline] Transformer resume extraction failed:', error.message);
   }
 
   return null;

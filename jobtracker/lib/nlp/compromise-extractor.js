@@ -62,7 +62,7 @@ async function loadCompromise() {
 
           // Fallback for ES modules in service worker - this shouldn't normally run
           // but provides a graceful degradation
-          console.warn('[CompromiseExtractor] No loading method available in service worker');
+          console.log('[CompromiseExtractor] No loading method available in service worker');
           throw new Error('Cannot load Compromise.js in this context');
         } catch (error) {
           console.error('[CompromiseExtractor] Service worker load failed:', error);
@@ -140,10 +140,10 @@ async function loadCompromisePlugins() {
           nlp.extend(plugin);
           console.log(`[CompromiseExtractor] Loaded plugin: ${name}`);
         } else {
-          console.warn(`[CompromiseExtractor] Plugin ${name} loaded but global not found`);
+          console.log(`[CompromiseExtractor] Plugin ${name} loaded but global not found`);
         }
       } catch (error) {
-        console.warn(`[CompromiseExtractor] Failed to load plugin ${name}:`, error.message);
+        console.log(`[CompromiseExtractor] Failed to load plugin ${name}:`, error.message);
       }
     }
     pluginsLoaded = true;
@@ -168,21 +168,21 @@ async function loadCompromisePlugins() {
             nlp.extend(plugin);
             console.log(`[CompromiseExtractor] Loaded plugin: ${name}`);
           } else {
-            console.warn(`[CompromiseExtractor] Plugin ${name} loaded but global not found`);
+            console.log(`[CompromiseExtractor] Plugin ${name} loaded but global not found`);
           }
           resolve();
         };
 
         script.onerror = (error) => {
           clearTimeout(timeout);
-          console.warn(`[CompromiseExtractor] Failed to load plugin ${name}:`, error);
+          console.log(`[CompromiseExtractor] Failed to load plugin ${name}:`, error);
           resolve(); // Continue loading other plugins even if one fails
         };
 
         document.head.appendChild(script);
       });
     } catch (error) {
-      console.warn(`[CompromiseExtractor] Error loading plugin ${name}:`, error.message);
+      console.log(`[CompromiseExtractor] Error loading plugin ${name}:`, error.message);
     }
   }
   pluginsLoaded = true;
@@ -318,7 +318,7 @@ class CompromiseExtractor {
 
     // Skills extraction uses regex primarily, nlp is optional for this method
     if (!nlp) {
-      console.warn('[CompromiseExtractor] nlp not loaded, using regex-only skill extraction');
+      console.log('[CompromiseExtractor] nlp not loaded, using regex-only skill extraction');
     }
 
     const doc = nlp ? nlp(text.toLowerCase()) : null;
@@ -437,7 +437,7 @@ class CompromiseExtractor {
 
     // If nlp is not loaded, fall back to regex-only extraction
     if (!nlp) {
-      console.warn('[CompromiseExtractor] nlp not loaded, using regex-only date extraction');
+      console.log('[CompromiseExtractor] nlp not loaded, using regex-only date extraction');
       return this.extractDatesWithRegex(text);
     }
 
@@ -688,7 +688,7 @@ class CompromiseExtractor {
     await this.init();
 
     if (!nlp) {
-      console.warn('[CompromiseExtractor] nlp not loaded, using fallback paragraph extraction');
+      console.log('[CompromiseExtractor] nlp not loaded, using fallback paragraph extraction');
       return this.extractParagraphsWithRegex(text);
     }
 
@@ -696,7 +696,7 @@ class CompromiseExtractor {
 
     // Check if paragraphs plugin is available
     if (typeof doc.paragraphs !== 'function') {
-      console.warn('[CompromiseExtractor] paragraphs plugin not available, using fallback');
+      console.log('[CompromiseExtractor] paragraphs plugin not available, using fallback');
       return this.extractParagraphsWithRegex(text);
     }
 
@@ -775,7 +775,7 @@ class CompromiseExtractor {
     await this.init();
 
     if (!nlp) {
-      console.warn('[CompromiseExtractor] nlp not loaded, using fallback sentence extraction');
+      console.log('[CompromiseExtractor] nlp not loaded, using fallback sentence extraction');
       return this.extractSentencesWithRegex(text);
     }
 
@@ -783,7 +783,7 @@ class CompromiseExtractor {
 
     // Check if sentences plugin is available
     if (typeof doc.sentences !== 'function') {
-      console.warn('[CompromiseExtractor] sentences plugin not available, using fallback');
+      console.log('[CompromiseExtractor] sentences plugin not available, using fallback');
       return this.extractSentencesWithRegex(text);
     }
 
@@ -861,7 +861,7 @@ class CompromiseExtractor {
     await this.init();
 
     if (!nlp) {
-      console.warn('[CompromiseExtractor] nlp not loaded, using basic date extraction');
+      console.log('[CompromiseExtractor] nlp not loaded, using basic date extraction');
       return { dates: this.extractDatesWithRegex(text), parsed: [], totalDuration: null };
     }
 
@@ -1133,7 +1133,7 @@ class CompromiseExtractor {
     };
 
     if (!nlp) {
-      console.warn('[CompromiseExtractor] nlp not loaded, using regex-only salary extraction');
+      console.log('[CompromiseExtractor] nlp not loaded, using regex-only salary extraction');
       return this.extractSalaryWithRegex(text);
     }
 

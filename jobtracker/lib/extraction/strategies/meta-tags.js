@@ -103,7 +103,7 @@ function extract(doc = document) {
     }
 
   } catch (e) {
-    console.warn('[Meta Tags] Extraction error:', e.message);
+    console.log('[Meta Tags] Extraction error:', e.message);
   }
 
   results.metadata.timing = performance.now() - startTime;

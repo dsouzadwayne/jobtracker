@@ -169,7 +169,7 @@ function extract(doc = document) {
     extractPlatformSpecific(doc, results);
 
   } catch (e) {
-    console.warn('[CSS Selectors] Extraction error:', e.message);
+    console.log('[CSS Selectors] Extraction error:', e.message);
   }
 
   results.metadata.timing = performance.now() - startTime;

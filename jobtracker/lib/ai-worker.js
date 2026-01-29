@@ -47,7 +47,7 @@ const shouldSuppress = (args) => {
 const originalLog = console.log;
 
 console.log = (...args) => { if (!shouldSuppress(args)) originalLog.apply(console, args); };
-console.warn = (...args) => { if (!shouldSuppress(args)) originalLog.apply(console, args); };
+console.log = (...args) => { if (!shouldSuppress(args)) originalLog.apply(console, args); };
 console.info = (...args) => { if (!shouldSuppress(args)) originalLog.apply(console, args); };
 
 // Import Transformers.js dynamically to reduce initial load

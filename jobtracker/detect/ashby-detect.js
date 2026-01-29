@@ -34,7 +34,7 @@
       }
     } catch (e) {
       // __appData may not be accessible or have unexpected structure
-      console.warn('JobTracker: Failed to access __appData for description', e.message);
+      console.log('JobTracker: Failed to access __appData for description', e.message);
     }
 
     // Fallback: Try common Ashby selectors
@@ -72,7 +72,7 @@
       }
     } catch (e) {
       // __appData may not be accessible or have unexpected structure
-      console.warn('JobTracker: Failed to access __appData for company', e.message);
+      console.log('JobTracker: Failed to access __appData for company', e.message);
     }
 
     // Try meta tags
@@ -108,7 +108,7 @@
       }
     } catch (e) {
       // __appData may not be accessible or have unexpected structure
-      console.warn('JobTracker: Failed to access __appData for location', e.message);
+      console.log('JobTracker: Failed to access __appData for location', e.message);
     }
 
     // Try common selectors
@@ -140,7 +140,7 @@
       }
     } catch (e) {
       // __appData may not be accessible or have unexpected structure
-      console.warn('JobTracker: Failed to access __appData for title', e.message);
+      console.log('JobTracker: Failed to access __appData for title', e.message);
     }
 
     // Try heading

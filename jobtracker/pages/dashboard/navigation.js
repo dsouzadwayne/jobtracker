@@ -10,7 +10,7 @@ import {
 } from './state.js';
 import {
   escapeHtml, safeText, decodeHtmlEntities, formatDate, capitalizeStatus, sanitizeStatus,
-  isValidUrl, sanitizeUrl, formatJobDescription
+  isValidUrl, sanitizeUrl, formatJobDescription, showNotification
 } from './utils.js';
 import { getDeadlineBadge } from './views.js';
 
@@ -297,6 +297,36 @@ export async function showDetailsPanel(app) {
       </a>
     </div>` : ''}
 
+    ${app.resume && app.resume.type ? `
+      <div class="details-field">
+        <span class="field-label">Resume Used</span>
+        <div class="details-resume-link" data-resume-type="${escapeHtml(app.resume.type)}" data-resume-id="${escapeHtml(app.resume.id)}">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+          </svg>
+          <span class="resume-name">${escapeHtml(app.resume.name)}</span>
+          <span class="resume-type-badge">${app.resume.type === 'generated' ? 'Generated' : 'Uploaded'}</span>
+          <div class="resume-actions">
+            <button class="resume-action-btn view-resume-btn" title="View Resume">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+            </button>
+            ${app.resume.type === 'generated' ? `
+              <button class="resume-action-btn edit-resume-btn" title="Edit Resume">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                </svg>
+              </button>
+            ` : ''}
+          </div>
+        </div>
+      </div>
+    ` : ''}
+
     ${interviewsHtml}
     ${tasksHtml}
 
@@ -366,5 +396,77 @@ export async function showDetailsPanel(app) {
     });
   }
 
+  // Resume action buttons
+  const viewResumeBtn = elements.detailsContent.querySelector('.view-resume-btn');
+  if (viewResumeBtn) {
+    viewResumeBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const resumeLink = viewResumeBtn.closest('.details-resume-link');
+      const resumeType = resumeLink.dataset.resumeType;
+      const resumeId = resumeLink.dataset.resumeId;
+      await viewResume(resumeType, resumeId);
+    });
+  }
+
+  const editResumeBtn = elements.detailsContent.querySelector('.edit-resume-btn');
+  if (editResumeBtn) {
+    editResumeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const resumeLink = editResumeBtn.closest('.details-resume-link');
+      const resumeId = resumeLink.dataset.resumeId;
+      editGeneratedResume(resumeId);
+    });
+  }
+
   elements.detailsPanel.classList.remove('hidden');
+}
+
+/**
+ * View a resume (opens in new tab)
+ * @param {string} type - 'generated' or 'uploaded'
+ * @param {string} id - Resume ID
+ */
+async function viewResume(type, id) {
+  try {
+    if (type === 'uploaded') {
+      const resume = await chrome.runtime.sendMessage({
+        type: MessageTypes.GET_UPLOADED_RESUME,
+        payload: { id }
+      });
+
+      if (resume && resume.data) {
+        // Convert base64 string back to blob
+        const byteCharacters = atob(resume.data);
+        const byteArray = new Uint8Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteArray[i] = byteCharacters.charCodeAt(i);
+        }
+        const blob = new Blob([byteArray], { type: resume.type || 'application/pdf' });
+
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+        // Clean up the object URL after a delay
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      } else {
+        // Show user-facing error
+        showNotification('Could not load resume. It may have been deleted.', 'error');
+      }
+    } else if (type === 'generated') {
+      // Open resume maker in view mode
+      const resumeMakerUrl = chrome.runtime.getURL(`resume-maker/index.html?view=${encodeURIComponent(id)}`);
+      window.open(resumeMakerUrl, '_blank');
+    }
+  } catch (error) {
+    console.error('Failed to view resume:', error);
+    showNotification('Failed to open resume', 'error');
+  }
+}
+
+/**
+ * Edit a generated resume (opens resume maker)
+ * @param {string} id - Resume ID
+ */
+function editGeneratedResume(id) {
+  const resumeMakerUrl = chrome.runtime.getURL(`resume-maker/index.html?edit=${encodeURIComponent(id)}`);
+  window.open(resumeMakerUrl, '_blank');
 }

@@ -55,7 +55,7 @@
         };
       }
     } catch (e) {
-      console.warn('JobTracker: Failed to extract from __OC_CONTEXT__', e);
+      console.log('JobTracker: Failed to extract from __OC_CONTEXT__', e);
     }
     return null;
   }

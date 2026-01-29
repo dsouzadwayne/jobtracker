@@ -245,7 +245,7 @@ const JobTrackerLocaleDetector = {
   getPatternsForLocale(fieldType, locale = null) {
     const registry = window.JobTrackerFieldRegistry;
     if (!registry) {
-      console.warn('[LocaleDetector] FieldRegistry not available');
+      console.log('[LocaleDetector] FieldRegistry not available');
       return [];
     }
 

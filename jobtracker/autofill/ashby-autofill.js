@@ -225,7 +225,7 @@
         if (label) return label.textContent;
       } catch (e) {
         // CSS.escape may fail for certain input ids
-        console.warn('JobTracker: Label query failed for input', input.id, e.message);
+        console.log('JobTracker: Label query failed for input', input.id, e.message);
       }
     }
 
@@ -287,7 +287,7 @@
       }
     } catch (e) {
       // React value tracker may not exist in all frameworks
-      console.warn('JobTracker: Failed to clear React value tracker', e.message);
+      console.log('JobTracker: Failed to clear React value tracker', e.message);
     }
 
     // Dispatch events for framework compatibility
@@ -326,7 +326,7 @@
         }));
       } catch (e) {
         // KeyboardEvent may fail in some browser contexts
-        console.warn('JobTracker: Failed to dispatch keyboard events', e.message);
+        console.log('JobTracker: Failed to dispatch keyboard events', e.message);
       }
     }
 

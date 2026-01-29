@@ -56,7 +56,7 @@ const COMMUNICATION_TYPES = ['email', 'call', 'linkedin', 'meeting', 'other'];
 
 const JobTrackerDB = {
   DB_NAME: 'JobTrackerDB',
-  DB_VERSION: 5,
+  DB_VERSION: 7,
   db: null,
   loadingPromise: null,
 
@@ -72,7 +72,10 @@ const JobTrackerDB = {
     MODELS_METADATA: 'models_metadata',
     EXTRACTION_FEEDBACK: 'extraction_feedback',
     CONTACTS: 'contacts',
-    COMMUNICATIONS: 'communications'
+    COMMUNICATIONS: 'communications',
+    BASE_RESUME: 'baseResume',
+    GENERATED_RESUMES: 'generatedResumes',
+    UPLOADED_RESUMES: 'uploadedResumes'
   },
 
   /**
@@ -95,6 +98,12 @@ const JobTrackerDB = {
         this.db = request.result;
         console.log('JobTracker: Database initialized');
         resolve(this.db);
+      };
+
+      request.onblocked = () => {
+        console.warn('JobTracker: Database upgrade blocked - close other tabs using this extension');
+        this.loadingPromise = null;
+        reject(new Error('Database upgrade blocked by other tabs. Please close other tabs and try again.'));
       };
 
       request.onupgradeneeded = (event) => {
@@ -204,6 +213,23 @@ const JobTrackerDB = {
           }
         }
 
+        // Resume Maker stores (v6)
+        if (!db.objectStoreNames.contains(this.STORES.BASE_RESUME)) {
+          db.createObjectStore(this.STORES.BASE_RESUME, { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains(this.STORES.GENERATED_RESUMES)) {
+          const genResumeStore = db.createObjectStore(this.STORES.GENERATED_RESUMES, { keyPath: 'id' });
+          genResumeStore.createIndex('createdAt', 'createdAt', { unique: false });
+          genResumeStore.createIndex('jobTitle', 'jobDescription.title', { unique: false });
+          genResumeStore.createIndex('company', 'jobDescription.company', { unique: false });
+        }
+
+        // Uploaded Resumes store (v7) - for linking PDFs to applications
+        if (!db.objectStoreNames.contains(this.STORES.UPLOADED_RESUMES)) {
+          const uploadedResumeStore = db.createObjectStore(this.STORES.UPLOADED_RESUMES, { keyPath: 'id' });
+          uploadedResumeStore.createIndex('uploadedAt', 'uploadedAt', { unique: false });
+        }
+
         console.log('JobTracker: Database schema created/upgraded');
       };
     });
@@ -225,6 +251,74 @@ const JobTrackerDB = {
       (i === 4 || i === 6 || i === 8 || i === 10 ? '-' : '') +
       b.toString(16).padStart(2, '0')
     ).join('');
+  },
+
+  /**
+   * Helper: Check if an error is a QuotaExceededError
+   * @param {Error} error - The error to check
+   * @returns {boolean}
+   */
+  isQuotaExceededError(error) {
+    return error?.name === 'QuotaExceededError' ||
+           error?.message?.includes('quota') ||
+           error?.message?.includes('storage');
+  },
+
+  /**
+   * Helper: Create a user-friendly error for quota exceeded
+   * @returns {Error}
+   */
+  createQuotaExceededError() {
+    const error = new Error('Storage quota exceeded. Please free up space by deleting old applications or clearing browser data.');
+    error.name = 'QuotaExceededError';
+    error.isQuotaExceeded = true;
+    return error;
+  },
+
+  /**
+   * Helper: Execute a write operation with proper transaction completion handling
+   * Resolves only after transaction.oncomplete to ensure data durability
+   * Also handles QuotaExceededError with user-friendly messages
+   * @param {string} storeName - The object store name
+   * @param {string} mode - Transaction mode ('readwrite')
+   * @param {Function} operation - Function that receives (store, transaction) and performs the operation
+   * @param {any} resultData - Data to include in the result on success
+   * @returns {Promise<any>}
+   */
+  executeWriteOperation(storeName, operation, resultData = null) {
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([storeName], 'readwrite');
+      const store = transaction.objectStore(storeName);
+
+      let requestError = null;
+
+      // Execute the operation and capture any request-level error
+      operation(store, transaction, (error) => {
+        requestError = error;
+      });
+
+      transaction.oncomplete = () => {
+        resolve(resultData !== null ? resultData : { success: true });
+      };
+
+      transaction.onerror = () => {
+        const error = requestError || transaction.error;
+        if (this.isQuotaExceededError(error)) {
+          reject(this.createQuotaExceededError());
+        } else {
+          reject(error);
+        }
+      };
+
+      transaction.onabort = () => {
+        const error = requestError || transaction.error;
+        if (this.isQuotaExceededError(error)) {
+          reject(this.createQuotaExceededError());
+        } else {
+          reject(error || new Error('Transaction aborted'));
+        }
+      };
+    });
   },
 
   // ==================== APPLICATIONS ====================
@@ -353,23 +447,35 @@ const JobTrackerDB = {
       }]
     };
 
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.STORES.APPLICATIONS], 'readwrite');
-      const store = transaction.objectStore(this.STORES.APPLICATIONS);
-      const request = store.add(app);
+    return new Promise(async (resolve, reject) => {
+      try {
+        // First, save the application with proper transaction handling
+        await this.executeWriteOperation(
+          this.STORES.APPLICATIONS,
+          (store, transaction, setError) => {
+            const request = store.add(app);
+            request.onerror = () => setError(request.error);
+          }
+        );
 
-      request.onsuccess = () => {
-        // Create initial activity entry (fire and forget - uses separate transaction)
-        this.addActivity({
-          applicationId: app.id,
-          type: 'application_created',
-          title: `Application added`,
-          description: `Applied to ${app.position} at ${app.company}`,
-          metadata: { status: app.status }
-        }).catch(err => console.warn('JobTracker: Failed to add activity:', err));
+        // After application is saved, create activity entry
+        // Activity is non-critical, so we log errors but don't reject
+        try {
+          await this.addActivity({
+            applicationId: app.id,
+            type: 'application_created',
+            title: `Application added`,
+            description: `Applied to ${app.position} at ${app.company}`,
+            metadata: { status: app.status }
+          });
+        } catch (activityErr) {
+          console.warn('JobTracker: Failed to add activity for new application:', activityErr);
+        }
+
         resolve({ success: true, application: app });
-      };
-      request.onerror = () => reject(request.error);
+      } catch (error) {
+        reject(error);
+      }
     });
   },
 
@@ -410,41 +516,86 @@ const JobTrackerDB = {
       });
     }
 
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.STORES.APPLICATIONS], 'readwrite');
-      const store = transaction.objectStore(this.STORES.APPLICATIONS);
-      const request = store.put(updated);
+    return new Promise(async (resolve, reject) => {
+      try {
+        // First, save the updated application with proper transaction handling
+        await this.executeWriteOperation(
+          this.STORES.APPLICATIONS,
+          (store, transaction, setError) => {
+            const request = store.put(updated);
+            request.onerror = () => setError(request.error);
+          }
+        );
 
-      request.onsuccess = () => {
-        // Create activity for status change (fire and forget - uses separate transaction)
+        // After application is saved, create activity entry for status change
         if (application.status && application.status !== oldStatus) {
-          this.addActivity({
-            applicationId: updated.id,
-            type: 'status_change',
-            title: `Status changed to ${application.status}`,
-            description: application.statusNote || `Changed from ${oldStatus} to ${application.status}`,
-            metadata: { oldStatus, newStatus: application.status }
-          }).catch(err => console.warn('JobTracker: Failed to add activity:', err));
+          try {
+            await this.addActivity({
+              applicationId: updated.id,
+              type: 'status_change',
+              title: `Status changed to ${application.status}`,
+              description: application.statusNote || `Changed from ${oldStatus} to ${application.status}`,
+              metadata: { oldStatus, newStatus: application.status }
+            });
+          } catch (activityErr) {
+            console.warn('JobTracker: Failed to add status change activity:', activityErr);
+          }
         }
+
         resolve({ success: true, application: updated });
-      };
-      request.onerror = () => reject(request.error);
+      } catch (error) {
+        reject(error);
+      }
     });
   },
 
   /**
-   * Delete application
+   * Delete application and all related data (cascading delete)
+   * Deletes: interviews, tasks, activities, communications linked to this application
    */
   async deleteApplication(id) {
     await this.init();
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.STORES.APPLICATIONS], 'readwrite');
-      const store = transaction.objectStore(this.STORES.APPLICATIONS);
-      const request = store.delete(id);
 
-      request.onsuccess = () => resolve({ success: true });
-      request.onerror = () => reject(request.error);
-    });
+    // Delete the application with proper transaction handling
+    await this.executeWriteOperation(
+      this.STORES.APPLICATIONS,
+      (store, transaction, setError) => {
+        const request = store.delete(id);
+        request.onerror = () => setError(request.error);
+      }
+    );
+
+    // Cascade delete related data (non-critical, log errors but don't fail)
+    const cascadeDeletes = [
+      { store: this.STORES.INTERVIEWS, index: 'applicationId', name: 'interviews' },
+      { store: this.STORES.TASKS, index: 'applicationId', name: 'tasks' },
+      { store: this.STORES.ACTIVITIES, index: 'applicationId', name: 'activities' },
+      { store: this.STORES.COMMUNICATIONS, index: 'applicationId', name: 'communications' }
+    ];
+
+    for (const { store: storeName, index, name } of cascadeDeletes) {
+      try {
+        await new Promise((resolve, reject) => {
+          const transaction = this.db.transaction([storeName], 'readwrite');
+          const store = transaction.objectStore(storeName);
+          const idx = store.index(index);
+          const request = idx.getAllKeys(id);
+
+          request.onsuccess = () => {
+            const keys = request.result || [];
+            keys.forEach(key => store.delete(key));
+          };
+
+          transaction.oncomplete = () => resolve();
+          transaction.onerror = () => reject(transaction.error);
+          transaction.onabort = () => reject(new Error('Transaction aborted'));
+        });
+      } catch (err) {
+        console.warn(`JobTracker: Failed to cascade delete ${name} for application ${id}:`, err);
+      }
+    }
+
+    return { success: true };
   },
 
   /**
@@ -560,8 +711,20 @@ const JobTrackerDB = {
       if (appliedEntry && interviewEntry) {
         const appliedDate = new Date(appliedEntry.date);
         const interviewDate = new Date(interviewEntry.date);
+
+        // Validate dates are valid
+        if (isNaN(appliedDate.getTime()) || isNaN(interviewDate.getTime())) {
+          console.log(`[JobTracker] Invalid date in status history for application ${app.id}`);
+          return;
+        }
+
         const days = Math.floor((interviewDate - appliedDate) / (1000 * 60 * 60 * 24));
-        if (days >= 0) daysArray.push(days);
+        if (days >= 0) {
+          daysArray.push(days);
+        } else {
+          // Log negative days for debugging (interview before application)
+          console.log(`[JobTracker] Negative days to interview (${days}) for application ${app.id} - data entry error?`);
+        }
       }
     });
 
@@ -747,7 +910,7 @@ const JobTrackerDB = {
           } else {
             // Log warning for backward-moving transitions (negative time difference)
             // This can happen due to data entry errors or timezone issues
-            console.warn(`[JobTracker] Backward status transition detected in application: ${status} -> ${next.status} (${diffMs}ms difference)`);
+            console.log(`[JobTracker] Backward status transition detected in application: ${status} -> ${next.status} (${diffMs}ms difference)`);
             // Still count as 0 days to not lose the data point
             daysAccumulator[status].push(0);
           }
@@ -783,6 +946,12 @@ const JobTrackerDB = {
       startDate = new Date(dateRange.start);
       const endDate = new Date(dateRange.end);
       endDate.setHours(23, 59, 59, 999);
+
+      // Validate date range - if inverted, log and return empty
+      if (startDate > endDate) {
+        console.log('[JobTracker] Invalid date range: start date is after end date');
+        return [];
+      }
 
       return applications.filter(app => {
         const dateSource = app.dateApplied || app.meta?.createdAt;
@@ -863,7 +1032,11 @@ const JobTrackerDB = {
     const interviews = await this.getAllInterviews();
     const now = new Date();
     return interviews
-      .filter(i => new Date(i.scheduledDate) >= now && i.outcome === 'Pending')
+      .filter(i => {
+        // Use case-insensitive comparison for backwards compatibility
+        const outcome = (i.outcome || '').toLowerCase();
+        return new Date(i.scheduledDate) >= now && outcome === 'pending';
+      })
       .slice(0, limit);
   },
 
@@ -876,27 +1049,39 @@ const JobTrackerDB = {
     const interviewData = {
       ...interview,
       id: interview.id || this.generateId(),
-      outcome: interview.outcome || 'Pending',
+      // Use lowercase 'pending' for consistency with validation in background.js
+      outcome: interview.outcome || 'pending',
       createdAt: new Date().toISOString()
     };
 
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.STORES.INTERVIEWS], 'readwrite');
-      const store = transaction.objectStore(this.STORES.INTERVIEWS);
-      const request = store.add(interviewData);
+    return new Promise(async (resolve, reject) => {
+      try {
+        // First, save the interview with proper transaction handling
+        await this.executeWriteOperation(
+          this.STORES.INTERVIEWS,
+          (store, transaction, setError) => {
+            const request = store.add(interviewData);
+            request.onerror = () => setError(request.error);
+          }
+        );
 
-      request.onsuccess = () => {
-        // Also create an activity entry (fire and forget - uses separate transaction)
-        this.addActivity({
-          applicationId: interviewData.applicationId,
-          type: 'interview_scheduled',
-          title: `Interview scheduled: ${interviewData.type || 'Round ' + interviewData.round}`,
-          description: `Scheduled for ${new Date(interviewData.scheduledDate).toLocaleDateString()}`,
-          metadata: { interviewId: interviewData.id }
-        }).catch(err => console.warn('JobTracker: Failed to add activity:', err));
+        // After interview is saved, create activity entry
+        try {
+          await this.addActivity({
+            applicationId: interviewData.applicationId,
+            type: 'interview_scheduled',
+            title: `Interview scheduled: ${interviewData.type || 'Round ' + interviewData.round}`,
+            description: `Scheduled for ${new Date(interviewData.scheduledDate).toLocaleDateString()}`,
+            metadata: { interviewId: interviewData.id }
+          });
+        } catch (activityErr) {
+          console.warn('JobTracker: Failed to add activity for scheduled interview:', activityErr);
+        }
+
         resolve({ success: true, interview: interviewData });
-      };
-      request.onerror = () => reject(request.error);
+      } catch (error) {
+        reject(error);
+      }
     });
   },
 
@@ -920,24 +1105,36 @@ const JobTrackerDB = {
     // Check if outcome changed
     const outcomeChanged = existing.outcome !== updated.outcome;
 
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.STORES.INTERVIEWS], 'readwrite');
-      const store = transaction.objectStore(this.STORES.INTERVIEWS);
-      const request = store.put(updated);
+    return new Promise(async (resolve, reject) => {
+      try {
+        // First, save the updated interview with proper transaction handling
+        await this.executeWriteOperation(
+          this.STORES.INTERVIEWS,
+          (store, transaction, setError) => {
+            const request = store.put(updated);
+            request.onerror = () => setError(request.error);
+          }
+        );
 
-      request.onsuccess = () => {
+        // After interview is saved, create activity entry for outcome change
         if (outcomeChanged) {
-          this.addActivity({
-            applicationId: updated.applicationId,
-            type: 'interview_outcome',
-            title: `Interview outcome: ${updated.outcome}`,
-            description: `${updated.type || 'Round ' + updated.round} - ${updated.outcome}`,
-            metadata: { interviewId: updated.id, outcome: updated.outcome }
-          }).catch(err => console.warn('JobTracker: Failed to add activity:', err));
+          try {
+            await this.addActivity({
+              applicationId: updated.applicationId,
+              type: 'interview_outcome',
+              title: `Interview outcome: ${updated.outcome}`,
+              description: `${updated.type || 'Round ' + updated.round} - ${updated.outcome}`,
+              metadata: { interviewId: updated.id, outcome: updated.outcome }
+            });
+          } catch (activityErr) {
+            console.warn('JobTracker: Failed to add interview outcome activity:', activityErr);
+          }
         }
+
         resolve({ success: true, interview: updated });
-      };
-      request.onerror = () => reject(request.error);
+      } catch (error) {
+        reject(error);
+      }
     });
   },
 
@@ -961,14 +1158,14 @@ const JobTrackerDB = {
    */
   async deleteInterview(id) {
     await this.init();
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.STORES.INTERVIEWS], 'readwrite');
-      const store = transaction.objectStore(this.STORES.INTERVIEWS);
-      const request = store.delete(id);
-
-      request.onsuccess = () => resolve({ success: true });
-      request.onerror = () => reject(request.error);
-    });
+    return this.executeWriteOperation(
+      this.STORES.INTERVIEWS,
+      (store, transaction, setError) => {
+        const request = store.delete(id);
+        request.onerror = () => setError(request.error);
+      },
+      { success: true }
+    );
   },
 
   // ==================== TASKS (CRM Phase C) ====================
@@ -1060,25 +1257,36 @@ const JobTrackerDB = {
       createdAt: new Date().toISOString()
     };
 
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.STORES.TASKS], 'readwrite');
-      const store = transaction.objectStore(this.STORES.TASKS);
-      const request = store.add(taskData);
+    return new Promise(async (resolve, reject) => {
+      try {
+        // First, save the task with proper transaction handling
+        await this.executeWriteOperation(
+          this.STORES.TASKS,
+          (store, transaction, setError) => {
+            const request = store.add(taskData);
+            request.onerror = () => setError(request.error);
+          }
+        );
 
-      request.onsuccess = () => {
-        // Create activity if linked to application (fire and forget - uses separate transaction)
+        // After task is saved, create activity entry if linked to application
         if (taskData.applicationId) {
-          this.addActivity({
-            applicationId: taskData.applicationId,
-            type: 'task_created',
-            title: `Task created: ${taskData.title}`,
-            description: taskData.dueDate ? `Due: ${new Date(taskData.dueDate).toLocaleDateString()}` : '',
-            metadata: { taskId: taskData.id }
-          }).catch(err => console.warn('JobTracker: Failed to add activity:', err));
+          try {
+            await this.addActivity({
+              applicationId: taskData.applicationId,
+              type: 'task_created',
+              title: `Task created: ${taskData.title}`,
+              description: taskData.dueDate ? `Due: ${new Date(taskData.dueDate).toLocaleDateString()}` : '',
+              metadata: { taskId: taskData.id }
+            });
+          } catch (activityErr) {
+            console.warn('JobTracker: Failed to add task created activity:', activityErr);
+          }
         }
+
         resolve({ success: true, task: taskData });
-      };
-      request.onerror = () => reject(request.error);
+      } catch (error) {
+        reject(error);
+      }
     });
   },
 
@@ -1105,24 +1313,36 @@ const JobTrackerDB = {
       updated.completedAt = new Date().toISOString();
     }
 
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.STORES.TASKS], 'readwrite');
-      const store = transaction.objectStore(this.STORES.TASKS);
-      const request = store.put(updated);
+    return new Promise(async (resolve, reject) => {
+      try {
+        // First, save the updated task with proper transaction handling
+        await this.executeWriteOperation(
+          this.STORES.TASKS,
+          (store, transaction, setError) => {
+            const request = store.put(updated);
+            request.onerror = () => setError(request.error);
+          }
+        );
 
-      request.onsuccess = () => {
+        // After task is saved, create activity entry for task completion
         if (task.completed && !wasCompleted && updated.applicationId) {
-          this.addActivity({
-            applicationId: updated.applicationId,
-            type: 'task_completed',
-            title: `Task completed: ${updated.title}`,
-            description: '',
-            metadata: { taskId: updated.id }
-          }).catch(err => console.warn('JobTracker: Failed to add activity:', err));
+          try {
+            await this.addActivity({
+              applicationId: updated.applicationId,
+              type: 'task_completed',
+              title: `Task completed: ${updated.title}`,
+              description: '',
+              metadata: { taskId: updated.id }
+            });
+          } catch (activityErr) {
+            console.warn('JobTracker: Failed to add task completed activity:', activityErr);
+          }
         }
+
         resolve({ success: true, task: updated });
-      };
-      request.onerror = () => reject(request.error);
+      } catch (error) {
+        reject(error);
+      }
     });
   },
 
@@ -1146,14 +1366,14 @@ const JobTrackerDB = {
    */
   async deleteTask(id) {
     await this.init();
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.STORES.TASKS], 'readwrite');
-      const store = transaction.objectStore(this.STORES.TASKS);
-      const request = store.delete(id);
-
-      request.onsuccess = () => resolve({ success: true });
-      request.onerror = () => reject(request.error);
-    });
+    return this.executeWriteOperation(
+      this.STORES.TASKS,
+      (store, transaction, setError) => {
+        const request = store.delete(id);
+        request.onerror = () => setError(request.error);
+      },
+      { success: true }
+    );
   },
 
   // ==================== ACTIVITIES (CRM Phase C) ====================
@@ -1212,14 +1432,15 @@ const JobTrackerDB = {
       metadata: activity.metadata || {}
     };
 
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.STORES.ACTIVITIES], 'readwrite');
-      const store = transaction.objectStore(this.STORES.ACTIVITIES);
-      const request = store.add(activityData);
+    await this.executeWriteOperation(
+      this.STORES.ACTIVITIES,
+      (store, transaction, setError) => {
+        const request = store.add(activityData);
+        request.onerror = () => setError(request.error);
+      }
+    );
 
-      request.onsuccess = () => resolve({ success: true, activity: activityData });
-      request.onerror = () => reject(request.error);
-    });
+    return { success: true, activity: activityData };
   },
 
   /**
@@ -1227,14 +1448,14 @@ const JobTrackerDB = {
    */
   async deleteActivity(id) {
     await this.init();
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.STORES.ACTIVITIES], 'readwrite');
-      const store = transaction.objectStore(this.STORES.ACTIVITIES);
-      const request = store.delete(id);
-
-      request.onsuccess = () => resolve({ success: true });
-      request.onerror = () => reject(request.error);
-    });
+    return this.executeWriteOperation(
+      this.STORES.ACTIVITIES,
+      (store, transaction, setError) => {
+        const request = store.delete(id);
+        request.onerror = () => setError(request.error);
+      },
+      { success: true }
+    );
   },
 
   // ==================== CRM HELPERS ====================
@@ -1299,14 +1520,14 @@ const JobTrackerDB = {
       }
     };
 
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.STORES.PROFILE], 'readwrite');
-      const store = transaction.objectStore(this.STORES.PROFILE);
-      const request = store.put(data);
-
-      request.onsuccess = () => resolve({ success: true });
-      request.onerror = () => reject(request.error);
-    });
+    return this.executeWriteOperation(
+      this.STORES.PROFILE,
+      (store, transaction, setError) => {
+        const request = store.put(data);
+        request.onerror = () => setError(request.error);
+      },
+      { success: true, profile: data }
+    );
   },
 
   /**
@@ -1334,7 +1555,28 @@ const JobTrackerDB = {
   // ==================== SETTINGS ====================
 
   /**
-   * Get settings
+   * Deep merge utility for nested objects
+   * Recursively merges source into target, preserving nested structure
+   */
+  deepMerge(target, source) {
+    const result = { ...target };
+    for (const key of Object.keys(source)) {
+      if (source[key] !== null && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+        if (target[key] !== null && typeof target[key] === 'object' && !Array.isArray(target[key])) {
+          result[key] = this.deepMerge(target[key], source[key]);
+        } else {
+          // Deep copy via recursive merge to preserve nested structure
+          result[key] = this.deepMerge({}, source[key]);
+        }
+      } else {
+        result[key] = source[key];
+      }
+    }
+    return result;
+  },
+
+  /**
+   * Get settings (with deep merge to preserve nested structure)
    */
   async getSettings() {
     await this.init();
@@ -1343,7 +1585,12 @@ const JobTrackerDB = {
       const store = transaction.objectStore(this.STORES.SETTINGS);
       const request = store.get('main');
 
-      request.onsuccess = () => resolve({ ...this.getDefaultSettings(), ...request.result });
+      request.onsuccess = () => {
+        const defaults = this.getDefaultSettings();
+        const stored = request.result || {};
+        // Deep merge to ensure nested objects (autofill, detection, ui) are fully merged
+        resolve(this.deepMerge(defaults, stored));
+      };
       request.onerror = () => reject(request.error);
     });
   },
@@ -1358,14 +1605,14 @@ const JobTrackerDB = {
       id: 'main'
     };
 
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.STORES.SETTINGS], 'readwrite');
-      const store = transaction.objectStore(this.STORES.SETTINGS);
-      const request = store.put(data);
-
-      request.onsuccess = () => resolve({ success: true });
-      request.onerror = () => reject(request.error);
-    });
+    return this.executeWriteOperation(
+      this.STORES.SETTINGS,
+      (store, transaction, setError) => {
+        const request = store.put(data);
+        request.onerror = () => setError(request.error);
+      },
+      { success: true }
+    );
   },
 
   /**
@@ -1401,15 +1648,26 @@ const JobTrackerDB = {
 
   /**
    * Check if migration is needed and perform it
+   * Returns migration result with errors for UI notification (Bug #22)
+   * Uses proper transaction handling to prevent race conditions (Bug #12)
+   * @returns {Promise<{migrated: boolean, errors: Array, errorCount: number, migratedCount: number}>}
    */
   async migrateFromChromeStorage() {
     await this.init();
+
+    const result = {
+      migrated: false,
+      errors: [],
+      errorCount: 0,
+      migratedCount: 0,
+      totalCount: 0
+    };
 
     // Check if already migrated
     const meta = await this.getMeta('migration');
     if (meta?.completed) {
       console.log('JobTracker: Migration already completed');
-      return false;
+      return result;
     }
 
     // Check if Chrome storage has data (with timeout to prevent indefinite hangs)
@@ -1430,77 +1688,117 @@ const JobTrackerDB = {
     if (!hasData) {
       console.log('JobTracker: No Chrome storage data to migrate');
       await this.setMeta('migration', { completed: true, date: new Date().toISOString(), hadData: false });
-      return false;
+      return result;
     }
 
     console.log('JobTracker: Starting migration from Chrome storage...');
 
+    const migrationErrors = [];
+
     try {
-      // Migrate profile
+      // Migrate profile first (most critical)
       if (chromeData.jobtracker_profile) {
-        await this.saveProfile(chromeData.jobtracker_profile);
-        console.log('JobTracker: Profile migrated');
+        try {
+          await this.saveProfile(chromeData.jobtracker_profile);
+          console.log('JobTracker: Profile migrated');
+        } catch (err) {
+          const errorMsg = 'Failed to migrate profile';
+          console.error('JobTracker:', errorMsg, err);
+          migrationErrors.push({ type: 'profile', error: err?.message || 'Unknown error' });
+        }
       }
 
-      // Migrate applications (continue on individual errors)
+      // Migrate applications (continue on individual errors, use proper transaction handling)
       if (chromeData.jobtracker_applications?.length > 0) {
-        let migratedCount = 0;
-        const migrationErrors = [];
+        result.totalCount = chromeData.jobtracker_applications.length;
+
         for (const app of chromeData.jobtracker_applications) {
           try {
-            await new Promise((resolve, reject) => {
-              const transaction = this.db.transaction([this.STORES.APPLICATIONS], 'readwrite');
-              const store = transaction.objectStore(this.STORES.APPLICATIONS);
-              const request = store.put(app);
-              request.onsuccess = () => resolve();
-              request.onerror = () => reject(request.error);
-            });
-            migratedCount++;
+            // Use executeWriteOperation for proper transaction handling (Bug #12)
+            await this.executeWriteOperation(
+              this.STORES.APPLICATIONS,
+              (store, transaction, setError) => {
+                const request = store.put(app);
+                request.onerror = () => setError(request.error);
+              }
+            );
+            result.migratedCount++;
           } catch (err) {
-            console.warn('JobTracker: Failed to migrate application:', app?.id || 'unknown', err?.message || err);
-            migrationErrors.push({ id: app?.id, error: err?.message || 'Unknown error' });
+            const errorMsg = `Failed to migrate application: ${app?.company || 'unknown'} - ${app?.position || 'unknown'}`;
+            console.warn('JobTracker:', errorMsg, err?.message || err);
+            migrationErrors.push({
+              type: 'application',
+              id: app?.id,
+              company: app?.company,
+              position: app?.position,
+              error: err?.message || 'Unknown error'
+            });
           }
         }
-        console.log(`JobTracker: ${migratedCount}/${chromeData.jobtracker_applications.length} applications migrated`);
-        if (migrationErrors.length > 0) {
-          console.warn(`JobTracker: ${migrationErrors.length} application(s) failed to migrate`);
-        }
+
+        console.log(`JobTracker: ${result.migratedCount}/${result.totalCount} applications migrated`);
       }
 
       // Migrate settings
       if (chromeData.jobtracker_settings) {
-        await this.saveSettings(chromeData.jobtracker_settings);
-        console.log('JobTracker: Settings migrated');
+        try {
+          await this.saveSettings(chromeData.jobtracker_settings);
+          console.log('JobTracker: Settings migrated');
 
-        // Also migrate theme to the new UI prefs key (separate from settings to avoid conflicts)
-        if (chromeData.jobtracker_settings.ui?.theme) {
-          await new Promise(resolve => {
-            chrome.storage.local.set({
-              'jobtracker_ui_prefs': { theme: chromeData.jobtracker_settings.ui.theme }
-            }, resolve);
-          });
-          console.log('JobTracker: Theme preference migrated to jobtracker_ui_prefs');
+          // Also migrate theme to the new UI prefs key (separate from settings to avoid conflicts)
+          if (chromeData.jobtracker_settings.ui?.theme) {
+            await new Promise(resolve => {
+              chrome.storage.local.set({
+                'jobtracker_ui_prefs': { theme: chromeData.jobtracker_settings.ui.theme }
+              }, resolve);
+            });
+            console.log('JobTracker: Theme preference migrated to jobtracker_ui_prefs');
+          }
+        } catch (err) {
+          const errorMsg = 'Failed to migrate settings';
+          console.error('JobTracker:', errorMsg, err);
+          migrationErrors.push({ type: 'settings', error: err?.message || 'Unknown error' });
         }
       }
 
-      // Mark migration as complete
+      // Mark migration as complete (even with partial errors)
+      // Store error info so we can show user what failed (Bug #22)
       await this.setMeta('migration', {
         completed: true,
         date: new Date().toISOString(),
         hadData: true,
-        applicationCount: chromeData.jobtracker_applications?.length || 0
+        applicationCount: result.totalCount,
+        migratedCount: result.migratedCount,
+        errorCount: migrationErrors.length,
+        errors: migrationErrors.slice(0, 10) // Store first 10 errors for reference
       });
 
-      // Clear Chrome storage after successful migration (but keep jobtracker_ui_prefs)
-      await new Promise(resolve => {
-        chrome.storage.local.remove(['jobtracker_profile', 'jobtracker_applications', 'jobtracker_settings'], resolve);
-      });
+      // Only clear Chrome storage if ALL data migrated successfully (Bug #12)
+      if (migrationErrors.length === 0) {
+        await new Promise(resolve => {
+          chrome.storage.local.remove(['jobtracker_profile', 'jobtracker_applications', 'jobtracker_settings'], resolve);
+        });
+        console.log('JobTracker: Chrome storage cleared after successful migration');
+      } else {
+        console.warn('JobTracker: Chrome storage NOT cleared due to migration errors - data preserved for retry');
+      }
 
-      console.log('JobTracker: Migration completed successfully');
-      return true;
+      result.migrated = true;
+      result.errors = migrationErrors;
+      result.errorCount = migrationErrors.length;
+
+      if (migrationErrors.length > 0) {
+        console.warn(`JobTracker: Migration completed with ${migrationErrors.length} error(s)`);
+      } else {
+        console.log('JobTracker: Migration completed successfully');
+      }
+
+      return result;
     } catch (error) {
-      console.log('JobTracker: Migration failed', error);
-      throw error;
+      console.error('JobTracker: Migration failed completely', error);
+      result.errors = [{ type: 'fatal', error: error?.message || 'Unknown error' }];
+      result.errorCount = 1;
+      return result;
     }
   },
 
@@ -1524,14 +1822,15 @@ const JobTrackerDB = {
    */
   async setMeta(key, value) {
     await this.init();
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.STORES.META], 'readwrite');
-      const store = transaction.objectStore(this.STORES.META);
-      const request = store.put({ id: key, ...value });
-
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
+    const data = { id: key, ...value };
+    return this.executeWriteOperation(
+      this.STORES.META,
+      (store, transaction, setError) => {
+        const request = store.put(data);
+        request.onerror = () => setError(request.error);
+      },
+      { success: true, data }
+    );
   },
 
   // ==================== EXPORT/IMPORT ====================
@@ -1667,12 +1966,12 @@ const JobTrackerDB = {
             });
           } catch (err) {
             // Log but continue with remaining applications
-            console.warn('JobTracker: Failed to import application:', app?.id || 'unknown', err?.message || err);
+            console.log('JobTracker: Failed to import application:', app?.id || 'unknown', err?.message || err);
             importErrors.push({ id: app?.id, error: err?.message || 'Unknown error' });
           }
         }
         if (importErrors.length > 0) {
-          console.warn(`JobTracker: ${importErrors.length} application(s) failed to import`);
+          console.log(`JobTracker: ${importErrors.length} application(s) failed to import`);
         }
       }
 
@@ -1842,17 +2141,14 @@ const JobTrackerDB = {
    */
   async clearModelsMetadata() {
     await this.init();
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.STORES.MODELS_METADATA], 'readwrite');
-      const store = transaction.objectStore(this.STORES.MODELS_METADATA);
-      const request = store.clear();
-
-      request.onsuccess = () => {
-        console.log('JobTracker: Models metadata cleared');
-        resolve();
-      };
-      request.onerror = () => reject(request.error);
-    });
+    await this.executeWriteOperation(
+      this.STORES.MODELS_METADATA,
+      (store, transaction, setError) => {
+        const request = store.clear();
+        request.onerror = () => setError(request.error);
+      }
+    );
+    console.log('JobTracker: Models metadata cleared');
   },
 
   // ==================== DATA CLEARING METHODS ====================
@@ -1862,17 +2158,14 @@ const JobTrackerDB = {
    */
   async deleteProfile() {
     await this.init();
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.STORES.PROFILE], 'readwrite');
-      const store = transaction.objectStore(this.STORES.PROFILE);
-      const request = store.delete('main');
-
-      request.onsuccess = () => {
-        console.log('JobTracker: Profile deleted');
-        resolve();
-      };
-      request.onerror = () => reject(request.error);
-    });
+    await this.executeWriteOperation(
+      this.STORES.PROFILE,
+      (store, transaction, setError) => {
+        const request = store.delete('main');
+        request.onerror = () => setError(request.error);
+      }
+    );
+    console.log('JobTracker: Profile deleted');
   },
 
   /**
@@ -1880,17 +2173,14 @@ const JobTrackerDB = {
    */
   async clearAllApplications() {
     await this.init();
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.STORES.APPLICATIONS], 'readwrite');
-      const store = transaction.objectStore(this.STORES.APPLICATIONS);
-      const request = store.clear();
-
-      request.onsuccess = () => {
-        console.log('JobTracker: All applications cleared');
-        resolve();
-      };
-      request.onerror = () => reject(request.error);
-    });
+    await this.executeWriteOperation(
+      this.STORES.APPLICATIONS,
+      (store, transaction, setError) => {
+        const request = store.clear();
+        request.onerror = () => setError(request.error);
+      }
+    );
+    console.log('JobTracker: All applications cleared');
   },
 
   /**
@@ -1898,17 +2188,14 @@ const JobTrackerDB = {
    */
   async clearAllInterviews() {
     await this.init();
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.STORES.INTERVIEWS], 'readwrite');
-      const store = transaction.objectStore(this.STORES.INTERVIEWS);
-      const request = store.clear();
-
-      request.onsuccess = () => {
-        console.log('JobTracker: All interviews cleared');
-        resolve();
-      };
-      request.onerror = () => reject(request.error);
-    });
+    await this.executeWriteOperation(
+      this.STORES.INTERVIEWS,
+      (store, transaction, setError) => {
+        const request = store.clear();
+        request.onerror = () => setError(request.error);
+      }
+    );
+    console.log('JobTracker: All interviews cleared');
   },
 
   /**
@@ -1916,17 +2203,14 @@ const JobTrackerDB = {
    */
   async clearAllTasks() {
     await this.init();
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.STORES.TASKS], 'readwrite');
-      const store = transaction.objectStore(this.STORES.TASKS);
-      const request = store.clear();
-
-      request.onsuccess = () => {
-        console.log('JobTracker: All tasks cleared');
-        resolve();
-      };
-      request.onerror = () => reject(request.error);
-    });
+    await this.executeWriteOperation(
+      this.STORES.TASKS,
+      (store, transaction, setError) => {
+        const request = store.clear();
+        request.onerror = () => setError(request.error);
+      }
+    );
+    console.log('JobTracker: All tasks cleared');
   },
 
   /**
@@ -1934,17 +2218,14 @@ const JobTrackerDB = {
    */
   async clearAllActivities() {
     await this.init();
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.STORES.ACTIVITIES], 'readwrite');
-      const store = transaction.objectStore(this.STORES.ACTIVITIES);
-      const request = store.clear();
-
-      request.onsuccess = () => {
-        console.log('JobTracker: All activities cleared');
-        resolve();
-      };
-      request.onerror = () => reject(request.error);
-    });
+    await this.executeWriteOperation(
+      this.STORES.ACTIVITIES,
+      (store, transaction, setError) => {
+        const request = store.clear();
+        request.onerror = () => setError(request.error);
+      }
+    );
+    console.log('JobTracker: All activities cleared');
   },
 
   // ==================== EXTRACTION FEEDBACK ====================
@@ -1963,17 +2244,16 @@ const JobTrackerDB = {
       timestamp: feedback.timestamp || new Date().toISOString()
     };
 
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.STORES.EXTRACTION_FEEDBACK], 'readwrite');
-      const store = transaction.objectStore(this.STORES.EXTRACTION_FEEDBACK);
-      const request = store.add(data);
+    await this.executeWriteOperation(
+      this.STORES.EXTRACTION_FEEDBACK,
+      (store, transaction, setError) => {
+        const request = store.add(data);
+        request.onerror = () => setError(request.error);
+      }
+    );
 
-      request.onsuccess = () => {
-        console.log('JobTracker: Extraction feedback recorded');
-        resolve({ success: true, feedback: data });
-      };
-      request.onerror = () => reject(request.error);
-    });
+    console.log('JobTracker: Extraction feedback recorded');
+    return { success: true, feedback: data };
   },
 
   /**
@@ -2057,17 +2337,14 @@ const JobTrackerDB = {
    */
   async clearExtractionFeedback() {
     await this.init();
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.STORES.EXTRACTION_FEEDBACK], 'readwrite');
-      const store = transaction.objectStore(this.STORES.EXTRACTION_FEEDBACK);
-      const request = store.clear();
-
-      request.onsuccess = () => {
-        console.log('JobTracker: Extraction feedback cleared');
-        resolve();
-      };
-      request.onerror = () => reject(request.error);
-    });
+    await this.executeWriteOperation(
+      this.STORES.EXTRACTION_FEEDBACK,
+      (store, transaction, setError) => {
+        const request = store.clear();
+        request.onerror = () => setError(request.error);
+      }
+    );
+    console.log('JobTracker: Extraction feedback cleared');
   },
 
   // ==================== CONTACTS (CRM Phase 2) ====================
@@ -2137,14 +2414,15 @@ const JobTrackerDB = {
       updatedAt: new Date().toISOString()
     };
 
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.STORES.CONTACTS], 'readwrite');
-      const store = transaction.objectStore(this.STORES.CONTACTS);
-      const request = store.add(contactData);
+    await this.executeWriteOperation(
+      this.STORES.CONTACTS,
+      (store, transaction, setError) => {
+        const request = store.add(contactData);
+        request.onerror = () => setError(request.error);
+      }
+    );
 
-      request.onsuccess = () => resolve({ success: true, contact: contactData });
-      request.onerror = () => reject(request.error);
-    });
+    return { success: true, contact: contactData };
   },
 
   /**
@@ -2164,14 +2442,15 @@ const JobTrackerDB = {
       updatedAt: new Date().toISOString()
     };
 
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.STORES.CONTACTS], 'readwrite');
-      const store = transaction.objectStore(this.STORES.CONTACTS);
-      const request = store.put(updated);
+    await this.executeWriteOperation(
+      this.STORES.CONTACTS,
+      (store, transaction, setError) => {
+        const request = store.put(updated);
+        request.onerror = () => setError(request.error);
+      }
+    );
 
-      request.onsuccess = () => resolve({ success: true, contact: updated });
-      request.onerror = () => reject(request.error);
-    });
+    return { success: true, contact: updated };
   },
 
   /**
@@ -2179,14 +2458,14 @@ const JobTrackerDB = {
    */
   async deleteContact(id) {
     await this.init();
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.STORES.CONTACTS], 'readwrite');
-      const store = transaction.objectStore(this.STORES.CONTACTS);
-      const request = store.delete(id);
-
-      request.onsuccess = () => resolve({ success: true });
-      request.onerror = () => reject(request.error);
-    });
+    return this.executeWriteOperation(
+      this.STORES.CONTACTS,
+      (store, transaction, setError) => {
+        const request = store.delete(id);
+        request.onerror = () => setError(request.error);
+      },
+      { success: true }
+    );
   },
 
   /**
@@ -2309,14 +2588,15 @@ const JobTrackerDB = {
       createdAt: new Date().toISOString()
     };
 
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.STORES.COMMUNICATIONS], 'readwrite');
-      const store = transaction.objectStore(this.STORES.COMMUNICATIONS);
-      const request = store.add(commData);
+    await this.executeWriteOperation(
+      this.STORES.COMMUNICATIONS,
+      (store, transaction, setError) => {
+        const request = store.add(commData);
+        request.onerror = () => setError(request.error);
+      }
+    );
 
-      request.onsuccess = () => resolve({ success: true, communication: commData });
-      request.onerror = () => reject(request.error);
-    });
+    return { success: true, communication: commData };
   },
 
   /**
@@ -2337,14 +2617,15 @@ const JobTrackerDB = {
       updatedAt: new Date().toISOString()
     };
 
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.STORES.COMMUNICATIONS], 'readwrite');
-      const store = transaction.objectStore(this.STORES.COMMUNICATIONS);
-      const request = store.put(updated);
+    await this.executeWriteOperation(
+      this.STORES.COMMUNICATIONS,
+      (store, transaction, setError) => {
+        const request = store.put(updated);
+        request.onerror = () => setError(request.error);
+      }
+    );
 
-      request.onsuccess = () => resolve({ success: true, communication: updated });
-      request.onerror = () => reject(request.error);
-    });
+    return { success: true, communication: updated };
   },
 
   /**
@@ -2352,14 +2633,14 @@ const JobTrackerDB = {
    */
   async deleteCommunication(id) {
     await this.init();
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.STORES.COMMUNICATIONS], 'readwrite');
-      const store = transaction.objectStore(this.STORES.COMMUNICATIONS);
-      const request = store.delete(id);
-
-      request.onsuccess = () => resolve({ success: true });
-      request.onerror = () => reject(request.error);
-    });
+    return this.executeWriteOperation(
+      this.STORES.COMMUNICATIONS,
+      (store, transaction, setError) => {
+        const request = store.delete(id);
+        request.onerror = () => setError(request.error);
+      },
+      { success: true }
+    );
   },
 
   // ==================== REJECTION ANALYTICS (CRM Phase 4) ====================
@@ -2405,6 +2686,326 @@ const JobTrackerDB = {
       if (!lastActivity) return true; // No activity recorded
       return lastActivity < threshold;
     });
+  },
+
+  // ==================== RESUME MAKER ====================
+
+  /**
+   * Get the base resume
+   */
+  async getBaseResume() {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.BASE_RESUME], 'readonly');
+      const store = transaction.objectStore(this.STORES.BASE_RESUME);
+      const request = store.get('base');
+
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Save the base resume
+   */
+  async saveBaseResume(resume) {
+    await this.init();
+    const data = {
+      ...resume,
+      id: 'base',
+      updatedAt: Date.now()
+    };
+
+    await this.executeWriteOperation(
+      this.STORES.BASE_RESUME,
+      (store, transaction, setError) => {
+        const request = store.put(data);
+        request.onerror = () => setError(request.error);
+      }
+    );
+
+    // Return the saved data, not just the key (fixes Bug #16)
+    return { success: true, data };
+  },
+
+  /**
+   * Get default/empty base resume template
+   */
+  getDefaultBaseResume() {
+    return {
+      id: 'base',
+      profile: {
+        name: '',
+        headline: '',
+        email: '',
+        phone: '',
+        location: '',
+        website: '',
+        summary: ''
+      },
+      experience: {
+        title: 'Experience',
+        items: []
+      },
+      education: {
+        title: 'Education',
+        items: []
+      },
+      projects: {
+        title: 'Projects',
+        items: []
+      },
+      skills: {
+        title: 'Skills',
+        items: []
+      },
+      custom: {
+        title: 'Certifications',
+        items: []
+      },
+      updatedAt: Date.now()
+    };
+  },
+
+  /**
+   * Get all generated resumes
+   */
+  async getAllGeneratedResumes() {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.GENERATED_RESUMES], 'readonly');
+      const store = transaction.objectStore(this.STORES.GENERATED_RESUMES);
+      const request = store.getAll();
+
+      request.onsuccess = () => {
+        const resumes = request.result || [];
+        // Sort by createdAt descending
+        resumes.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        resolve(resumes);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Get a specific generated resume
+   */
+  async getGeneratedResume(id) {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.GENERATED_RESUMES], 'readonly');
+      const store = transaction.objectStore(this.STORES.GENERATED_RESUMES);
+      const request = store.get(id);
+
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Save a generated resume
+   */
+  async saveGeneratedResume(resume) {
+    await this.init();
+    const data = {
+      ...resume,
+      id: resume.id || this.generateId(),
+      createdAt: resume.createdAt || Date.now(),
+      updatedAt: Date.now()
+    };
+
+    await this.executeWriteOperation(
+      this.STORES.GENERATED_RESUMES,
+      (store, transaction, setError) => {
+        const request = store.put(data);
+        request.onerror = () => setError(request.error);
+      }
+    );
+
+    return { success: true, data };
+  },
+
+  /**
+   * Delete a generated resume
+   */
+  async deleteGeneratedResume(id) {
+    await this.init();
+    return this.executeWriteOperation(
+      this.STORES.GENERATED_RESUMES,
+      (store, transaction, setError) => {
+        const request = store.delete(id);
+        request.onerror = () => setError(request.error);
+      },
+      { success: true }
+    );
+  },
+
+  /**
+   * Create a new generated resume template from base resume and job description
+   */
+  createGeneratedResume(baseResume, jobDescription, tailoring) {
+    return {
+      id: this.generateId(),
+      name: '',
+      baseResumeId: 'base',
+      baseResume: { ...baseResume },
+      jobDescription: {
+        rawText: jobDescription.rawText || '',
+        title: jobDescription.title || '',
+        company: jobDescription.company || '',
+        extractedSkills: jobDescription.extractedSkills || [],
+        extractedKeywords: jobDescription.extractedKeywords || []
+      },
+      tailoring: {
+        matchingSkills: tailoring.matchingSkills || [],
+        missingSkills: tailoring.missingSkills || [],
+        highlightSkills: tailoring.highlightSkills || [],
+        experienceOrder: tailoring.experienceOrder || [],
+        experienceScores: tailoring.experienceScores || {}
+      },
+      edits: {
+        summary: null,
+        experience: {}
+      },
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      exported: false
+    };
+  },
+
+  // ==================== UPLOADED RESUMES (Resume-Application Linking) ====================
+
+  /**
+   * Upload a resume PDF
+   * @param {Object} resumeInfo - Resume info with base64 data
+   * @param {string} resumeInfo.name - File name
+   * @param {string} resumeInfo.type - MIME type
+   * @param {string} resumeInfo.data - Base64-encoded file data
+   * @param {number} resumeInfo.size - File size in bytes
+   * @returns {Promise<{success: boolean, resume: Object}>}
+   */
+  async uploadResume(resumeInfo) {
+    await this.init();
+
+    const resumeData = {
+      id: this.generateId(),
+      name: resumeInfo.name,
+      type: resumeInfo.type,
+      data: resumeInfo.data,  // Already base64 string
+      size: resumeInfo.size,
+      uploadedAt: Date.now()
+    };
+
+    await this.executeWriteOperation(
+      this.STORES.UPLOADED_RESUMES,
+      (store, transaction, setError) => {
+        const request = store.add(resumeData);
+        request.onerror = () => setError(request.error);
+      }
+    );
+
+    return { success: true, resume: resumeData };
+  },
+
+  /**
+   * Get an uploaded resume by ID
+   * @param {string} id - The resume ID
+   * @returns {Promise<Object|null>}
+   */
+  async getUploadedResume(id) {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.UPLOADED_RESUMES], 'readonly');
+      const store = transaction.objectStore(this.STORES.UPLOADED_RESUMES);
+      const request = store.get(id);
+
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Get all uploaded resumes (metadata only, without blob data for listing)
+   * @returns {Promise<Array>}
+   */
+  async getAllUploadedResumes() {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.STORES.UPLOADED_RESUMES], 'readonly');
+      const store = transaction.objectStore(this.STORES.UPLOADED_RESUMES);
+      const request = store.getAll();
+
+      request.onsuccess = () => {
+        // Sort by uploadedAt descending (newest first)
+        const resumes = request.result.sort((a, b) => (b.uploadedAt || 0) - (a.uploadedAt || 0));
+        // Return metadata without blob data for listing performance
+        resolve(resumes.map(r => ({
+          id: r.id,
+          name: r.name,
+          type: r.type,
+          size: r.size,
+          uploadedAt: r.uploadedAt
+        })));
+      };
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Delete an uploaded resume
+   * @param {string} id - The resume ID to delete
+   * @returns {Promise<{success: boolean}>}
+   */
+  async deleteUploadedResume(id) {
+    await this.init();
+    return this.executeWriteOperation(
+      this.STORES.UPLOADED_RESUMES,
+      (store, transaction, setError) => {
+        const request = store.delete(id);
+        request.onerror = () => setError(request.error);
+      },
+      { success: true }
+    );
+  },
+
+  /**
+   * Get applications that use a specific resume
+   * @param {string} resumeId - The resume ID
+   * @param {string} resumeType - 'generated' or 'uploaded'
+   * @returns {Promise<Array>}
+   */
+  async getApplicationsByResumeId(resumeId, resumeType) {
+    const applications = await this.getAllApplications();
+    return applications.filter(app =>
+      app.resume &&
+      app.resume.id === resumeId &&
+      app.resume.type === resumeType
+    );
+  },
+
+  /**
+   * Get usage counts for all resumes (both generated and uploaded)
+   * Returns a map of resumeId -> count
+   * @returns {Promise<{generated: Object, uploaded: Object}>}
+   */
+  async getResumeUsageCounts() {
+    const applications = await this.getAllApplications();
+    const counts = {
+      generated: {},
+      uploaded: {}
+    };
+
+    applications.forEach(app => {
+      if (app.resume && app.resume.id && app.resume.type) {
+        const type = app.resume.type;
+        const id = app.resume.id;
+        if (counts[type]) {
+          counts[type][id] = (counts[type][id] || 0) + 1;
+        }
+      }
+    });
+
+    return counts;
   }
 };
 

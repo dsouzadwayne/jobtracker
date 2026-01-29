@@ -123,7 +123,7 @@ function extract(doc = document) {
     }
 
   } catch (e) {
-    console.warn('[Title Parse] Extraction error:', e.message);
+    console.log('[Title Parse] Extraction error:', e.message);
   }
 
   results.metadata.timing = performance.now() - startTime;

@@ -105,7 +105,7 @@ class AIService {
       const createdAt = pending.createdAt;
       if (typeof createdAt !== 'number' || isNaN(createdAt)) {
         // Invalid createdAt - clean up immediately to prevent memory leak
-        console.warn(`[AI Service] Cleaning up request ${requestId} with invalid createdAt`);
+        console.log(`[AI Service] Cleaning up request ${requestId} with invalid createdAt`);
         this.pendingRequests.delete(requestId);
         continue;
       }
@@ -429,7 +429,7 @@ class AIService {
     }
 
     // If somehow no promise exists and not initialized, return false safely
-    console.warn('[AI Service] waitForMLAvailability called in unexpected state');
+    console.log('[AI Service] waitForMLAvailability called in unexpected state');
     return false;
   }
 

@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Resume Maker - JobTracker</title>
+  <link rel="stylesheet" href="../common.css">
+  <link rel="stylesheet" href="css/resume-maker.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-left">
+        <h1>Resume Maker</h1>
+        <span class="header-subtitle">Create tailored resumes for each application</span>
+      </div>
+      <div class="header-actions">
+        <span id="save-status" class="save-status">
+          <span class="save-status-saved">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            Saved
+          </span>
+          <span class="save-status-saving hidden">
+            <svg class="spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+            </svg>
+            Saving...
+          </span>
+          <span class="save-status-unsaved hidden">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+            </svg>
+            Unsaved
+          </span>
+          <span class="save-status-error hidden">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+            Save failed
+          </span>
+        </span>
+        <button id="theme-toggle-btn" class="icon-btn" title="Toggle theme">
+          <svg class="theme-icon-light" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <svg class="theme-icon-dark" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
+        <a href="../pages/dashboard.html" class="btn btn-secondary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 12H5M12 19l-7-7 7-7"/>
+          </svg>
+          Dashboard
+        </a>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs">
+      <button class="nav-tab" data-tab="editor">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+        </svg>
+        Resume Editor
+      </button>
+      <button class="nav-tab active" data-tab="resumes">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="16" y1="13" x2="8" y2="13"></line>
+          <line x1="16" y1="17" x2="8" y2="17"></line>
+        </svg>
+        My Resumes
+      </button>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Editor Tab -->
+      <div class="tab-content" id="editor-tab">
+        <div class="split-pane">
+          <!-- Form Panel -->
+          <div class="form-panel">
+            <div class="panel-header">
+              <h2>Resume Details</h2>
+              <div class="panel-header-actions">
+                <button id="import-profile-btn" class="btn btn-secondary btn-sm" title="Import data from your JobTracker profile">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                  </svg>
+                  Import Profile
+                </button>
+                <button id="upload-resume-btn" class="btn btn-secondary btn-sm" title="Upload existing resume (PDF, DOCX, TXT)">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="12" y1="18" x2="12" y2="12"/>
+                    <polyline points="9 15 12 12 15 15"/>
+                  </svg>
+                  Upload Resume
+                </button>
+                <input type="file" id="resume-file-input" accept=".pdf,.docx,.doc,.txt" hidden>
+                <button id="create-from-jd-btn" class="btn btn-primary">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                  </svg>
+                  Create from Job Description
+                </button>
+              </div>
+            </div>
+
+            <!-- Section Accordion -->
+            <div class="section-accordion">
+              <!-- Resume Details Section -->
+              <div class="accordion-section" data-section="resume-details">
+                <button class="accordion-header active">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                  </svg>
+                  <span>Resume Details</span>
+                  <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+                <div class="accordion-content open">
+                  <form id="resume-details-form">
+                    <div class="form-group">
+                      <label for="resume-details-name">Resume Name</label>
+                      <input type="text" id="resume-details-name" name="resumeName" placeholder="e.g., Software Engineer - Google">
+                    </div>
+                    <div class="form-group">
+                      <label for="resume-details-subtitle">Card Subtitle (optional)</label>
+                      <input type="text" id="resume-details-subtitle" name="resumeSubtitle" placeholder="e.g., Senior Developer at Tech Corp">
+                      <small class="form-hint">Leave blank to use job title from job description</small>
+                    </div>
+                  </form>
+                </div>
+              </div>
+
+              <!-- Profile Section -->
+              <div class="accordion-section" data-section="profile">
+                <button class="accordion-header active">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                  </svg>
+                  <span>Profile</span>
+                  <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+                <div class="accordion-content open">
+                  <form id="profile-form">
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label for="profile-name">Full Name</label>
+                        <input type="text" id="profile-name" name="name" placeholder="John Doe">
+                      </div>
+                      <div class="form-group">
+                        <label for="profile-headline">Headline</label>
+                        <input type="text" id="profile-headline" name="headline" placeholder="Senior Software Engineer">
+                      </div>
+                    </div>
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label for="profile-email">Email</label>
+                        <input type="email" id="profile-email" name="email" placeholder="john@example.com">
+                      </div>
+                      <div class="form-group">
+                        <label for="profile-phone">Phone</label>
+                        <input type="tel" id="profile-phone" name="phone" placeholder="+1 (555) 123-4567">
+                      </div>
+                    </div>
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label for="profile-location">Location</label>
+                        <input type="text" id="profile-location" name="location" placeholder="San Francisco, CA">
+                      </div>
+                      <div class="form-group">
+                        <label for="profile-website">Website / LinkedIn</label>
+                        <input type="url" id="profile-website" name="website" placeholder="https://linkedin.com/in/johndoe">
+                      </div>
+                    </div>
+                    <div class="form-group">
+                      <label for="profile-summary">Professional Summary</label>
+                      <textarea id="profile-summary" name="summary" rows="4" placeholder="Brief overview of your experience and career objectives..."></textarea>
+                    </div>
+                  </form>
+                </div>
+              </div>
+
+              <!-- Experience Section -->
+              <div class="accordion-section" data-section="experience">
+                <button class="accordion-header">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+                  </svg>
+                  <span>Experience</span>
+                  <span class="item-count" id="experience-count">0</span>
+                  <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+                <div class="accordion-content">
+                  <div id="experience-list" class="item-list"></div>
+                  <button type="button" class="btn btn-secondary add-item-btn" data-section="experience">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="12" y1="5" x2="12" y2="19"></line>
+                      <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    Add Experience
+                  </button>
+                </div>
+              </div>
+
+              <!-- Education Section -->
+              <div class="accordion-section" data-section="education">
+                <button class="accordion-header">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
+                    <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
+                  </svg>
+                  <span>Education</span>
+                  <span class="item-count" id="education-count">0</span>
+                  <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+                <div class="accordion-content">
+                  <div id="education-list" class="item-list"></div>
+                  <button type="button" class="btn btn-secondary add-item-btn" data-section="education">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="12" y1="5" x2="12" y2="19"></line>
+                      <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    Add Education
+                  </button>
+                </div>
+              </div>
+
+              <!-- Projects Section -->
+              <div class="accordion-section" data-section="projects">
+                <button class="accordion-header">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                  </svg>
+                  <span>Projects</span>
+                  <span class="item-count" id="projects-count">0</span>
+                  <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+                <div class="accordion-content">
+                  <div id="projects-list" class="item-list"></div>
+                  <button type="button" class="btn btn-secondary add-item-btn" data-section="projects">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="12" y1="5" x2="12" y2="19"></line>
+                      <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    Add Project
+                  </button>
+                </div>
+              </div>
+
+              <!-- Skills Section -->
+              <div class="accordion-section" data-section="skills">
+                <button class="accordion-header">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                  </svg>
+                  <span>Skills</span>
+                  <span class="item-count" id="skills-count">0</span>
+                  <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+                <div class="accordion-content">
+                  <div id="skills-list" class="skills-container"></div>
+                  <div class="skill-input-group">
+                    <input type="text" id="skill-input" placeholder="Add a skill (press Enter)">
+                    <button type="button" class="btn btn-secondary" id="add-skill-btn">Add</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Custom Section -->
+              <div class="accordion-section" data-section="custom">
+                <button class="accordion-header">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <line x1="12" y1="8" x2="12" y2="16"></line>
+                    <line x1="8" y1="12" x2="16" y2="12"></line>
+                  </svg>
+                  <span>Certifications / Other</span>
+                  <span class="item-count" id="custom-count">0</span>
+                  <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+                <div class="accordion-content">
+                  <div class="form-group">
+                    <label for="custom-title">Section Title</label>
+                    <input type="text" id="custom-title" placeholder="Certifications" value="Certifications">
+                  </div>
+                  <div id="custom-list" class="item-list"></div>
+                  <button type="button" class="btn btn-secondary add-item-btn" data-section="custom">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <line x1="12" y1="5" x2="12" y2="19"></line>
+                      <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    Add Item
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Preview Panel -->
+          <div class="preview-panel">
+            <div class="panel-header">
+              <h2>Preview</h2>
+              <div class="preview-controls">
+                <button class="icon-btn zoom-btn" id="zoom-out-btn" title="Zoom out">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    <line x1="8" y1="11" x2="14" y2="11"></line>
+                  </svg>
+                </button>
+                <span class="zoom-level" id="zoom-level">100%</span>
+                <button class="icon-btn zoom-btn" id="zoom-in-btn" title="Zoom in">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    <line x1="11" y1="8" x2="11" y2="14"></line>
+                    <line x1="8" y1="11" x2="14" y2="11"></line>
+                  </svg>
+                </button>
+                <button id="export-pdf-btn" class="btn btn-primary">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                  </svg>
+                  Export PDF
+                </button>
+              </div>
+            </div>
+            <div class="preview-container" id="preview-container">
+              <div class="resume-preview" id="resume-preview">
+                <!-- Resume content will be rendered here -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resumes Tab -->
+      <div class="tab-content active" id="resumes-tab">
+        <div class="resumes-header">
+          <div class="search-box">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="resume-search" placeholder="Search resumes...">
+          </div>
+          <button id="new-resume-btn" class="btn btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            New Resume
+          </button>
+        </div>
+        <div class="resume-list" id="resume-list">
+          <!-- Generated resumes will be listed here -->
+        </div>
+        <div class="empty-state hidden" id="resumes-empty">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+          </svg>
+          <h3>No tailored resumes yet</h3>
+          <p>Use the "Tailor Resume" tab to analyze a job description and create a customized resume.</p>
+          <button class="btn btn-primary" id="go-tailor-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            Tailor a Resume
+          </button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Job Description Modal -->
+  <div class="modal hidden" id="jd-modal">
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <h3>Create Resume from Job Description</h3>
+        <button class="close-btn" id="close-jd-modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="jd-info" id="jd-info" style="display: none;">
+          <div class="jd-job-header">
+            <h4 id="jd-job-title">Job Title</h4>
+            <span id="jd-job-company">Company</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="jd-text">Paste Job Description</label>
+          <textarea id="jd-text" rows="12" placeholder="Paste the full job description here..."></textarea>
+        </div>
+        <div id="jd-analysis" class="jd-analysis hidden">
+          <h4>Analysis Results</h4>
+          <div class="analysis-section">
+            <h5>Matching Skills</h5>
+            <div id="matching-skills" class="skill-tags"></div>
+          </div>
+          <div class="analysis-section">
+            <h5>Skills to Highlight</h5>
+            <div id="highlight-skills" class="skill-tags"></div>
+          </div>
+          <div class="analysis-section">
+            <h5>Missing Skills</h5>
+            <div id="missing-skills" class="skill-tags"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancel-jd-btn">Cancel</button>
+        <button class="btn btn-primary" id="analyze-jd-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          Analyze
+        </button>
+        <button class="btn btn-primary hidden" id="apply-jd-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          Apply & Generate Resume
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Item Edit Modal -->
+  <div class="modal hidden" id="item-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="item-modal-title">Add Item</h3>
+        <button class="close-btn" id="close-item-modal">&times;</button>
+      </div>
+      <form id="item-form">
+        <div id="item-form-fields">
+          <!-- Dynamic form fields will be inserted here -->
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-item-btn">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Save Resume Modal -->
+  <div class="modal hidden" id="save-modal">
+    <div class="modal-content modal-small">
+      <div class="modal-header">
+        <h3>Save Resume</h3>
+        <button class="close-btn" id="close-save-modal">&times;</button>
+      </div>
+      <form id="save-form">
+        <div class="form-group">
+          <label for="resume-name">Resume Name</label>
+          <input type="text" id="resume-name" placeholder="e.g., Software Engineer - Google" required>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="cancel-save-btn">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Resume</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Resume Upload Modal -->
+  <div class="modal hidden" id="upload-modal">
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <h3>Import Resume Data</h3>
+        <button class="close-btn" id="close-upload-modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="upload-status" class="upload-status">
+          <div class="upload-loading hidden">
+            <div class="spinner"></div>
+            <p>Parsing resume...</p>
+          </div>
+          <div class="upload-error hidden">
+            <p class="error-message"></p>
+          </div>
+        </div>
+        <div id="upload-preview" class="upload-preview hidden">
+          <p class="text-muted text-sm">Review the extracted data below. Check the items you want to import.</p>
+          <div class="upload-sections">
+            <div class="upload-section">
+              <label class="checkbox-label">
+                <input type="checkbox" id="import-profile" checked>
+                <span>Profile Information</span>
+              </label>
+              <div class="preview-content" id="preview-profile"></div>
+            </div>
+            <div class="upload-section">
+              <label class="checkbox-label">
+                <input type="checkbox" id="import-experience" checked>
+                <span>Work Experience</span>
+              </label>
+              <div class="preview-content" id="preview-experience"></div>
+            </div>
+            <div class="upload-section">
+              <label class="checkbox-label">
+                <input type="checkbox" id="import-education" checked>
+                <span>Education</span>
+              </label>
+              <div class="preview-content" id="preview-education"></div>
+            </div>
+            <div class="upload-section">
+              <label class="checkbox-label">
+                <input type="checkbox" id="import-skills" checked>
+                <span>Skills</span>
+              </label>
+              <div class="preview-content" id="preview-skills"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cancel-upload-btn">Cancel</button>
+        <button class="btn btn-primary hidden" id="apply-upload-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          Apply to Resume
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container"></div>
+
+  <!-- Scripts -->
+  <!-- State Management (must load before app.js module) -->
+  <script src="lib/zustand-vanilla.min.js"></script>
+  <script src="lib/immer.umd.min.js"></script>
+  <!-- pdfme bundle for PDF generation -->
+  <script src="lib/pdfme.bundle.min.js"></script>
+  <!-- html2canvas + jsPDF for visual PDF export -->
+  <script src="lib/html2canvas.min.js"></script>
+  <script src="lib/jspdf.umd.min.js"></script>
+  <!-- Shared Libraries -->
+  <script src="../lib/vendor/he.min.js"></script>
+  <script src="../lib/vendor/dayjs.min.js"></script>
+  <script src="../lib/vendor/dayjs-relativetime.min.js"></script>
+  <script src="../lib/format-utils.js"></script>
+  <script src="../lib/vendor/zod.min.js"></script>
+  <script src="../lib/validation.js"></script>
+  <script src="../lib/vendor/compromise.min.js"></script>
+  <script src="../lib/vendor/fuse.min.js"></script>
+  <script src="../lib/vendor/dompurify.min.js"></script>
+  <!-- Resume Parser Libraries -->
+  <script src="../lib/vendor/pdf.min.js"></script>
+  <script src="../lib/vendor/mammoth.browser.min.js"></script>
+  <script src="../lib/resume-parser/index.js"></script>
+  <script src="../lib/resume-parser/enhanced-pdf-parser.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

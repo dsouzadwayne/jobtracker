@@ -12,6 +12,20 @@ import { aiService } from './lib/ai-service.js';
 // BroadcastChannel for cross-page communication
 const applicationChannel = new BroadcastChannel('jobtracker-applications');
 
+/**
+ * Safely post message to BroadcastChannel with error handling
+ * BroadcastChannel may be unavailable in some contexts (e.g., service worker termination)
+ * @param {Object} message - Message to broadcast
+ */
+function safeBroadcast(message) {
+  try {
+    applicationChannel.postMessage(message);
+  } catch (error) {
+    // BroadcastChannel may be unavailable - log but don't crash
+    console.log('JobTracker: BroadcastChannel error:', error.message || error);
+  }
+}
+
 // Message types
 const MessageTypes = {
   // Profile
@@ -95,7 +109,15 @@ const MessageTypes = {
   GET_EXTRACTION_FEEDBACK_STATS: 'GET_EXTRACTION_FEEDBACK_STATS',
 
   // LLM Extraction
-  LLM_EXTRACT_JOB: 'LLM_EXTRACT_JOB'
+  LLM_EXTRACT_JOB: 'LLM_EXTRACT_JOB',
+
+  // Resume-Application Linking
+  GET_UPLOADED_RESUMES: 'GET_UPLOADED_RESUMES',
+  GET_UPLOADED_RESUME: 'GET_UPLOADED_RESUME',
+  UPLOAD_RESUME: 'UPLOAD_RESUME',
+  DELETE_UPLOADED_RESUME: 'DELETE_UPLOADED_RESUME',
+  GET_ALL_RESUMES_FOR_LINKING: 'GET_ALL_RESUMES_FOR_LINKING',
+  GET_RESUME_USAGE_COUNTS: 'GET_RESUME_USAGE_COUNTS'
 };
 
 // Alarm name for badge clear
@@ -190,7 +212,7 @@ function sanitizeUrl(url) {
 
     // Strict protocol whitelist check
     if (!ALLOWED_URL_PROTOCOLS.includes(parsed.protocol.toLowerCase())) {
-      console.warn('JobTracker: Blocked URL with disallowed protocol:', parsed.protocol);
+      console.log('JobTracker: Blocked URL with disallowed protocol:', parsed.protocol);
       return '';
     }
 
@@ -202,7 +224,7 @@ function sanitizeUrl(url) {
     if (trimmed.startsWith('/') || trimmed.startsWith('#')) {
       // Validate relative URL contains only safe characters
       if (!SAFE_RELATIVE_URL_PATTERN.test(trimmed)) {
-        console.warn('JobTracker: Blocked relative URL with unsafe characters');
+        console.log('JobTracker: Blocked relative URL with unsafe characters');
         return '';
       }
       // Return validated relative URL as-is
@@ -212,12 +234,12 @@ function sanitizeUrl(url) {
     // Additional safety check for protocol-like patterns (handles Unicode bypass attempts)
     const protocolMatch = trimmed.match(/^([a-z0-9+.-]+):/i);
     if (protocolMatch && !ALLOWED_URL_PROTOCOLS.includes(protocolMatch[0].toLowerCase())) {
-      console.warn('JobTracker: Blocked potentially malicious URL pattern');
+      console.log('JobTracker: Blocked potentially malicious URL pattern');
       return '';
     }
 
     // For other invalid URLs, return empty to be safe
-    console.warn('JobTracker: Invalid URL format:', trimmed.substring(0, 50));
+    console.log('JobTracker: Invalid URL format:', trimmed.substring(0, 50));
     return '';
   }
 }
@@ -504,6 +526,25 @@ function validatePayload(type, payload) {
     case MessageTypes.GET_EXTRACTION_FEEDBACK:
     case MessageTypes.GET_EXTRACTION_FEEDBACK_STATS:
     case MessageTypes.LLM_EXTRACT_JOB:
+    case MessageTypes.GET_UPLOADED_RESUMES:
+    case MessageTypes.GET_UPLOADED_RESUME:
+    case MessageTypes.GET_ALL_RESUMES_FOR_LINKING:
+    case MessageTypes.GET_RESUME_USAGE_COUNTS:
+      break;
+
+    case MessageTypes.UPLOAD_RESUME:
+      if (!payload || typeof payload !== 'object') {
+        return { valid: false, error: 'Upload resume payload must be an object' };
+      }
+      if (!payload.name || !payload.data) {
+        return { valid: false, error: 'Upload resume requires name and data' };
+      }
+      break;
+
+    case MessageTypes.DELETE_UPLOADED_RESUME:
+      if (!payload || !payload.id) {
+        return { valid: false, error: 'Delete resume requires id' };
+      }
       break;
 
     case MessageTypes.TRACK_EXTRACTION_CORRECTION:
@@ -607,6 +648,12 @@ chrome.commands.onCommand.addListener(async (command) => {
 
 // Handle messages from content scripts and popup
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Validate message is an object before destructuring to prevent crashes
+  if (!message || typeof message !== 'object') {
+    sendResponse({ error: 'Invalid message format: expected an object' });
+    return true;
+  }
+
   const { type, payload } = message;
 
   // Validate message type
@@ -618,7 +665,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Validate payload
   const validation = validatePayload(type, payload);
   if (!validation.valid) {
-    console.warn('JobTracker: Message validation failed:', validation.error);
+    console.log('JobTracker: Message validation failed:', validation.error);
     sendResponse({ error: validation.error });
     return true;
   }
@@ -657,7 +704,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           // Sanitize application data before storing
           const sanitizedPayload = sanitizeApplicationData(payload);
           response = await JobTrackerDB.addApplication(sanitizedPayload);
-          applicationChannel.postMessage({ type: 'DATA_CHANGED', action: 'add' });
+          safeBroadcast({ type: 'DATA_CHANGED', action: 'add' });
           break;
         }
 
@@ -665,13 +712,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           // Sanitize application data before storing
           const sanitizedUpdatePayload = sanitizeApplicationData(payload);
           response = await JobTrackerDB.updateApplication(sanitizedUpdatePayload);
-          applicationChannel.postMessage({ type: 'DATA_CHANGED', action: 'update' });
+          safeBroadcast({ type: 'DATA_CHANGED', action: 'update' });
           break;
         }
 
         case MessageTypes.DELETE_APPLICATION: {
           response = await JobTrackerDB.deleteApplication(payload.id);
-          applicationChannel.postMessage({ type: 'DATA_CHANGED', action: 'delete' });
+          safeBroadcast({ type: 'DATA_CHANGED', action: 'delete' });
           break;
         }
 
@@ -700,7 +747,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               dateApplied: new Date().toISOString()
             });
             response = { success: true, application: newApp };
-            applicationChannel.postMessage({ type: 'DATA_CHANGED', action: 'add' });
+            safeBroadcast({ type: 'DATA_CHANGED', action: 'add' });
 
             // Notify user if enabled
             if (settings.detection.notifyOnDetection) {
@@ -800,19 +847,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         case MessageTypes.ADD_INTERVIEW: {
           response = await JobTrackerDB.addInterview(payload);
-          applicationChannel.postMessage({ type: 'DATA_CHANGED', action: 'interview_add' });
+          safeBroadcast({ type: 'DATA_CHANGED', action: 'interview_add' });
           break;
         }
 
         case MessageTypes.UPDATE_INTERVIEW: {
           response = await JobTrackerDB.updateInterview(payload);
-          applicationChannel.postMessage({ type: 'DATA_CHANGED', action: 'interview_update' });
+          safeBroadcast({ type: 'DATA_CHANGED', action: 'interview_update' });
           break;
         }
 
         case MessageTypes.DELETE_INTERVIEW: {
           response = await JobTrackerDB.deleteInterview(payload.id);
-          applicationChannel.postMessage({ type: 'DATA_CHANGED', action: 'interview_delete' });
+          safeBroadcast({ type: 'DATA_CHANGED', action: 'interview_delete' });
           break;
         }
 
@@ -835,19 +882,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         case MessageTypes.ADD_TASK: {
           response = await JobTrackerDB.addTask(payload);
-          applicationChannel.postMessage({ type: 'DATA_CHANGED', action: 'task_add' });
+          safeBroadcast({ type: 'DATA_CHANGED', action: 'task_add' });
           break;
         }
 
         case MessageTypes.UPDATE_TASK: {
           response = await JobTrackerDB.updateTask(payload);
-          applicationChannel.postMessage({ type: 'DATA_CHANGED', action: 'task_update' });
+          safeBroadcast({ type: 'DATA_CHANGED', action: 'task_update' });
           break;
         }
 
         case MessageTypes.DELETE_TASK: {
           response = await JobTrackerDB.deleteTask(payload.id);
-          applicationChannel.postMessage({ type: 'DATA_CHANGED', action: 'task_delete' });
+          safeBroadcast({ type: 'DATA_CHANGED', action: 'task_delete' });
           break;
         }
 
@@ -911,7 +958,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             await JobTrackerDB.clearAllInterviews();
             await JobTrackerDB.clearAllTasks();
             await JobTrackerDB.clearAllActivities();
-            applicationChannel.postMessage({ type: 'DATA_CHANGED', action: 'clear' });
+            safeBroadcast({ type: 'DATA_CHANGED', action: 'clear' });
             response = { success: true };
           } catch (error) {
             response = { success: false, error: error.message };
@@ -1158,6 +1205,100 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         }
 
+        // ==================== RESUME-APPLICATION LINKING ====================
+        case MessageTypes.GET_UPLOADED_RESUMES: {
+          try {
+            response = await JobTrackerDB.getAllUploadedResumes();
+          } catch (error) {
+            console.error('JobTracker: Get uploaded resumes error:', error);
+            response = { success: false, error: error.message };
+          }
+          break;
+        }
+
+        case MessageTypes.GET_UPLOADED_RESUME: {
+          try {
+            const resume = await JobTrackerDB.getUploadedResume(payload.id);
+            response = resume || { success: false, error: 'Resume not found' };
+          } catch (error) {
+            console.error('JobTracker: Get uploaded resume error:', error);
+            response = { success: false, error: error.message };
+          }
+          break;
+        }
+
+        case MessageTypes.UPLOAD_RESUME: {
+          try {
+            const { name, type, data, size } = payload;
+            // Convert ArrayBuffer to base64 string for serializable storage
+            // Use chunked conversion to avoid O(n²) string concatenation
+            const base64 = (() => {
+              const bytes = new Uint8Array(data);
+              let binary = '';
+              const chunkSize = 8192;
+              for (let i = 0; i < bytes.length; i += chunkSize) {
+                binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+              }
+              return btoa(binary);
+            })();
+
+            response = await JobTrackerDB.uploadResume({
+              name,
+              type: type || 'application/pdf',
+              data: base64,  // Store as base64 string
+              size
+            });
+          } catch (error) {
+            console.error('JobTracker: Upload resume error:', error);
+            response = { success: false, error: error.message };
+          }
+          break;
+        }
+
+        case MessageTypes.DELETE_UPLOADED_RESUME: {
+          try {
+            response = await JobTrackerDB.deleteUploadedResume(payload.id);
+          } catch (error) {
+            console.error('JobTracker: Delete uploaded resume error:', error);
+            response = { success: false, error: error.message };
+          }
+          break;
+        }
+
+        case MessageTypes.GET_ALL_RESUMES_FOR_LINKING: {
+          try {
+            // Get both generated and uploaded resumes for the selection modal
+            const generatedResumes = await JobTrackerDB.getAllGeneratedResumes();
+            const uploadedResumes = await JobTrackerDB.getAllUploadedResumes();
+
+            response = {
+              generated: generatedResumes.map(r => ({
+                id: r.id,
+                name: r.name || 'Untitled Resume',
+                subtitle: r.customSubtitle || (r.jobDescription?.title
+                  ? `${r.jobDescription.title}${r.jobDescription.company ? ` at ${r.jobDescription.company}` : ''}`
+                  : null),
+                createdAt: r.createdAt
+              })),
+              uploaded: uploadedResumes
+            };
+          } catch (error) {
+            console.error('JobTracker: Get resumes for linking error:', error);
+            response = { success: false, error: error.message };
+          }
+          break;
+        }
+
+        case MessageTypes.GET_RESUME_USAGE_COUNTS: {
+          try {
+            response = await JobTrackerDB.getResumeUsageCounts();
+          } catch (error) {
+            console.error('JobTracker: Get resume usage counts error:', error);
+            response = { success: false, error: error.message };
+          }
+          break;
+        }
+
         default:
           response = { error: 'Unknown message type' };
       }
@@ -1337,7 +1478,7 @@ async function cacheLLMResult(cacheKey, data) {
       timestamp: new Date().toISOString()
     });
   } catch (e) {
-    console.warn('JobTracker: Failed to cache LLM result:', e.message);
+    console.log('JobTracker: Failed to cache LLM result:', e.message);
   }
 }
 

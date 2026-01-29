@@ -102,7 +102,7 @@
             }
           } catch (e) {
             // Selector query may fail for certain complex selectors
-            console.warn('JobTracker: Selector query failed', selector, e.message);
+            console.log('JobTracker: Selector query failed', selector, e.message);
           }
         }
       }
@@ -202,7 +202,7 @@
         if (label) return label.textContent;
       } catch (e) {
         // CSS.escape may fail for certain input ids
-        console.warn('JobTracker: Label query failed for input', input.id, e.message);
+        console.log('JobTracker: Label query failed for input', input.id, e.message);
       }
     }
 
@@ -225,7 +225,7 @@
   function fillField(element, value) {
     // Validate element is an HTMLElement
     if (!element || !(element instanceof HTMLElement)) {
-      console.warn('JobTracker: fillField called with invalid element');
+      console.log('JobTracker: fillField called with invalid element');
       return false;
     }
     const tagName = element.tagName.toLowerCase();
@@ -259,7 +259,7 @@
       }
     } catch (e) {
       // React value tracker may not exist in all frameworks
-      console.warn('JobTracker: Failed to clear React value tracker', e.message);
+      console.log('JobTracker: Failed to clear React value tracker', e.message);
     }
 
     // Dispatch keyboard events
@@ -280,7 +280,7 @@
       element.dispatchEvent(new KeyboardEvent('keyup', { key: lastChar, keyCode, bubbles: true }));
     } catch (e) {
       // KeyboardEvent may fail in some browser contexts
-      console.warn('JobTracker: Failed to dispatch keyboard events', e.message);
+      console.log('JobTracker: Failed to dispatch keyboard events', e.message);
     }
   }
 

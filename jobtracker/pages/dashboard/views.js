@@ -21,6 +21,20 @@ export function setViewCallbacks(callbacks) {
   deleteApplicationCallback = callbacks.deleteApplication;
 }
 
+// Open resume maker with job data
+function openResumeMaker(app) {
+  const jobData = {
+    title: app.position || '',
+    company: app.company || '',
+    description: app.jobDescription || '',
+    url: app.jobUrl || ''
+  };
+  const encodedData = encodeURIComponent(JSON.stringify(jobData));
+  // Open resume maker in a new tab with job data
+  const resumeMakerUrl = chrome.runtime.getURL(`resume-maker/index.html?job=${encodedData}`);
+  chrome.tabs.create({ url: resumeMakerUrl });
+}
+
 // Initialize view toggle
 export function initViewToggle() {
   updateViewToggleButtons();
@@ -228,6 +242,14 @@ export function createAppCard(app) {
       ${activityBadge}
     </div>
     <div class="app-card-actions">
+      <button class="action-btn resume-btn" title="Create Resume">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="16" y1="13" x2="8" y2="13"></line>
+          <line x1="16" y1="17" x2="8" y2="17"></line>
+        </svg>
+      </button>
       <button class="action-btn edit-btn" title="Edit">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -248,6 +270,11 @@ export function createAppCard(app) {
     if (!e.target.closest('.action-btn')) {
       selectAppCallback?.(app.id);
     }
+  });
+
+  card.querySelector('.resume-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    openResumeMaker(app);
   });
 
   card.querySelector('.edit-btn').addEventListener('click', (e) => {
@@ -300,6 +327,14 @@ export function renderTable() {
       <td>${safeText(app.location || '-')}</td>
       <td>${safeText(app.salary || '-')}</td>
       <td class="table-actions">
+        <button class="action-btn resume-btn" title="Create Resume" aria-label="Create resume for ${escapeHtml(app.company || 'application')}">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+          </svg>
+        </button>
         <button class="action-btn edit-btn" title="Edit" aria-label="Edit ${escapeHtml(app.company || 'application')}">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -328,6 +363,11 @@ export function renderTable() {
         e.preventDefault();
         selectAppCallback?.(app.id);
       }
+    });
+
+    row.querySelector('.resume-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      openResumeMaker(app);
     });
 
     row.querySelector('.edit-btn').addEventListener('click', (e) => {

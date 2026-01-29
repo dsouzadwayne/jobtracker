@@ -58,7 +58,7 @@ const ResumeParser = {
     if (validMimeTypes[fileType] && validMimeTypes[fileType].length > 0) {
       // Allow empty MIME type for TXT files (some browsers don't set it)
       if (!validMimeTypes[fileType].includes(mimeType) && mimeType !== '') {
-        console.warn(`JobTracker: MIME type mismatch - expected ${validMimeTypes[fileType].join(' or ')}, got ${mimeType}`);
+        console.log(`JobTracker: MIME type mismatch - expected ${validMimeTypes[fileType].join(' or ')}, got ${mimeType}`);
         // Don't throw error, just warn - some browsers report incorrect MIME types
       }
     }

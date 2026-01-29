@@ -84,7 +84,7 @@ function extract(doc = document) {
     }
 
   } catch (e) {
-    console.warn('[ARIA Labels] Extraction error:', e.message);
+    console.log('[ARIA Labels] Extraction error:', e.message);
   }
 
   results.metadata.timing = performance.now() - startTime;

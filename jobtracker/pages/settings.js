@@ -1043,7 +1043,7 @@ function setupModelDownloadListeners() {
         payload: { modelId: model, downloadStatus: 'downloaded', downloadedAt: new Date().toISOString() }
       });
     } catch (error) {
-      console.warn('Failed to save model metadata:', error);
+      console.log('Failed to save model metadata:', error);
     }
   });
 

@@ -688,7 +688,7 @@ function initHeatmap(apps) {
 
   // Check if HeatmapRenderer is available (loaded from heatmap.js)
   if (typeof window.HeatmapRenderer === 'undefined') {
-    console.warn('HeatmapRenderer not available');
+    console.log('HeatmapRenderer not available');
     container.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 2rem;">Heatmap library not loaded</p>';
     return;
   }
@@ -905,8 +905,8 @@ async function loadUpcomingInterviews() {
     const interviews = response?.interviews || [];
 
     const upcoming = interviews
-      .filter(i => new Date(i.date) >= new Date() && i.outcome === 'pending')
-      .sort((a, b) => new Date(a.date) - new Date(b.date))
+      .filter(i => new Date(i.scheduledDate) >= new Date() && i.outcome === 'pending')
+      .sort((a, b) => new Date(a.scheduledDate) - new Date(b.scheduledDate))
       .slice(0, 5);
 
     if (upcoming.length === 0) {
@@ -915,7 +915,7 @@ async function loadUpcomingInterviews() {
     }
 
     container.innerHTML = upcoming.map(interview => {
-      const date = new Date(interview.date);
+      const date = new Date(interview.scheduledDate);
       const app = applications.find(a => a.id === interview.applicationId);
 
       return `
@@ -946,10 +946,19 @@ async function loadTasks() {
     const response = await chrome.runtime.sendMessage({ type: MessageTypes.GET_TASKS });
     const tasks = response?.tasks || [];
 
+    // Normalize priority values (can be numbers or strings like 'high', 'medium', 'low')
+    const priorityOrder = { 'high': 1, 'medium': 2, 'low': 3 };
+    const getPriorityValue = (p) => {
+      if (typeof p === 'number') return p;
+      return priorityOrder[p?.toLowerCase()] || 999;
+    };
+
     const pending = tasks
       .filter(t => !t.completed)
       .sort((a, b) => {
-        if (a.priority !== b.priority) return a.priority - b.priority;
+        const pA = getPriorityValue(a.priority);
+        const pB = getPriorityValue(b.priority);
+        if (pA !== pB) return pA - pB;
         return new Date(a.dueDate || 0) - new Date(b.dueDate || 0);
       })
       .slice(0, 5);

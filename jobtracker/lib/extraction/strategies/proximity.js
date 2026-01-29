@@ -84,7 +84,7 @@ function extract(doc = document) {
     extractByStructure(doc, results);
 
   } catch (e) {
-    console.warn('[Proximity] Extraction error:', e.message);
+    console.log('[Proximity] Extraction error:', e.message);
   }
 
   results.metadata.timing = performance.now() - startTime;

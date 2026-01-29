@@ -98,10 +98,10 @@
       window.__jobTrackerAutofillHandled = false;
 
       // Listen for platform handler completion
-      const autofillCompleteHandler = () => {
+      // Note: { once: true } automatically removes the listener after first invocation
+      window.addEventListener('jobtracker:autofill-complete', () => {
         window.__jobTrackerAutofillHandled = true;
-      };
-      window.addEventListener('jobtracker:autofill-complete', autofillCompleteHandler, { once: true });
+      }, { once: true });
 
       // Dispatch event for platform-specific handlers to listen
       // Include both profile and customRules for advanced matching
@@ -111,7 +111,7 @@
 
       // If no platform handler picks it up within 500ms, use generic autofill
       setTimeout(() => {
-        window.removeEventListener('jobtracker:autofill-complete', autofillCompleteHandler);
+        // No need to removeEventListener - { once: true } handles cleanup
         if (!window.__jobTrackerAutofillHandled) {
           genericAutofill(profile);
         }

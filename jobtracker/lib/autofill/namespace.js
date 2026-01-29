@@ -356,7 +356,7 @@ const JobTrackerNamespace = {
     if (validation.valid) {
       console.log('All dependencies satisfied');
     } else {
-      console.warn('Dependency issues:', validation.issues);
+      console.log('Dependency issues:', validation.issues);
     }
     console.groupEnd();
   }

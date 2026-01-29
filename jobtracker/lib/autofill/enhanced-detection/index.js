@@ -85,7 +85,7 @@ const EnhancedDetection = {
       await this.init();
       return this._initialized;
     } catch (e) {
-      console.warn('[EnhancedDetection] Init failed:', e);
+      console.log('[EnhancedDetection] Init failed:', e);
       return false;
     }
   },
@@ -117,7 +117,7 @@ const EnhancedDetection = {
       this._initialized = true;
       console.log('[EnhancedDetection] Initialized successfully');
     } catch (error) {
-      console.warn('[EnhancedDetection] Initialization error:', error.message);
+      console.log('[EnhancedDetection] Initialization error:', error.message);
       // Still mark as initialized to prevent retries
       this._initialized = true;
     }

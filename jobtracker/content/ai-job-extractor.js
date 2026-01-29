@@ -28,10 +28,8 @@
   async function safeSendMessage(message, defaultValue = null) {
     try {
       const result = await chrome.runtime.sendMessage(message);
-      if (chrome.runtime.lastError) {
-        console.log('JobTracker AI: Runtime error:', chrome.runtime.lastError.message);
-        return defaultValue;
-      }
+      // Note: chrome.runtime.lastError is only valid in callback context, not async/await.
+      // In async/await, errors are thrown and caught by the try/catch block.
       return result;
     } catch (error) {
       console.log('JobTracker AI: Message error:', error.message || error);
@@ -41,16 +39,28 @@
 
   /**
    * Decode HTML entities in text
+   * Uses DOMParser for safe decoding without XSS risks
    * @param {string} text - Text with potential HTML entities
    * @returns {string} Decoded text
    */
   function decodeHtmlEntities(text) {
     if (!text || typeof text !== 'string') return text;
 
-    // Use a textarea element for reliable decoding
-    const textarea = document.createElement('textarea');
-    textarea.innerHTML = text;
-    return textarea.value;
+    // Use DOMParser for safe HTML entity decoding
+    // This is safer than innerHTML as DOMParser doesn't execute scripts
+    try {
+      const doc = new DOMParser().parseFromString(text, 'text/html');
+      return doc.body?.textContent || text;
+    } catch (e) {
+      // Fallback: manual decode of common entities
+      return text
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&nbsp;/g, ' ');
+    }
   }
 
   /**
@@ -107,7 +117,7 @@
 
         // Verify DOM access
         if (!document.head) {
-          console.warn('JobTracker: No document.head access');
+          console.log('JobTracker: No document.head access');
           return false;
         }
 
@@ -117,7 +127,7 @@
 
           // Add timeout to prevent hanging
           const timeout = setTimeout(() => {
-            console.warn('JobTracker: Readability.js load timeout');
+            console.log('JobTracker: Readability.js load timeout');
             readabilityLoadPromise = null; // Clear for retry
             resolve(false);
           }, 10000);
@@ -129,7 +139,7 @@
               console.log('JobTracker: Readability.js loaded');
               resolve(true);
             } else {
-              console.warn('JobTracker: Readability.js loaded but not available');
+              console.log('JobTracker: Readability.js loaded but not available');
               readabilityLoadPromise = null; // Clear for retry
               resolve(false);
             }
@@ -230,7 +240,7 @@
     // Fallback to body if no specific content found
     if (!mainContent) {
       if (!document.body) {
-        console.warn('JobTracker: document.body is null');
+        console.log('JobTracker: document.body is null');
         return '';
       }
       mainContent = document.body.textContent || '';

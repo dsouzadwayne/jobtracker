@@ -8,14 +8,31 @@ import { VALID_STATUSES } from './state.js';
 // Decode HTML entities using he library
 export function decodeHtmlEntities(str) {
   if (!str) return '';
-  // Use he library for robust decoding, decode twice for double-encoded content
-  if (typeof he !== 'undefined') {
-    return he.decode(he.decode(str));
+
+  // Use he library for robust decoding
+  // Access via window for ES module compatibility
+  const heLib = typeof window !== 'undefined' && window.he;
+
+  // Decode iteratively until no more entities remain (handles any level of encoding)
+  let result = str;
+  let previous = '';
+  const maxIterations = 5; // Safety limit
+  let iterations = 0;
+
+  while (result !== previous && iterations < maxIterations) {
+    previous = result;
+    if (heLib) {
+      result = heLib.decode(result);
+    } else {
+      // Fallback to textarea method if he not loaded
+      const textarea = document.createElement('textarea');
+      textarea.innerHTML = result;
+      result = textarea.value;
+    }
+    iterations++;
   }
-  // Fallback to textarea method if he not loaded
-  const textarea = document.createElement('textarea');
-  textarea.innerHTML = str;
-  return textarea.value;
+
+  return result;
 }
 
 // Escape HTML to prevent XSS

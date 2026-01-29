@@ -60,7 +60,7 @@
           const validation = window.JobTrackerNamespace.validateAll();
           if (!validation.valid) {
             const issuesSummary = validation.issues.map(i => `${i.module}: missing [${i.missing.join(', ')}]`).join('; ');
-            console.warn('JobTracker: Some module dependencies missing:', issuesSummary);
+            console.log('JobTracker: Some module dependencies missing:', issuesSummary);
           }
         }
 
@@ -68,7 +68,7 @@
         console.log('JobTracker: All autofill modules initialized');
         return true;
       } catch (error) {
-        console.warn('JobTracker: Error during initAll:', error.message);
+        console.log('JobTracker: Error during initAll:', error.message);
         return false;
       }
     },
@@ -116,7 +116,7 @@
         return window.EnhancedDetection;
       } catch (error) {
         this._enhancedDetectionAvailable = false;
-        console.warn('JobTracker: Failed to initialize enhanced detection:', error.message);
+        console.log('JobTracker: Failed to initialize enhanced detection:', error.message);
         return null;
       }
     },
@@ -407,7 +407,7 @@
   }
 
   // Initialize all modules on load (async, non-blocking)
-  JobTrackerAutofill.initAll().catch(e => console.warn('JobTracker: initAll failed:', e));
+  JobTrackerAutofill.initAll().catch(e => console.log('JobTracker: initAll failed:', e));
 
   console.log('JobTracker: Autofill modules loaded (modular architecture with enhanced detection)');
 })();

@@ -99,7 +99,7 @@ async function extract(doc = document) {
     }
 
   } catch (e) {
-    console.warn('[Readability] Extraction error:', e.message);
+    console.log('[Readability] Extraction error:', e.message);
     // Try fallback
     extractBasicContent(doc, results);
   }

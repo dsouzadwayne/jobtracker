@@ -484,7 +484,7 @@ function validate(schemaName, data, strictMode = true) {
       return ValidationResult.fail([{ path: '', message: errorMsg, code: 'validation_unavailable' }]);
     }
     // Non-strict mode: perform basic type validation as fallback
-    console.warn('JobTracker Validation: Using basic validation fallback');
+    console.log('JobTracker Validation: Using basic validation fallback');
     const basicValidation = performBasicValidation(schemaName, data);
     if (!basicValidation.valid) {
       return ValidationResult.fail(basicValidation.errors);
@@ -636,7 +636,7 @@ function sanitizeUrl(url) {
   const dangerousProtocols = ['javascript:', 'data:', 'vbscript:', 'file:'];
   for (const proto of dangerousProtocols) {
     if (normalized.startsWith(proto) || normalized.includes('\t' + proto) || normalized.includes('\n' + proto)) {
-      console.warn('JobTracker: Blocked potentially malicious URL:', url.substring(0, 50));
+      console.log('JobTracker: Blocked potentially malicious URL:', url.substring(0, 50));
       return '';
     }
   }
@@ -649,7 +649,7 @@ function sanitizeUrl(url) {
   if (hasProtocol && !isRelative) {
     const isAllowed = allowedProtocols.some(proto => normalized.startsWith(proto));
     if (!isAllowed) {
-      console.warn('JobTracker: Blocked URL with unknown protocol:', url.substring(0, 50));
+      console.log('JobTracker: Blocked URL with unknown protocol:', url.substring(0, 50));
       return '';
     }
   }
@@ -661,7 +661,7 @@ function sanitizeUrl(url) {
       // Return the normalized URL from the URL constructor
       return parsed.href;
     } catch (e) {
-      console.warn('JobTracker: Invalid URL format:', url.substring(0, 50));
+      console.log('JobTracker: Invalid URL format:', url.substring(0, 50));
       return '';
     }
   }

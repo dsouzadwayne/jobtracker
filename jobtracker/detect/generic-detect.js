@@ -43,7 +43,7 @@
 
         // Add timeout to prevent hanging
         const timeout = setTimeout(() => {
-          console.warn('JobTracker: Readability.js load timeout');
+          console.log('JobTracker: Readability.js load timeout');
           resolve(false);
         }, 5000);
 
@@ -55,12 +55,12 @@
         };
         script.onerror = () => {
           clearTimeout(timeout);
-          console.warn('JobTracker: Readability.js load failed');
+          console.log('JobTracker: Readability.js load failed');
           resolve(false);
         };
         document.head.appendChild(script);
       } catch (error) {
-        console.warn('JobTracker: Readability load error:', error.message);
+        console.log('JobTracker: Readability load error:', error.message);
         resolve(false);
       }
     });
@@ -84,7 +84,7 @@
         console.log('JobTracker: ExtractionPipeline loaded');
         return module;
       } catch (error) {
-        console.warn('JobTracker: ExtractionPipeline not available, using fallback:', error.message);
+        console.log('JobTracker: ExtractionPipeline not available, using fallback:', error.message);
         return null;
       }
     })();
@@ -114,7 +114,7 @@
   async function init() {
     // Pre-load Readability for better extraction
     loadReadability().catch(err => {
-      console.warn('JobTracker: Readability preload failed:', err.message);
+      console.log('JobTracker: Readability preload failed:', err.message);
     });
 
     // Expose job extraction for the floating button (async version)
@@ -197,7 +197,7 @@
         }
       }
     } catch (e) {
-      console.warn('JobTracker: Pipeline extraction failed, using fallback:', e.message);
+      console.log('JobTracker: Pipeline extraction failed, using fallback:', e.message);
     }
 
     // Fallback: Legacy extraction methods
@@ -219,7 +219,7 @@
       }
     } catch (e) {
       // __appData not available or parsing failed
-      console.warn('JobTracker: __appData extraction failed', e.message);
+      console.log('JobTracker: __appData extraction failed', e.message);
     }
 
     // Strategy 1: JSON-LD structured data
@@ -237,7 +237,7 @@
         }
       } catch (e) {
         // JSON-LD parsing failed for this script, continue with others
-        console.warn('JobTracker: JSON-LD parsing failed', e.message);
+        console.log('JobTracker: JSON-LD parsing failed', e.message);
       }
     }
 
@@ -317,7 +317,7 @@
           }
         } catch (e) {
           // Selector query may fail for complex selectors
-          console.warn('JobTracker: Selector query failed', selector, e.message);
+          console.log('JobTracker: Selector query failed', selector, e.message);
         }
       }
     }
@@ -340,7 +340,7 @@
           }
         } catch (e) {
           // Selector query may fail for complex selectors
-          console.warn('JobTracker: Selector query failed', selector, e.message);
+          console.log('JobTracker: Selector query failed', selector, e.message);
         }
       }
     }
@@ -355,7 +355,7 @@
           }
         } catch (e) {
           // Selector query may fail for complex selectors
-          console.warn('JobTracker: Selector query failed', selector, e.message);
+          console.log('JobTracker: Selector query failed', selector, e.message);
         }
       }
     }
@@ -411,7 +411,7 @@
           }
         } catch (e) {
           // Selector query may fail for complex selectors
-          console.warn('JobTracker: Selector query failed', selector, e.message);
+          console.log('JobTracker: Selector query failed', selector, e.message);
         }
       }
     }
@@ -437,7 +437,7 @@
           }
         }
       } catch (e) {
-        console.warn('JobTracker: Readability extraction failed', e.message);
+        console.log('JobTracker: Readability extraction failed', e.message);
       }
     }
 

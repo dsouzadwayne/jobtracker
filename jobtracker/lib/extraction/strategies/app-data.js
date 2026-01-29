@@ -63,7 +63,7 @@ function extract(win = window) {
     }
 
   } catch (e) {
-    console.warn('[AppData] Extraction error:', e.message);
+    console.log('[AppData] Extraction error:', e.message);
   }
 
   results.metadata.timing = performance.now() - startTime;

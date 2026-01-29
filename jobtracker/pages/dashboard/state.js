@@ -38,7 +38,14 @@ export const MessageTypes = {
   DELETE_ACTIVITY: 'DELETE_ACTIVITY',
   // CRM Enhancement - Tags & Deadlines
   GET_ALL_TAGS: 'GET_ALL_TAGS',
-  GET_EXPIRING_APPLICATIONS: 'GET_EXPIRING_APPLICATIONS'
+  GET_EXPIRING_APPLICATIONS: 'GET_EXPIRING_APPLICATIONS',
+  // Resume-Application Linking
+  GET_UPLOADED_RESUMES: 'GET_UPLOADED_RESUMES',
+  GET_UPLOADED_RESUME: 'GET_UPLOADED_RESUME',
+  UPLOAD_RESUME: 'UPLOAD_RESUME',
+  DELETE_UPLOADED_RESUME: 'DELETE_UPLOADED_RESUME',
+  GET_ALL_RESUMES_FOR_LINKING: 'GET_ALL_RESUMES_FOR_LINKING',
+  GET_RESUME_USAGE_COUNTS: 'GET_RESUME_USAGE_COUNTS'
 };
 
 // Status colors matching existing CSS
@@ -215,7 +222,23 @@ export function initElements() {
     taskModal: document.getElementById('task-modal'),
     taskForm: document.getElementById('task-form'),
     closeTaskModal: document.getElementById('close-task-modal'),
-    cancelTaskBtn: document.getElementById('cancel-task-btn')
+    cancelTaskBtn: document.getElementById('cancel-task-btn'),
+
+    // Resume Selection Modal
+    resumeSelectModal: document.getElementById('resume-select-modal'),
+    closeResumeSelectModal: document.getElementById('close-resume-select-modal'),
+    generatedResumesList: document.getElementById('generated-resumes-list'),
+    uploadedResumesList: document.getElementById('uploaded-resumes-list'),
+    generatedResumesEmpty: document.getElementById('generated-resumes-empty'),
+    uploadedResumesEmpty: document.getElementById('uploaded-resumes-empty'),
+
+    // Resume Selector (in app form)
+    resumeSelector: document.getElementById('resume-selector'),
+    resumeCurrent: document.getElementById('resume-current'),
+    selectResumeBtn: document.getElementById('select-resume-btn'),
+    uploadResumeBtn: document.getElementById('upload-resume-btn'),
+    clearResumeBtn: document.getElementById('clear-resume-btn'),
+    resumeFileUpload: document.getElementById('resume-file-upload')
   };
 
   return elements;

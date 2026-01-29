@@ -420,7 +420,7 @@ const EnhancedPDFParser = {
       return textItems.length < 10 && hasImages;
 
     } catch (error) {
-      console.warn('[EnhancedPDFParser] Scan detection failed:', error.message);
+      console.log('[EnhancedPDFParser] Scan detection failed:', error.message);
       return false;
     }
   }
@@ -430,5 +430,3 @@ const EnhancedPDFParser = {
 if (typeof window !== 'undefined') {
   window.EnhancedPDFParser = EnhancedPDFParser;
 }
-
-export { EnhancedPDFParser };

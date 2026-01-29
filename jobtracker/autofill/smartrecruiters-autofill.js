@@ -108,7 +108,7 @@
 
       return true;
     } catch (e) {
-      console.warn('JobTracker: Failed to fill spl component', e);
+      console.log('JobTracker: Failed to fill spl component', e);
       return false;
     }
   }
@@ -213,7 +213,7 @@
 
       return filled;
     } catch (e) {
-      console.warn('JobTracker: Failed to fill phone field', e);
+      console.log('JobTracker: Failed to fill phone field', e);
       return false;
     }
   }
@@ -257,7 +257,7 @@
 
       return false;
     } catch (e) {
-      console.warn('JobTracker: Failed to fill autocomplete', e);
+      console.log('JobTracker: Failed to fill autocomplete', e);
       return false;
     }
   }

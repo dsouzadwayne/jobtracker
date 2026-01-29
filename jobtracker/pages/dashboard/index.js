@@ -31,7 +31,7 @@ import {
 // Import modals
 import {
   openModal, closeModal, closeModalWithConfirm, handleSubmit,
-  setupModalListeners, setModalCallbacks
+  setupModalListeners, setModalCallbacks, setupResumeSelectListeners
 } from './modals.js';
 
 // Import navigation
@@ -503,6 +503,9 @@ function setupEventListeners() {
 
   // Modal listeners
   setupModalListeners(deleteApplication);
+
+  // Resume selection listeners
+  setupResumeSelectListeners();
 
   // Details panel
   elements.closeDetails?.addEventListener('click', closeDetailsPanel);

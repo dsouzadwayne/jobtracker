@@ -273,7 +273,7 @@ class ReadabilityExtractor {
 
     // Last resort: body text (with null check)
     if (!document.body) {
-      console.warn('[ReadabilityExtractor] document.body is null');
+      console.log('[ReadabilityExtractor] document.body is null');
       return '';
     }
     return document.body.textContent?.trim() || '';

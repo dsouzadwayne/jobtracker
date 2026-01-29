@@ -36,7 +36,7 @@ const JobTrackerEventDispatcher = {
       element.focus();
     } catch (e) {
       // Element may not be focusable
-      console.warn('JobTracker: Failed to focus element', e.message);
+      console.log('JobTracker: Failed to focus element', e.message);
     }
 
     // Dispatch keyboard events (important for Angular/Vue)
@@ -62,7 +62,7 @@ const JobTrackerEventDispatcher = {
       element.dispatchEvent(reactInputEvent);
     } catch (e) {
       // InputEvent might not be supported in older browsers
-      console.warn('JobTracker: InputEvent not supported', e.message);
+      console.log('JobTracker: InputEvent not supported', e.message);
     }
   },
 
@@ -129,7 +129,7 @@ const JobTrackerEventDispatcher = {
       element.dispatchEvent(new KeyboardEvent('keyup', keyboardEventInit));
     } catch (e) {
       // KeyboardEvent constructor might fail in some environments
-      console.warn('JobTracker: KeyboardEvent dispatch failed', e.message);
+      console.log('JobTracker: KeyboardEvent dispatch failed', e.message);
     }
   },
 
@@ -151,7 +151,7 @@ const JobTrackerEventDispatcher = {
       select.dispatchEvent(keyEvent);
     } catch (e) {
       // KeyboardEvent for select may fail in some browsers
-      console.warn('JobTracker: Select keyboard event failed', e.message);
+      console.log('JobTracker: Select keyboard event failed', e.message);
     }
 
     // Standard events

@@ -465,7 +465,7 @@ async function handleTrackJob() {
               }
             } catch (e) {
               // JSON-LD parsing may fail for malformed data
-              console.warn('JobTracker: JSON-LD parsing failed in popup', e.message);
+              console.log('JobTracker: JSON-LD parsing failed in popup', e.message);
             }
 
             // Try common selectors

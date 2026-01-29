@@ -8,8 +8,16 @@ import {
   isFormDirty, setFormDirty, isSubmitting, setSubmitting
 } from './state.js';
 import {
-  escapeHtml, formatDateInput, detectPlatform, validateFormData, showNotification
+  escapeHtml, formatDateInput, detectPlatform, validateFormData, showNotification,
+  formatDateRelative
 } from './utils.js';
+
+// Resume linking state
+let currentResumeData = {
+  type: null,
+  id: null,
+  name: null
+};
 
 // Store previously focused element for focus restoration
 let previouslyFocusedElement = null;
@@ -174,12 +182,17 @@ export function openModal(app = null) {
     // CRM Enhancement Phase 1: New fields
     document.getElementById('app-priority').value = app.priority || 'medium';
     document.getElementById('app-referred-by').value = app.referredBy || '';
-    document.getElementById('app-resume-version').value = app.resumeVersion || '';
     document.getElementById('app-last-contacted').value = formatDateInput(app.lastContacted);
     document.getElementById('app-rejection-reason').value = app.rejectionReason || '';
     document.getElementById('app-company-notes').value = app.companyNotes || '';
     // Show rejection reason field if status is rejected
     toggleRejectionReasonField(app.status === 'rejected');
+    // Resume linking - load from new structured format or legacy field
+    if (app.resume && app.resume.type) {
+      setResumeLink(app.resume.type, app.resume.id, app.resume.name);
+    } else {
+      clearResumeLink();
+    }
   } else {
     document.getElementById('app-id').value = '';
     document.getElementById('app-date').value = new Date().toISOString().split('T')[0];
@@ -189,11 +202,12 @@ export function openModal(app = null) {
     // CRM Enhancement Phase 1: Clear new fields
     document.getElementById('app-priority').value = 'medium';
     document.getElementById('app-referred-by').value = '';
-    document.getElementById('app-resume-version').value = '';
     document.getElementById('app-last-contacted').value = '';
     document.getElementById('app-rejection-reason').value = '';
     document.getElementById('app-company-notes').value = '';
     toggleRejectionReasonField(false);
+    // Clear resume link
+    clearResumeLink();
   }
 
   elements.modal.classList.remove('hidden');
@@ -271,10 +285,15 @@ export async function handleSubmit(e) {
     // CRM Enhancement Phase 1: New fields
     priority: document.getElementById('app-priority')?.value || 'medium',
     referredBy: document.getElementById('app-referred-by')?.value.trim() || '',
-    resumeVersion: document.getElementById('app-resume-version')?.value.trim() || '',
     lastContacted: lastContactedValue ? new Date(lastContactedValue).toISOString() : null,
     rejectionReason: status === 'rejected' ? (document.getElementById('app-rejection-reason')?.value || null) : null,
-    companyNotes: document.getElementById('app-company-notes')?.value.trim() || ''
+    companyNotes: document.getElementById('app-company-notes')?.value.trim() || '',
+    // Resume linking - structured format
+    resume: currentResumeData.type ? {
+      type: currentResumeData.type,
+      id: currentResumeData.id,
+      name: currentResumeData.name
+    } : null
   };
 
   // Validate form data
@@ -383,4 +402,279 @@ export function setupModalListeners(deleteApplicationCallback) {
       }, 1000); // Wait 1 second after typing stops
     });
   }
+}
+
+// ==================== RESUME LINKING FUNCTIONS ====================
+
+/**
+ * Set the resume link in the form
+ */
+export function setResumeLink(type, id, name) {
+  currentResumeData = { type, id, name };
+
+  // Update hidden inputs
+  document.getElementById('app-resume-type').value = type || '';
+  document.getElementById('app-resume-id').value = id || '';
+  document.getElementById('app-resume-name').value = name || '';
+
+  // Update display
+  const resumeCurrent = document.getElementById('resume-current');
+  const clearBtn = document.getElementById('clear-resume-btn');
+
+  if (type && id && name) {
+    const typeLabel = type === 'generated' ? 'Generated' : 'Uploaded';
+    resumeCurrent.innerHTML = `
+      <div class="resume-linked">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+        </svg>
+        <span class="resume-linked-name">${escapeHtml(name)}</span>
+        <span class="resume-linked-type">${typeLabel}</span>
+      </div>
+    `;
+    clearBtn?.classList.remove('hidden');
+  } else {
+    resumeCurrent.innerHTML = '<span class="resume-none">No resume linked</span>';
+    clearBtn?.classList.add('hidden');
+  }
+
+  setFormDirty(true);
+}
+
+/**
+ * Clear the resume link
+ */
+export function clearResumeLink() {
+  currentResumeData = { type: null, id: null, name: null };
+
+  // Clear hidden inputs
+  document.getElementById('app-resume-type').value = '';
+  document.getElementById('app-resume-id').value = '';
+  document.getElementById('app-resume-name').value = '';
+
+  // Update display
+  const resumeCurrent = document.getElementById('resume-current');
+  const clearBtn = document.getElementById('clear-resume-btn');
+
+  resumeCurrent.innerHTML = '<span class="resume-none">No resume linked</span>';
+  clearBtn?.classList.add('hidden');
+}
+
+/**
+ * Open the resume selection modal
+ */
+export async function openResumeSelectModal() {
+  const modal = elements.resumeSelectModal;
+  if (!modal) return;
+
+  modal.classList.remove('hidden');
+
+  // Load resumes
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: MessageTypes.GET_ALL_RESUMES_FOR_LINKING
+    });
+
+    renderResumeList('generated', response.generated || []);
+    renderResumeList('uploaded', response.uploaded || []);
+  } catch (error) {
+    console.error('Failed to load resumes:', error);
+    showNotification('Failed to load resumes', 'error');
+  }
+}
+
+/**
+ * Close the resume selection modal
+ */
+export function closeResumeSelectModal() {
+  const modal = elements.resumeSelectModal;
+  if (modal) {
+    modal.classList.add('hidden');
+  }
+}
+
+/**
+ * Render a list of resumes in the selection modal
+ */
+function renderResumeList(type, resumes) {
+  const listEl = type === 'generated'
+    ? document.getElementById('generated-resumes-list')
+    : document.getElementById('uploaded-resumes-list');
+  const emptyEl = type === 'generated'
+    ? document.getElementById('generated-resumes-empty')
+    : document.getElementById('uploaded-resumes-empty');
+
+  if (!listEl || !emptyEl) return;
+
+  if (!resumes || resumes.length === 0) {
+    listEl.innerHTML = '';
+    emptyEl.classList.remove('hidden');
+    return;
+  }
+
+  emptyEl.classList.add('hidden');
+
+  listEl.innerHTML = resumes.map(resume => {
+    const name = resume.name || 'Untitled Resume';
+    const subtitle = type === 'generated'
+      ? (resume.subtitle || 'No job description')
+      : formatFileSize(resume.size);
+    const dateStr = formatDateRelative(resume.createdAt || resume.uploadedAt);
+
+    return `
+      <div class="resume-list-item" data-type="${type}" data-id="${escapeHtml(resume.id)}" data-name="${escapeHtml(name)}">
+        <div class="resume-list-item-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+          </svg>
+        </div>
+        <div class="resume-list-item-info">
+          <div class="resume-list-item-name">${escapeHtml(name)}</div>
+          <div class="resume-list-item-subtitle">${escapeHtml(subtitle)}</div>
+        </div>
+        <div class="resume-list-item-meta">${dateStr}</div>
+      </div>
+    `;
+  }).join('');
+
+  // Add click handlers
+  listEl.querySelectorAll('.resume-list-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const resumeType = item.dataset.type;
+      const resumeId = item.dataset.id;
+      const resumeName = item.dataset.name;
+      handleResumeSelection(resumeType, resumeId, resumeName);
+    });
+  });
+}
+
+/**
+ * Handle resume selection from modal
+ */
+function handleResumeSelection(type, id, name) {
+  setResumeLink(type, id, name);
+  closeResumeSelectModal();
+}
+
+/**
+ * Handle resume file upload
+ */
+export async function handleResumeUpload(file) {
+  if (!file) return;
+
+  // Validate file type
+  if (file.type !== 'application/pdf') {
+    showNotification('Please select a PDF file', 'error');
+    return;
+  }
+
+  // Validate file size (max 10MB)
+  if (file.size > 10 * 1024 * 1024) {
+    showNotification('File size must be less than 10MB', 'error');
+    return;
+  }
+
+  try {
+    // Read file as ArrayBuffer for message passing
+    const arrayBuffer = await file.arrayBuffer();
+
+    const response = await chrome.runtime.sendMessage({
+      type: MessageTypes.UPLOAD_RESUME,
+      payload: {
+        name: file.name,
+        type: file.type,
+        data: arrayBuffer,
+        size: file.size
+      }
+    });
+
+    if (response.success) {
+      setResumeLink('uploaded', response.resume.id, response.resume.name);
+      showNotification('Resume uploaded and linked', 'success');
+    } else {
+      throw new Error(response.error || 'Upload failed');
+    }
+  } catch (error) {
+    console.error('Resume upload failed:', error);
+    showNotification('Failed to upload resume', 'error');
+  }
+}
+
+/**
+ * Format file size for display
+ */
+function formatFileSize(bytes) {
+  if (!bytes) return 'Unknown size';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+/**
+ * Setup resume selector event listeners
+ */
+export function setupResumeSelectListeners() {
+  // Select resume button
+  elements.selectResumeBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    openResumeSelectModal();
+  });
+
+  // Upload resume button
+  elements.uploadResumeBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    elements.resumeFileUpload?.click();
+  });
+
+  // File input change
+  elements.resumeFileUpload?.addEventListener('change', (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleResumeUpload(file);
+      e.target.value = ''; // Reset input
+    }
+  });
+
+  // Clear resume button
+  elements.clearResumeBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    clearResumeLink();
+    setFormDirty(true);
+  });
+
+  // Close modal button
+  elements.closeResumeSelectModal?.addEventListener('click', closeResumeSelectModal);
+
+  // Close on backdrop click
+  elements.resumeSelectModal?.addEventListener('click', (e) => {
+    if (e.target === elements.resumeSelectModal) {
+      closeResumeSelectModal();
+    }
+  });
+
+  // Tab switching
+  const tabs = document.querySelectorAll('.resume-tab');
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const tabName = tab.dataset.resumeTab;
+
+      // Update active tab
+      tabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+
+      // Show corresponding panel
+      document.querySelectorAll('.resume-tab-panel').forEach(panel => {
+        panel.classList.add('hidden');
+        panel.classList.remove('active');
+      });
+
+      const panel = document.getElementById(`resume-tab-${tabName}`);
+      if (panel) {
+        panel.classList.remove('hidden');
+        panel.classList.add('active');
+      }
+    });
+  });
 }

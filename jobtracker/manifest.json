@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "JobTracker",
-  "version": "0.4.14",
+  "version": "0.4.15",
   "description": "Track job applications and autofill forms. 100% local, privacy-first, open source.",
   "author": "Dwayne",
   "homepage_url": "https://github.com/dsouzadwayne/jobtracker",
@@ -432,7 +432,12 @@
         "common.css",
         "pages/dashboard.html",
         "pages/dashboard.js",
-        "pages/dashboard.css"
+        "pages/dashboard.css",
+        "resume-maker/*",
+        "resume-maker/index.html",
+        "resume-maker/css/*",
+        "resume-maker/js/*",
+        "resume-maker/lib/*"
       ],
       "matches": ["<all_urls>"]
     }

@@ -18,7 +18,7 @@ const getDOMPurify = () => {
     return DOMPurify;
   }
   // Fallback warning if DOMPurify isn't loaded
-  console.warn('[Sanitizer] DOMPurify not loaded, using fallback sanitization');
+  console.log('[Sanitizer] DOMPurify not loaded, using fallback sanitization');
   return null;
 };
 

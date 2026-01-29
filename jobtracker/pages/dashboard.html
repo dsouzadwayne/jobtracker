@@ -72,6 +72,16 @@
           </svg>
           <span>Settings</span>
         </a>
+        <a href="../resume-maker/index.html" class="nav-item">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+            <polyline points="10 9 9 9 8 9"></polyline>
+          </svg>
+          <span>Resume Maker</span>
+        </a>
       </nav>
 
       <div class="sidebar-footer">
@@ -421,16 +431,36 @@
           </div>
         </div>
 
-        <!-- CRM Enhancement Phase 1: Resume Version and Last Contacted -->
-        <div class="form-row">
-          <div class="form-group">
-            <label for="app-resume-version">Resume Version</label>
-            <input type="text" id="app-resume-version" placeholder="e.g., Software Engineer v2, General">
+        <!-- Resume Linking -->
+        <div class="form-group">
+          <label>Resume Used</label>
+          <div class="resume-selector" id="resume-selector">
+            <div class="resume-selector-current" id="resume-current">
+              <span class="resume-none">No resume linked</span>
+            </div>
+            <div class="resume-selector-actions">
+              <button type="button" class="btn-secondary btn-sm" id="select-resume-btn">
+                Select Resume
+              </button>
+              <button type="button" class="btn-secondary btn-sm" id="upload-resume-btn">
+                Upload PDF
+              </button>
+              <button type="button" class="btn-secondary btn-sm hidden" id="clear-resume-btn">
+                Clear
+              </button>
+              <input type="file" id="resume-file-upload" accept=".pdf" hidden>
+            </div>
           </div>
-          <div class="form-group">
-            <label for="app-last-contacted">Last Contacted</label>
-            <input type="date" id="app-last-contacted">
-          </div>
+          <!-- Hidden inputs to store resume data -->
+          <input type="hidden" id="app-resume-type">
+          <input type="hidden" id="app-resume-id">
+          <input type="hidden" id="app-resume-name">
+        </div>
+
+        <!-- Last Contacted -->
+        <div class="form-group">
+          <label for="app-last-contacted">Last Contacted</label>
+          <input type="date" id="app-last-contacted">
         </div>
 
         <!-- CRM Enhancement Phase 1: Rejection Reason (shown when status is rejected) -->
@@ -615,6 +645,40 @@
           <button type="submit" class="btn-primary">Save Task</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Resume Selection Modal -->
+  <div id="resume-select-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="resume-select-modal-title">
+    <div class="modal-content modal-md">
+      <div class="modal-header">
+        <h3 id="resume-select-modal-title">Select Resume</h3>
+        <button class="close-btn" id="close-resume-select-modal" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="resume-select-tabs">
+        <button type="button" class="resume-tab active" data-resume-tab="generated">Generated Resumes</button>
+        <button type="button" class="resume-tab" data-resume-tab="uploaded">Uploaded PDFs</button>
+      </div>
+      <div class="resume-select-content">
+        <div id="resume-tab-generated" class="resume-tab-panel active">
+          <div id="generated-resumes-list" class="resume-list-items">
+            <!-- Generated resumes will be loaded here -->
+          </div>
+          <div id="generated-resumes-empty" class="resume-empty-state hidden">
+            <p>No generated resumes yet.</p>
+            <a href="../resume-maker/index.html" class="btn-link">Go to Resume Maker</a>
+          </div>
+        </div>
+        <div id="resume-tab-uploaded" class="resume-tab-panel hidden">
+          <div id="uploaded-resumes-list" class="resume-list-items">
+            <!-- Uploaded resumes will be loaded here -->
+          </div>
+          <div id="uploaded-resumes-empty" class="resume-empty-state hidden">
+            <p>No uploaded resumes yet.</p>
+            <p class="text-muted">Use the "Upload PDF" button in the application form to add one.</p>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
