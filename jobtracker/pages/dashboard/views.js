@@ -224,22 +224,23 @@ export function createAppCard(app) {
         <div class="app-company">${safeText(app.company || 'Unknown Company')}${priorityBadge}</div>
         <div class="app-position">${safeText(app.position || 'Unknown Position')}</div>
       </div>
-      <span class="status-badge ${statusClass}" aria-label="Status: ${escapeHtml(capitalizeStatus(app.status))}">${escapeHtml(capitalizeStatus(app.status))}</span>
     </div>
     ${tagsHtml ? `<div class="app-card-tags">${tagsHtml}</div>` : ''}
     <div class="app-card-footer">
-      <span class="app-date" title="${escapeHtml(dateStr)}">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-          <line x1="16" y1="2" x2="16" y2="6"></line>
-          <line x1="8" y1="2" x2="8" y2="6"></line>
-          <line x1="3" y1="10" x2="21" y2="10"></line>
-        </svg>
-        ${escapeHtml(relativeTime || dateStr)}
-      </span>
-      ${app.location ? `<span class="app-location">${safeText(app.location)}</span>` : ''}
-      ${deadlineBadge}
-      ${activityBadge}
+      <div class="app-card-footer-left">
+        <span class="app-date" title="${escapeHtml(dateStr)}">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+          </svg>
+          ${escapeHtml(relativeTime || dateStr)}
+        </span>
+        ${deadlineBadge}
+        ${activityBadge}
+      </div>
+      <span class="status-badge ${statusClass}" aria-label="Status: ${escapeHtml(capitalizeStatus(app.status))}">${escapeHtml(capitalizeStatus(app.status))}</span>
     </div>
     <div class="app-card-actions">
       <button class="action-btn resume-btn" title="Create Resume">

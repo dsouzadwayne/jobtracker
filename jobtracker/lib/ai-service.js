@@ -126,10 +126,11 @@ class AIService {
 
     // Handle progress updates - dispatch custom events for global listeners
     if (type === 'MODEL_LOADING_PROGRESS') {
+      // Bug #1 fix: Always invoke the callback if set (for background.js progress forwarding)
       if (this.onModelLoadProgress) {
         this.onModelLoadProgress(payload);
       }
-      // Dispatch global event for UI components to listen to
+      // Dispatch global event for UI components to listen to (for direct aiService usage)
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('model-download-progress', {
           detail: payload
@@ -173,8 +174,11 @@ class AIService {
 
   /**
    * Send a message to the worker and wait for response
+   * @param {string} type - Message type
+   * @param {Object} payload - Message payload
+   * @param {number} timeout - Timeout in milliseconds (default: 120000)
    */
-  async sendMessage(type, payload = {}) {
+  async sendMessage(type, payload = {}, timeout = 120000) {
     await this.init();
 
     return new Promise((resolve, reject) => {
@@ -216,13 +220,13 @@ class AIService {
         return;
       }
 
-      // Timeout after 120 seconds (increased for model loading)
+      // Use provided timeout (default 120 seconds, but can be extended for model downloads)
       timeoutId = setTimeout(() => {
         // Only reject if cleanup succeeds (wasn't already handled)
         if (cleanup()) {
           reject(new Error('AI request timed out'));
         }
-      }, 120000);
+      }, timeout);
     });
   }
 
@@ -360,7 +364,8 @@ class AIService {
    * @param {boolean} includeNER - Whether to load NER model too
    */
   async preloadModels(includeNER = false) {
-    return this.sendMessage('PRELOAD_MODELS', { includeNER });
+    // Use 10 minute timeout for large model downloads (~130 MB)
+    return this.sendMessage('PRELOAD_MODELS', { includeNER }, 600000);
   }
 
   /**

@@ -37,6 +37,39 @@ function buildContactString(profile) {
 }
 
 /**
+ * Extract link metadata from profile for hyperlink annotations
+ * Returns array of objects with text and url properties
+ */
+function extractContactLinks(profile) {
+  if (!profile) return [];
+
+  const links = [];
+
+  // Email link
+  if (profile.email) {
+    links.push({
+      type: 'email',
+      text: profile.email,
+      url: `mailto:${profile.email}`
+    });
+  }
+
+  // Website/LinkedIn link
+  if (profile.website) {
+    const url = profile.website.startsWith('http')
+      ? profile.website
+      : `https://${profile.website}`;
+    links.push({
+      type: 'website',
+      text: profile.website,
+      url: url
+    });
+  }
+
+  return links;
+}
+
+/**
  * Parse bullet points from description text
  */
 function parseBulletPoints(text) {
@@ -258,6 +291,7 @@ export {
   formatDate,
   formatDateRange,
   buildContactString,
+  extractContactLinks,
   parseBulletPoints,
   formatSectionItem,
   buildContentText,

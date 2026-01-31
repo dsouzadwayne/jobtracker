@@ -1,10 +1,12 @@
 /**
  * Resume Maker - PDF Export
- * Generates PDFs using html2canvas + jsPDF for visual fidelity
+ * Generates ATS-friendly PDFs using pdfme (text-based) with clickable hyperlinks via pdf-lib
  */
 
 import { getCurrentResume } from './state.js';
 import { showToast } from './utils.js';
+import { createFlatResumeTemplate, FONTS, COLORS, PAGE_WIDTH, PAGE_HEIGHT, MARGIN, CONTENT_WIDTH } from './pdfme-templates.js';
+import { mapResumeToFlatInputs, buildContactString, extractContactLinks } from './pdfme-mapper.js';
 
 /**
  * Initialize PDF export button handler
@@ -27,8 +29,133 @@ function generateFilename(resume) {
 }
 
 /**
- * Export resume to PDF using html2canvas + jsPDF
- * Captures the visual preview and converts to PDF
+ * Extract link metadata from resume for hyperlink annotation
+ * Uses the shared extractContactLinks function from pdfme-mapper
+ */
+function extractLinkMetadata(resume) {
+  return extractContactLinks(resume?.profile);
+}
+
+/**
+ * Find text position in PDF using pdf-lib
+ * This searches for text in the contact line and returns approximate position
+ * @param {string} contactString - The full contact string
+ * @param {string} searchText - The text to find
+ * @param {number} pageWidth - Page width in points
+ * @param {number} fontSizePts - Font size in points
+ */
+function findTextInContactLine(contactString, searchText, pageWidth, fontSizePts) {
+  if (!contactString || !searchText) return null;
+
+  const idx = contactString.indexOf(searchText);
+  if (idx === -1) return null;
+
+  // Approximate character width for Helvetica (average is ~0.5-0.55 of font size)
+  // Use 0.55 for a more conservative estimate with variable-width fonts
+  const charWidth = fontSizePts * 0.55;
+
+  // Contact line is centered, so calculate offset from center
+  const totalWidth = contactString.length * charWidth;
+  const startX = (pageWidth - totalWidth) / 2;
+
+  // Calculate position of the search text
+  const textX = startX + (idx * charWidth);
+  const textWidth = searchText.length * charWidth;
+
+  return {
+    x: textX,
+    width: textWidth
+  };
+}
+
+/**
+ * Add hyperlink annotations to PDF using pdf-lib
+ */
+async function addHyperlinks(pdfBytes, resume) {
+  // Check if pdf-lib is available
+  if (typeof PDFLib === 'undefined') {
+    console.warn('pdf-lib not loaded, skipping hyperlink annotations');
+    return pdfBytes;
+  }
+
+  const { PDFDocument, PDFName, PDFString, PDFArray, PDFDict } = PDFLib;
+
+  try {
+    // Load the generated PDF
+    const pdfDoc = await PDFDocument.load(pdfBytes);
+    const pages = pdfDoc.getPages();
+
+    if (pages.length === 0) return pdfBytes;
+
+    const firstPage = pages[0];
+    const { width, height } = firstPage.getSize();
+
+    // Get link metadata
+    const links = extractLinkMetadata(resume);
+    if (links.length === 0) return pdfBytes;
+
+    // Build the contact string to find positions
+    const contactString = buildContactString(resume.profile);
+
+    // Contact line position (from pdfme-templates.js)
+    // Contact is at: y = MARGIN + 20 (mm), centered horizontally
+    // Convert mm to points (1 mm = 2.83465 points)
+    const mmToPoints = 2.83465;
+
+    // FONTS.contact.size is already in points (9pt), not mm
+    const contactFontSizePts = FONTS.contact.size;  // 9 points
+
+    // Contact Y position: convert mm to points, then calculate from bottom of page
+    const contactYFromTop = (MARGIN + 20) * mmToPoints;  // mm to points
+    const contactY = height - contactYFromTop - (contactFontSizePts * 0.8);  // Adjust for baseline
+
+    // Link height based on font size in points
+    const linkHeight = contactFontSizePts * 1.2;  // ~10.8 points
+
+    // Add link annotations for each link
+    for (const link of links) {
+      // Pass font size in points directly (no conversion needed)
+      const pos = findTextInContactLine(contactString, link.text, width, contactFontSizePts);
+
+      if (pos) {
+        // Create link annotation using pdf-lib's lower-level API
+        const linkAnnotation = pdfDoc.context.obj({
+          Type: 'Annot',
+          Subtype: 'Link',
+          Rect: [pos.x, contactY, pos.x + pos.width, contactY + linkHeight],
+          Border: [0, 0, 0],
+          A: {
+            Type: 'Action',
+            S: 'URI',
+            URI: PDFString.of(link.url),
+          },
+        });
+
+        // Register the annotation object
+        const linkAnnotationRef = pdfDoc.context.register(linkAnnotation);
+
+        // Get or create the Annots array for the page
+        const pageDict = firstPage.node;
+        const existingAnnots = pageDict.get(PDFName.of('Annots'));
+
+        if (existingAnnots instanceof PDFArray) {
+          existingAnnots.push(linkAnnotationRef);
+        } else {
+          pageDict.set(PDFName.of('Annots'), pdfDoc.context.obj([linkAnnotationRef]));
+        }
+      }
+    }
+
+    // Save and return the modified PDF
+    return await pdfDoc.save();
+  } catch (error) {
+    console.error('Error adding hyperlinks:', error);
+    return pdfBytes;
+  }
+}
+
+/**
+ * Export resume to PDF using pdfme (ATS-friendly text-based PDF)
  */
 export async function exportToPdf() {
   const resume = getCurrentResume();
@@ -38,14 +165,8 @@ export async function exportToPdf() {
     return;
   }
 
-  const preview = document.getElementById('resume-preview');
-  if (!preview) {
-    showToast('Preview not available', 'error');
-    return;
-  }
-
-  // Check if libraries are loaded
-  if (typeof html2canvas === 'undefined' || typeof jspdf === 'undefined') {
+  // Check if pdfme is loaded
+  if (typeof pdfme === 'undefined') {
     showToast('PDF libraries not loaded. Please refresh the page.', 'error');
     return;
   }
@@ -64,101 +185,42 @@ export async function exportToPdf() {
   }
 
   try {
-    // Store original zoom to restore later
-    const originalZoom = preview.style.zoom;
+    // Create template and map data
+    const template = createFlatResumeTemplate();
+    const inputs = mapResumeToFlatInputs(resume);
 
-    // Reset zoom for accurate capture (1:1 pixel ratio)
-    preview.style.zoom = '1';
+    // Get plugins from pdfme - use lowercase keys matching schema types
+    const plugins = {
+      text: pdfme.text,
+      line: pdfme.line,
+      rectangle: pdfme.rectangle,
+      image: pdfme.image,
+      table: pdfme.table
+    };
 
-    // Apply font smoothing for better text rendering in canvas capture
-    const originalFontSmooth = preview.style.fontSmooth;
-    const originalWebkitSmoothing = preview.style.webkitFontSmoothing;
-    const originalMozSmoothing = preview.style.MozOsxFontSmoothing;
-    preview.style.fontSmooth = 'always';
-    preview.style.webkitFontSmoothing = 'antialiased';
-    preview.style.MozOsxFontSmoothing = 'grayscale';
-
-    // Capture the preview as canvas with high resolution for print quality
-    // Scale of 2 gives ~192 DPI (8.5in × 96px/in × 2 = 1632px)
-    // Sufficient for print quality while keeping file size reasonable
-    const canvas = await html2canvas(preview, {
-      scale: 2,                    // 2x resolution for ~200 DPI print quality
-      useCORS: true,
-      logging: false,
-      backgroundColor: '#ffffff',
-      letterRendering: true,       // Better text rendering
-      allowTaint: false,
-      removeContainer: true
+    // Generate PDF using pdfme
+    const pdfBytes = await pdfme.generate({
+      template,
+      inputs,
+      plugins
     });
 
-    // Restore original styles
-    preview.style.zoom = originalZoom;
-    preview.style.fontSmooth = originalFontSmooth;
-    preview.style.webkitFontSmoothing = originalWebkitSmoothing;
-    preview.style.MozOsxFontSmoothing = originalMozSmoothing;
+    // Add hyperlinks using pdf-lib
+    const pdfWithLinks = await addHyperlinks(pdfBytes, resume);
 
-    // Create PDF (US Letter: 8.5 x 11 inches)
-    const { jsPDF } = jspdf;
-    const pdf = new jsPDF({
-      orientation: 'portrait',
-      unit: 'in',
-      format: 'letter'
-    });
+    // Convert to blob and download
+    const blob = new Blob([pdfWithLinks], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
 
-    // Page dimensions in inches
-    const pageWidth = 8.5;
-    const pageHeight = 11;
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = generateFilename(resume);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 
-    // Calculate scaling: fit canvas width to page width
-    const scale = pageWidth / canvas.width;
-
-    // Calculate how many pixels of canvas height fit on one page
-    const pageHeightInCanvasPixels = pageHeight / scale;
-
-    // Slice canvas into pages
-    let sourceY = 0;
-    let pageNum = 0;
-
-    while (sourceY < canvas.height) {
-      if (pageNum > 0) {
-        pdf.addPage();
-      }
-
-      // Calculate height for this slice (may be less on last page)
-      const sliceHeight = Math.min(pageHeightInCanvasPixels, canvas.height - sourceY);
-
-      // Create a temporary canvas for this page slice
-      const pageCanvas = document.createElement('canvas');
-      pageCanvas.width = canvas.width;
-      pageCanvas.height = sliceHeight;
-
-      const ctx = pageCanvas.getContext('2d');
-      ctx.drawImage(
-        canvas,
-        0, sourceY,                    // Source x, y
-        canvas.width, sliceHeight,     // Source width, height
-        0, 0,                          // Dest x, y
-        canvas.width, sliceHeight      // Dest width, height
-      );
-
-      // Add this slice to the PDF page using JPEG for smaller file size
-      const sliceHeightInInches = sliceHeight * scale;
-      pdf.addImage(
-        pageCanvas.toDataURL('image/jpeg', 0.92),  // 92% quality JPEG
-        'JPEG',
-        0,
-        0,
-        pageWidth,
-        sliceHeightInInches
-      );
-
-      sourceY += sliceHeight;
-      pageNum++;
-    }
-
-    // Download the PDF
-    const filename = generateFilename(resume);
-    pdf.save(filename);
+    // Delay revocation to ensure download starts
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
 
     showToast('PDF exported successfully', 'success');
   } catch (error) {

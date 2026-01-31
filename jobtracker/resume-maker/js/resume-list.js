@@ -36,6 +36,9 @@ import { loadProfileForm, renderAllSections, loadResumeDetailsForm } from './for
 // Store resume usage counts (how many applications use each resume)
 let resumeUsageCounts = {};
 
+// Store uploaded resumes
+let uploadedResumes = [];
+
 /**
  * Initialize resume list
  */
@@ -43,7 +46,7 @@ export function initResumeList() {
   // Subscribe to generatedResumes changes in the store
   subscribe(
     state => state.generatedResumes,
-    (resumes) => renderResumeList(resumes)
+    (resumes) => renderResumeList(resumes, uploadedResumes)
   );
 
   // New resume button
@@ -131,7 +134,7 @@ export function initResumeList() {
   const searchInput = document.getElementById('resume-search');
   if (searchInput) {
     searchInput.addEventListener('input', (e) => {
-      renderResumeList(getGeneratedResumes(), e.target.value);
+      renderResumeList(getGeneratedResumes(), uploadedResumes, e.target.value);
     });
   }
 
@@ -157,6 +160,19 @@ export async function loadResumes() {
     const resumes = await getAllGeneratedResumes();
     setGeneratedResumes(resumes);
 
+    // Load uploaded resumes
+    try {
+      const uploaded = await chrome.runtime.sendMessage({
+        type: 'GET_UPLOADED_RESUMES'
+      });
+      if (Array.isArray(uploaded)) {
+        uploadedResumes = uploaded;
+      }
+    } catch (uploadedError) {
+      console.warn('Failed to load uploaded resumes:', uploadedError);
+      uploadedResumes = [];
+    }
+
     // Load usage counts for displaying badges
     try {
       const response = await chrome.runtime.sendMessage({
@@ -169,6 +185,9 @@ export async function loadResumes() {
       // Non-critical: continue without usage counts
       console.warn('Failed to load resume usage counts:', usageError);
     }
+
+    // Trigger render with both resume types
+    renderResumeList(resumes, uploadedResumes);
   } catch (error) {
     console.error('Failed to load resumes:', error);
     showToast('Failed to load resumes', 'error');
@@ -178,28 +197,37 @@ export async function loadResumes() {
 /**
  * Render the resume list
  */
-export function renderResumeList(resumes = [], searchQuery = '') {
+export function renderResumeList(resumes = [], uploaded = [], searchQuery = '') {
   const list = document.getElementById('resume-list');
   const emptyState = document.getElementById('resumes-empty');
 
   if (!list) return;
 
-  // Filter resumes by search query
-  let filteredResumes = resumes || getGeneratedResumes();
+  // Get resumes if not provided
+  let filteredGenerated = resumes || getGeneratedResumes();
+  let filteredUploaded = uploaded || uploadedResumes;
 
+  // Filter resumes by search query
   if (searchQuery) {
     const query = searchQuery.toLowerCase();
-    filteredResumes = filteredResumes.filter(resume => {
+    filteredGenerated = filteredGenerated.filter(resume => {
       const name = (resume.name || '').toLowerCase();
       const title = (resume.jobDescription?.title || '').toLowerCase();
       const company = (resume.jobDescription?.company || '').toLowerCase();
 
       return name.includes(query) || title.includes(query) || company.includes(query);
     });
+
+    filteredUploaded = filteredUploaded.filter(resume => {
+      const name = (resume.name || '').toLowerCase();
+      return name.includes(query);
+    });
   }
 
+  const totalCount = filteredGenerated.length + filteredUploaded.length;
+
   // Show/hide empty state
-  if (filteredResumes.length === 0) {
+  if (totalCount === 0) {
     list.innerHTML = '';
     emptyState?.classList.remove('hidden');
     return;
@@ -207,11 +235,14 @@ export function renderResumeList(resumes = [], searchQuery = '') {
 
   emptyState?.classList.add('hidden');
 
-  // Render resume cards
-  list.innerHTML = filteredResumes.map(resume => renderResumeCard(resume)).join('');
+  // Render resume cards - generated first, then uploaded
+  const generatedHtml = filteredGenerated.map(resume => renderResumeCard(resume)).join('');
+  const uploadedHtml = filteredUploaded.map(resume => renderUploadedResumeCard(resume)).join('');
 
-  // Add event listeners
-  list.querySelectorAll('.resume-card').forEach(card => {
+  list.innerHTML = generatedHtml + uploadedHtml;
+
+  // Add event listeners for generated resume cards
+  list.querySelectorAll('.resume-card[data-type="generated"]').forEach(card => {
     const id = card.dataset.id;
 
     // Edit button
@@ -243,10 +274,32 @@ export function renderResumeList(resumes = [], searchQuery = '') {
       editResume(id);
     });
   });
+
+  // Add event listeners for uploaded resume cards
+  list.querySelectorAll('.resume-card[data-type="uploaded"]').forEach(card => {
+    const id = card.dataset.id;
+
+    // View button
+    card.querySelector('.view-resume-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      viewUploadedResume(id);
+    });
+
+    // Delete button
+    card.querySelector('.delete-resume-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      deleteUploadedResume(id);
+    });
+
+    // Card click to view
+    card.addEventListener('click', () => {
+      viewUploadedResume(id);
+    });
+  });
 }
 
 /**
- * Render a single resume card
+ * Render a single generated resume card
  */
 function renderResumeCard(resume) {
   const name = resume.name || 'Untitled Resume';
@@ -261,7 +314,7 @@ function renderResumeCard(resume) {
   const usageCount = resumeUsageCounts[resume.id] || 0;
 
   return `
-    <div class="resume-card" data-id="${escapeHtml(resume.id)}">
+    <div class="resume-card" data-id="${escapeHtml(resume.id)}" data-type="generated">
       ${usageCount > 0 ? `
         <div class="resume-usage-badge" title="Used in ${usageCount} application${usageCount !== 1 ? 's' : ''}">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -316,6 +369,63 @@ function renderResumeCard(resume) {
             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
           </svg>
+        </button>
+        <button class="btn btn-secondary icon-btn delete-resume-btn" title="Delete">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Format file size for display
+ */
+function formatFileSize(bytes) {
+  if (!bytes) return 'Unknown size';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+/**
+ * Render an uploaded resume card
+ */
+function renderUploadedResumeCard(resume) {
+  const name = resume.name || 'Uploaded Resume';
+  const fileSize = formatFileSize(resume.size);
+  const uploadedAt = formatRelativeTime(new Date(resume.uploadedAt).getTime());
+
+  return `
+    <div class="resume-card resume-card-uploaded" data-id="${escapeHtml(resume.id)}" data-type="uploaded">
+      <div class="resume-type-badge">Uploaded</div>
+      <div class="resume-card-header">
+        <div class="resume-card-icon resume-card-icon-pdf">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <path d="M9 15v-2h2a1 1 0 0 1 0 2H9z"></path>
+            <path d="M9 15v2"></path>
+          </svg>
+        </div>
+        <div class="resume-card-info">
+          <div class="resume-card-title">${escapeHtml(name)}</div>
+          <div class="resume-card-subtitle">${escapeHtml(fileSize)}</div>
+        </div>
+      </div>
+      <div class="resume-card-meta">
+        <span title="Uploaded ${escapeHtml(uploadedAt)}">Uploaded ${escapeHtml(uploadedAt)}</span>
+      </div>
+      <div class="resume-card-actions">
+        <button class="btn btn-primary view-resume-btn" title="View PDF">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+          View PDF
         </button>
         <button class="btn btn-secondary icon-btn delete-resume-btn" title="Delete">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -527,5 +637,66 @@ async function duplicateResume(id) {
   } catch (error) {
     console.error('Failed to duplicate resume:', error);
     showToast('Failed to duplicate resume', 'error');
+  }
+}
+
+/**
+ * View an uploaded resume (opens PDF in new tab)
+ */
+async function viewUploadedResume(id) {
+  try {
+    const resume = await chrome.runtime.sendMessage({
+      type: 'GET_UPLOADED_RESUME',
+      payload: { id }
+    });
+
+    if (resume && resume.data) {
+      // Convert base64 string back to blob
+      const byteCharacters = atob(resume.data);
+      const byteArray = new Uint8Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteArray[i] = byteCharacters.charCodeAt(i);
+      }
+      const blob = new Blob([byteArray], { type: resume.type || 'application/pdf' });
+
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      // Clean up the object URL after a delay
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } else {
+      showToast('Could not load resume. It may have been deleted.', 'error');
+    }
+  } catch (error) {
+    console.error('Failed to view resume:', error);
+    showToast('Failed to open resume', 'error');
+  }
+}
+
+/**
+ * Delete an uploaded resume
+ */
+async function deleteUploadedResume(id) {
+  if (!confirm('Are you sure you want to delete this uploaded resume?')) {
+    return;
+  }
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: 'DELETE_UPLOADED_RESUME',
+      payload: { id }
+    });
+
+    if (response && response.success) {
+      // Update local state
+      uploadedResumes = uploadedResumes.filter(r => r.id !== id);
+      // Re-render the list
+      renderResumeList(getGeneratedResumes(), uploadedResumes);
+      showToast('Resume deleted', 'success');
+    } else {
+      throw new Error(response?.error || 'Delete failed');
+    }
+  } catch (error) {
+    console.error('Failed to delete uploaded resume:', error);
+    showToast('Failed to delete resume', 'error');
   }
 }

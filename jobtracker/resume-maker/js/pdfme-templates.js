@@ -144,16 +144,14 @@ export function createResumeTemplate(resume) {
  * This approach gives more control over layout but requires content-aware positioning
  */
 export function createFlatResumeTemplate() {
-  // Get BLANK_PDF from the global pdfme bundle if available, otherwise use object format
-  const pdfme = typeof window !== 'undefined' ? window.pdfme : null;
-  const basePdf = pdfme?.BLANK_PDF || {
-    width: PAGE_WIDTH,
-    height: PAGE_HEIGHT,
-    padding: [MARGIN, MARGIN, MARGIN, MARGIN]
-  };
+  // Use BLANK_PDF from pdfme bundle - required for generate() to work
+  const pdfmeGlobal = typeof window !== 'undefined' ? window.pdfme : null;
+  if (!pdfmeGlobal?.BLANK_PDF) {
+    throw new Error('pdfme BLANK_PDF not available. Make sure pdfme is loaded.');
+  }
 
   return {
-    basePdf,
+    basePdf: pdfmeGlobal.BLANK_PDF,
     schemas: [[
       // Header - Name
       {

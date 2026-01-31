@@ -570,6 +570,12 @@ export async function handleResumeUpload(file) {
     return;
   }
 
+  // Validate file is not empty
+  if (file.size === 0) {
+    showNotification('File cannot be empty', 'error');
+    return;
+  }
+
   // Validate file size (max 10MB)
   if (file.size > 10 * 1024 * 1024) {
     showNotification('File size must be less than 10MB', 'error');
@@ -577,15 +583,31 @@ export async function handleResumeUpload(file) {
   }
 
   try {
-    // Read file as ArrayBuffer for message passing
-    const arrayBuffer = await file.arrayBuffer();
+    // Read file as base64 string for message passing
+    // ArrayBuffer cannot be serialized through Chrome extension messaging
+    const base64Data = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        // Result is "data:application/pdf;base64,<BASE64_DATA>"
+        const dataUrl = reader.result;
+        const parts = dataUrl.split(',');
+        if (parts.length < 2 || !parts[1]) {
+          reject(new Error('Invalid file format'));
+          return;
+        }
+        const base64 = parts[1];
+        resolve(base64);
+      };
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsDataURL(file);
+    });
 
     const response = await chrome.runtime.sendMessage({
       type: MessageTypes.UPLOAD_RESUME,
       payload: {
         name: file.name,
         type: file.type,
-        data: arrayBuffer,
+        data: base64Data,  // Now a string that serializes correctly
         size: file.size
       }
     });

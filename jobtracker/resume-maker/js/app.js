@@ -16,10 +16,11 @@ import {
   getAnalysisResult,
   startEditingGeneratedResume,
   stopEditingGeneratedResume,
-  getEditingMode
+  getEditingMode,
+  getGeneratedResumes
 } from './state.js';
 import { initAutoSave } from './auto-save.js';
-import { initForms, loadProfileForm, renderAllSections } from './forms.js';
+import { initForms, loadProfileForm, renderAllSections, loadResumeDetailsForm } from './forms.js';
 import { initPreview, renderPreview } from './preview.js';
 import { initPdfExport } from './pdfme-export.js';
 import { initResumeList, loadResumes } from './resume-list.js';
@@ -93,12 +94,24 @@ async function init() {
     try {
       await loadResumes();
 
-      // Handle edit parameter AFTER resumes are loaded
+      // Handle edit/view parameter AFTER resumes are loaded
       const params = parseUrlParams();
-      if (params.edit) {
-        const success = startEditingGeneratedResume(params.edit);
+      if (params.edit || params.view) {
+        const resumeId = params.edit || params.view;
+        const success = startEditingGeneratedResume(resumeId);
         if (success) {
-          showToast('Loaded resume for editing', 'success');
+          // Get the resume object to populate the details form
+          const resumes = getGeneratedResumes();
+          const resume = resumes.find(r => r.id === resumeId);
+          if (resume) {
+            loadResumeDetailsForm(resume);
+          }
+
+          // Switch to the editor tab
+          setCurrentTab('editor');
+          document.querySelector('[data-tab="editor"]')?.click();
+
+          showToast(params.view ? 'Loaded resume' : 'Loaded resume for editing', 'success');
         } else {
           showToast('Resume not found', 'error');
         }

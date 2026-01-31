@@ -1264,3 +1264,25 @@ textarea {
 .resume-card {
   position: relative;
 }
+
+/* Uploaded resume card styling */
+.resume-card-uploaded {
+  border-left: 3px solid var(--color-info, #3b82f6);
+}
+
+.resume-card-uploaded .resume-card-icon-pdf {
+  background: var(--color-info-bg, rgba(59, 130, 246, 0.1));
+  color: var(--color-info, #3b82f6);
+}
+
+.resume-type-badge {
+  position: absolute;
+  top: var(--space-sm);
+  right: var(--space-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  padding: 0.125rem 0.5rem;
+  background: var(--color-info-bg, rgba(59, 130, 246, 0.1));
+  color: var(--color-info, #3b82f6);
+  border-radius: var(--radius-sm);
+}

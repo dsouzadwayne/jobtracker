@@ -3,7 +3,8 @@
  * Handles all settings functionality
  */
 
-import { aiService } from '../lib/ai-service.js';
+// Note: aiService import removed - model downloads now go through background service worker
+// This allows downloads to continue even if the user closes the settings page
 
 // Message types
 const SettingsMessageTypes = {
@@ -18,7 +19,10 @@ const SettingsMessageTypes = {
   CLEAR_APPLICATIONS: 'CLEAR_APPLICATIONS',
   CLEAR_ALL_DATA: 'CLEAR_ALL_DATA',
   EXPORT_DATA: 'EXPORT_DATA',
-  IMPORT_DATA: 'IMPORT_DATA'
+  IMPORT_DATA: 'IMPORT_DATA',
+  START_MODEL_DOWNLOAD: 'START_MODEL_DOWNLOAD',
+  STOP_MODEL_DOWNLOAD: 'STOP_MODEL_DOWNLOAD',
+  GET_MODEL_DOWNLOAD_STATUS: 'GET_MODEL_DOWNLOAD_STATUS'
 };
 
 // Theme Manager
@@ -944,7 +948,7 @@ function setupEventListeners() {
     }
   });
 
-  // Preload models button
+  // Preload models button - uses background service worker for download
   const preloadBtn = document.getElementById('preload-models-btn');
   if (preloadBtn) {
     preloadBtn.addEventListener('click', async () => {
@@ -958,64 +962,119 @@ function setupEventListeners() {
       preloadBtn.disabled = true;
       preloadBtn.textContent = 'Downloading...';
 
-      try {
-        // Mark both as downloading
-        updateModelStatusBadge('embeddings', 'downloading');
-        updateModelStatusBadge('ner', 'downloading');
+      // Mark both as downloading
+      updateModelStatusBadge('embeddings', 'downloading');
+      updateModelStatusBadge('ner', 'downloading');
 
-        // Initialize aiService - this creates the worker
-        await aiService.init();
-
-        // Download both models
-        // Progress events are handled by setupModelDownloadListeners()
-        await aiService.preloadModels(true); // true = include NER model
-
-        showNotification('Models downloaded successfully!', 'success');
-        loadStorageSizes();
-      } catch (error) {
-        console.error('Model download failed:', error);
-        showNotification('Download failed: ' + (error.message || 'Check your internet connection.'), 'error');
-      } finally {
-        preloadBtn.disabled = false;
-
-        // Check if models were successfully downloaded
-        const modelsStatus = await chrome.runtime.sendMessage({
-          type: SettingsMessageTypes.GET_MODELS_STATUS
-        });
-
-        const allDownloaded = modelsStatus?.embeddings?.downloadStatus === 'downloaded' &&
-                              modelsStatus?.ner?.downloadStatus === 'downloaded';
-
-        if (allDownloaded) {
-          preloadBtn.innerHTML = `
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="20 6 9 17 4 12"></polyline>
-            </svg>
-            Models Downloaded
-          `;
-          preloadBtn.classList.add('downloaded');
-        } else {
-          preloadBtn.innerHTML = `
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="7 10 12 15 17 10"></polyline>
-              <line x1="12" y1="15" x2="12" y2="3"></line>
-            </svg>
-            Download All Models (132 MB)
-          `;
-          preloadBtn.classList.remove('downloaded');
+      // Start download via background service worker
+      // The download continues even if the user closes this page
+      // Progress updates come via BroadcastChannel (see setupModelDownloadListeners)
+      chrome.runtime.sendMessage({
+        type: SettingsMessageTypes.START_MODEL_DOWNLOAD,
+        payload: { includeNER: true }
+      }).then(response => {
+        if (!response?.success) {
+          // Only show error if we're still on the page and got an immediate failure
+          console.error('Model download failed:', response?.error);
         }
+      }).catch(error => {
+        console.error('Model download request failed:', error);
+      });
 
-        // Re-check if AI is still enabled
-        updateAIModelsVisibility();
-      }
+      // Note: Don't await here - the download runs in background
+      // UI updates will come via BroadcastChannel messages
     });
   }
 }
 
-// Setup model download progress listeners
+// Setup model download progress listeners using BroadcastChannel
+// This allows receiving progress updates even if the page was closed and reopened
 function setupModelDownloadListeners() {
-  // Listen for model download progress events from worker
+  // Create BroadcastChannel to receive progress from background service worker
+  const modelChannel = new BroadcastChannel('jobtracker-models');
+
+  // Bug #4 fix: Close BroadcastChannel on page unload to prevent memory leak
+  window.addEventListener('beforeunload', () => {
+    modelChannel.close();
+  });
+
+  modelChannel.onmessage = async (event) => {
+    const { type, ...data } = event.data;
+
+    if (type === 'progress') {
+      const { model, status, progress } = data;
+
+      if (status === 'initiate') {
+        updateModelStatusBadge(model, 'downloading');
+        // Update preload button to show downloading state
+        const preloadBtn = document.getElementById('preload-models-btn');
+        if (preloadBtn) {
+          preloadBtn.disabled = true;
+          preloadBtn.textContent = 'Downloading...';
+        }
+      }
+
+      if (status === 'downloading') {
+        const badge = document.getElementById(`${model}-status`);
+        if (badge) {
+          badge.textContent = `${progress || 0}%`;
+        }
+      }
+    } else if (type === 'complete') {
+      // Download completed successfully
+      showNotification('Models downloaded successfully!', 'success');
+
+      // Refresh the storage sizes and button state
+      await loadStorageSizes();
+
+      // Update preload button
+      const preloadBtn = document.getElementById('preload-models-btn');
+      if (preloadBtn) {
+        preloadBtn.disabled = false;
+        preloadBtn.innerHTML = `
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          Models Downloaded
+        `;
+        preloadBtn.classList.add('downloaded');
+      }
+
+      updateModelStatusBadge('embeddings', 'downloaded');
+      updateModelStatusBadge('ner', 'downloaded');
+    } else if (type === 'error') {
+      // Download failed
+      const errorMsg = data.error || 'Unknown error';
+      showNotification(`Model download failed: ${errorMsg}`, 'error');
+
+      updateModelStatusBadge('embeddings', 'failed');
+      updateModelStatusBadge('ner', 'failed');
+
+      // Re-enable preload button
+      const preloadBtn = document.getElementById('preload-models-btn');
+      if (preloadBtn) {
+        preloadBtn.disabled = false;
+        preloadBtn.innerHTML = `
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          Download All Models (132 MB)
+        `;
+        preloadBtn.classList.remove('downloaded');
+      }
+    }
+  };
+
+  // Bug #5 fix: Use AbortController for window event listeners cleanup
+  const abortController = new AbortController();
+
+  window.addEventListener('beforeunload', () => {
+    abortController.abort();
+  });
+
+  // Also keep the window event listeners for backwards compatibility with direct aiService usage
   window.addEventListener('model-download-progress', (event) => {
     const { model, status, progress } = event.detail;
 
@@ -1029,30 +1088,50 @@ function setupModelDownloadListeners() {
         badge.textContent = `${progress || 0}%`;
       }
     }
-  });
+  }, { signal: abortController.signal });
 
-  // Listen for model download completion
   window.addEventListener('model-download-complete', async (event) => {
     const { model } = event.detail;
     updateModelStatusBadge(model, 'downloaded');
+  }, { signal: abortController.signal });
 
-    // Update metadata in database
-    try {
-      await chrome.runtime.sendMessage({
-        type: SettingsMessageTypes.SET_MODEL_METADATA,
-        payload: { modelId: model, downloadStatus: 'downloaded', downloadedAt: new Date().toISOString() }
-      });
-    } catch (error) {
-      console.log('Failed to save model metadata:', error);
-    }
-  });
-
-  // Listen for model download errors
   window.addEventListener('model-download-error', (event) => {
     const { model, error } = event.detail;
     updateModelStatusBadge(model, 'failed');
     showNotification(`Model download failed: ${error}`, 'error');
-  });
+  }, { signal: abortController.signal });
+
+  // Bug #6 fix: Query current download status on page load to catch up with in-progress downloads
+  checkCurrentDownloadStatus();
+}
+
+// Bug #6 fix: Check if a download is already in progress when the page loads
+async function checkCurrentDownloadStatus() {
+  try {
+    const modelsStatus = await chrome.runtime.sendMessage({ type: SettingsMessageTypes.GET_MODEL_DOWNLOAD_STATUS });
+
+    // Check if any model is currently downloading
+    const embeddingsDownloading = modelsStatus?.embeddings?.downloadStatus === 'downloading';
+    const nerDownloading = modelsStatus?.ner?.downloadStatus === 'downloading';
+
+    if (embeddingsDownloading || nerDownloading) {
+      // Update UI to show download in progress
+      const preloadBtn = document.getElementById('preload-models-btn');
+      if (preloadBtn) {
+        preloadBtn.disabled = true;
+        preloadBtn.textContent = 'Downloading...';
+      }
+
+      if (embeddingsDownloading) {
+        updateModelStatusBadge('embeddings', 'downloading');
+      }
+      if (nerDownloading) {
+        updateModelStatusBadge('ner', 'downloading');
+      }
+    }
+  } catch (error) {
+    console.log('Error checking download status:', error);
+  }
 }
 
 // Initialize page

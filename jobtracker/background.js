@@ -7,10 +7,79 @@
 // Import the database module (ES module)
 import { JobTrackerDB } from './lib/database.js';
 import { JobTrackerIntelligence } from './lib/intelligence/index.js';
-import { aiService } from './lib/ai-service.js';
+// Note: aiService is NOT imported here - it uses Web Workers which aren't available in service workers
+// Instead, we use an offscreen document for AI operations
 
 // BroadcastChannel for cross-page communication
 const applicationChannel = new BroadcastChannel('jobtracker-applications');
+const modelChannel = new BroadcastChannel('jobtracker-models');
+
+// Bug #2 fix: Flag to prevent concurrent model downloads
+let modelDownloadInProgress = false;
+
+// Offscreen document management
+let creatingOffscreenDocument = null;
+const OFFSCREEN_DOCUMENT_PATH = 'offscreen/offscreen.html';
+
+/**
+ * Create or get the offscreen document for AI operations
+ * Service workers cannot use Web Workers, so we need an offscreen document
+ */
+async function getOrCreateOffscreenDocument() {
+  // Check if offscreen document already exists
+  const existingContexts = await chrome.runtime.getContexts({
+    contextTypes: ['OFFSCREEN_DOCUMENT'],
+    documentUrls: [chrome.runtime.getURL(OFFSCREEN_DOCUMENT_PATH)]
+  });
+
+  if (existingContexts.length > 0) {
+    return true;
+  }
+
+  // If we're already creating one, wait for it
+  if (creatingOffscreenDocument) {
+    await creatingOffscreenDocument;
+    return true;
+  }
+
+  // Create the offscreen document
+  creatingOffscreenDocument = chrome.offscreen.createDocument({
+    url: OFFSCREEN_DOCUMENT_PATH,
+    reasons: ['WORKERS'],
+    justification: 'Run AI worker for model downloads and ML inference'
+  });
+
+  await creatingOffscreenDocument;
+  creatingOffscreenDocument = null;
+  return true;
+}
+
+/**
+ * Send a message to the offscreen document
+ */
+async function sendToOffscreen(action, payload = {}) {
+  await getOrCreateOffscreenDocument();
+
+  return chrome.runtime.sendMessage({
+    target: 'offscreen',
+    action,
+    payload
+  });
+}
+
+/**
+ * Close the offscreen document if it exists
+ */
+async function closeOffscreenDocument() {
+  const existingContexts = await chrome.runtime.getContexts({
+    contextTypes: ['OFFSCREEN_DOCUMENT'],
+    documentUrls: [chrome.runtime.getURL(OFFSCREEN_DOCUMENT_PATH)]
+  });
+
+  if (existingContexts.length > 0) {
+    await chrome.offscreen.closeDocument();
+  }
+}
 
 /**
  * Safely post message to BroadcastChannel with error handling
@@ -117,7 +186,12 @@ const MessageTypes = {
   UPLOAD_RESUME: 'UPLOAD_RESUME',
   DELETE_UPLOADED_RESUME: 'DELETE_UPLOADED_RESUME',
   GET_ALL_RESUMES_FOR_LINKING: 'GET_ALL_RESUMES_FOR_LINKING',
-  GET_RESUME_USAGE_COUNTS: 'GET_RESUME_USAGE_COUNTS'
+  GET_RESUME_USAGE_COUNTS: 'GET_RESUME_USAGE_COUNTS',
+
+  // Background Model Downloads
+  START_MODEL_DOWNLOAD: 'START_MODEL_DOWNLOAD',
+  STOP_MODEL_DOWNLOAD: 'STOP_MODEL_DOWNLOAD',
+  GET_MODEL_DOWNLOAD_STATUS: 'GET_MODEL_DOWNLOAD_STATUS'
 };
 
 // Alarm name for badge clear
@@ -530,6 +604,9 @@ function validatePayload(type, payload) {
     case MessageTypes.GET_UPLOADED_RESUME:
     case MessageTypes.GET_ALL_RESUMES_FOR_LINKING:
     case MessageTypes.GET_RESUME_USAGE_COUNTS:
+    case MessageTypes.START_MODEL_DOWNLOAD:
+    case MessageTypes.STOP_MODEL_DOWNLOAD:
+    case MessageTypes.GET_MODEL_DOWNLOAD_STATUS:
       break;
 
     case MessageTypes.UPLOAD_RESUME:
@@ -538,6 +615,9 @@ function validatePayload(type, payload) {
       }
       if (!payload.name || !payload.data) {
         return { valid: false, error: 'Upload resume requires name and data' };
+      }
+      if (typeof payload.data !== 'string' || payload.data.trim() === '') {
+        return { valid: false, error: 'Resume data is required and must be a valid string' };
       }
       break;
 
@@ -646,12 +726,25 @@ chrome.commands.onCommand.addListener(async (command) => {
   }
 });
 
-// Handle messages from content scripts and popup
+// Handle messages from content scripts, popup, and offscreen document
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Validate message is an object before destructuring to prevent crashes
   if (!message || typeof message !== 'object') {
     sendResponse({ error: 'Invalid message format: expected an object' });
     return true;
+  }
+
+  // Handle messages from offscreen document
+  if (message.target === 'background') {
+    if (message.action === 'MODEL_PROGRESS') {
+      // Forward progress to BroadcastChannel for settings page
+      try {
+        modelChannel.postMessage({ type: 'progress', ...message.payload });
+      } catch (e) {
+        console.log('JobTracker: Model progress broadcast error:', e.message);
+      }
+    }
+    return false; // No response needed for progress updates
   }
 
   const { type, payload } = message;
@@ -1039,30 +1132,34 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               console.log('JobTracker: Regex extraction incomplete, using ML model...');
 
               try {
-                // Parse job posting with ML (init handled internally via singleton)
-                const mlResult = await aiService.parseJobPosting(text, true);
+                // Parse job posting with ML via offscreen document
+                // Service workers cannot use Web Workers directly
+                const mlResponse = await sendToOffscreen('PARSE_JOB_POSTING', { text, useML: true });
 
-                // Fill in missing fields from ML extraction
-                if (!extracted.company && mlResult.company) {
-                  extracted.company = mlResult.company;
-                  console.log('JobTracker: ML extracted company:', extracted.company);
+                if (mlResponse?.success && mlResponse.data) {
+                  const mlResult = mlResponse.data;
+
+                  // Fill in missing fields from ML extraction
+                  if (!extracted.company && mlResult.company) {
+                    extracted.company = mlResult.company;
+                    console.log('JobTracker: ML extracted company:', extracted.company);
+                  }
+
+                  if (!extracted.location && mlResult.location) {
+                    extracted.location = mlResult.location;
+                  }
+
+                  // Try to get position from skills/entities context if still missing
+                  if (!extracted.position && mlResult.suggestedTags?.length > 0) {
+                    // Use tags as hints for position type
+                    extracted.suggestedTags = mlResult.suggestedTags;
+                  }
+
+                  // Add any skills found
+                  if (mlResult.skills) {
+                    extracted.skills = mlResult.skills;
+                  }
                 }
-
-                if (!extracted.location && mlResult.location) {
-                  extracted.location = mlResult.location;
-                }
-
-                // Try to get position from skills/entities context if still missing
-                if (!extracted.position && mlResult.suggestedTags?.length > 0) {
-                  // Use tags as hints for position type
-                  extracted.suggestedTags = mlResult.suggestedTags;
-                }
-
-                // Add any skills found
-                if (mlResult.skills) {
-                  extracted.skills = mlResult.skills;
-                }
-
               } catch (mlError) {
                 console.log('JobTracker: ML extraction failed, using regex only:', mlError.message);
               }
@@ -1080,9 +1177,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case MessageTypes.AI_PARSE_RESUME: {
           try {
             const { text } = payload;
-            await aiService.init();
-            const result = await aiService.parseResume(text, true);
-            response = { success: true, data: result };
+            // Parse resume via offscreen document (service workers cannot use Web Workers)
+            const result = await sendToOffscreen('PARSE_RESUME', { text, useML: true });
+            if (result?.success) {
+              response = { success: true, data: result.data };
+            } else {
+              response = { success: false, error: result?.error || 'Resume parsing failed' };
+            }
           } catch (error) {
             console.error('JobTracker: Resume parsing error:', error);
             response = { success: false, error: error.message };
@@ -1188,15 +1289,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               break;
             }
 
-            // Call AI service for LLM extraction
-            const llmResult = await aiService.extractJobWithLLM(text, currentResults);
+            // Call AI service for LLM extraction via offscreen document
+            const llmResponse = await sendToOffscreen('EXTRACT_JOB_WITH_LLM', { text, currentResults });
 
-            if (llmResult) {
+            if (llmResponse?.success && llmResponse.data) {
               // Cache the result
-              await cacheLLMResult(cacheKey, llmResult);
-              response = { success: true, data: llmResult };
+              await cacheLLMResult(cacheKey, llmResponse.data);
+              response = { success: true, data: llmResponse.data };
             } else {
-              response = { success: false, error: 'LLM extraction returned no results' };
+              response = { success: false, error: llmResponse?.error || 'LLM extraction returned no results' };
             }
           } catch (error) {
             console.error('JobTracker: LLM extraction error:', error);
@@ -1230,22 +1331,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case MessageTypes.UPLOAD_RESUME: {
           try {
             const { name, type, data, size } = payload;
-            // Convert ArrayBuffer to base64 string for serializable storage
-            // Use chunked conversion to avoid O(n²) string concatenation
-            const base64 = (() => {
-              const bytes = new Uint8Array(data);
-              let binary = '';
-              const chunkSize = 8192;
-              for (let i = 0; i < bytes.length; i += chunkSize) {
-                binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
-              }
-              return btoa(binary);
-            })();
+            // Data arrives as base64 string (converted in UI layer)
 
             response = await JobTrackerDB.uploadResume({
               name,
               type: type || 'application/pdf',
-              data: base64,  // Store as base64 string
+              data: data,  // Already base64 from UI
               size
             });
           } catch (error) {
@@ -1295,6 +1386,119 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           } catch (error) {
             console.error('JobTracker: Get resume usage counts error:', error);
             response = { success: false, error: error.message };
+          }
+          break;
+        }
+
+        // ==================== BACKGROUND MODEL DOWNLOADS ====================
+        case MessageTypes.START_MODEL_DOWNLOAD: {
+          // Bug #2 fix: Prevent concurrent downloads
+          if (modelDownloadInProgress) {
+            response = { success: false, error: 'Download already in progress' };
+            break;
+          }
+
+          modelDownloadInProgress = true;
+          const includeNER = payload?.includeNER !== false;
+
+          try {
+            // Mark models as downloading in database
+            await JobTrackerDB.setModelMetadata('embeddings', {
+              downloadStatus: 'downloading',
+              startedAt: new Date().toISOString()
+            });
+            if (includeNER) {
+              await JobTrackerDB.setModelMetadata('ner', {
+                downloadStatus: 'downloading',
+                startedAt: new Date().toISOString()
+              });
+            }
+
+            // Use offscreen document for model downloads
+            // Service workers cannot create Web Workers, so we delegate to an offscreen document
+            const result = await sendToOffscreen('PRELOAD_MODELS', { includeNER });
+
+            if (!result?.success) {
+              throw new Error(result?.error || 'Model download failed');
+            }
+
+            // Mark models as downloaded in database
+            await JobTrackerDB.setModelMetadata('embeddings', {
+              downloadStatus: 'downloaded',
+              downloadedAt: new Date().toISOString()
+            });
+            if (includeNER) {
+              await JobTrackerDB.setModelMetadata('ner', {
+                downloadStatus: 'downloaded',
+                downloadedAt: new Date().toISOString()
+              });
+            }
+
+            // Broadcast completion
+            try {
+              modelChannel.postMessage({ type: 'complete', success: true });
+            } catch (e) {
+              console.log('JobTracker: Model complete broadcast error:', e.message);
+            }
+
+            response = { success: true };
+          } catch (error) {
+            console.error('JobTracker: Model download error:', error);
+
+            // Bug #3 fix: Update database metadata to reflect failure
+            try {
+              await JobTrackerDB.setModelMetadata('embeddings', {
+                downloadStatus: 'failed',
+                failedAt: new Date().toISOString(),
+                error: error.message
+              });
+              if (includeNER) {
+                await JobTrackerDB.setModelMetadata('ner', {
+                  downloadStatus: 'failed',
+                  failedAt: new Date().toISOString(),
+                  error: error.message
+                });
+              }
+            } catch (dbError) {
+              console.log('JobTracker: Failed to update model metadata on error:', dbError.message);
+            }
+
+            // Broadcast error
+            try {
+              modelChannel.postMessage({ type: 'error', error: error.message });
+            } catch (e) {
+              console.log('JobTracker: Model error broadcast error:', e.message);
+            }
+
+            response = { success: false, error: error.message };
+          } finally {
+            // Bug #2 fix: Always reset the flag when done
+            modelDownloadInProgress = false;
+          }
+          break;
+        }
+
+        case MessageTypes.STOP_MODEL_DOWNLOAD: {
+          try {
+            // Terminate the AI worker via offscreen document
+            await sendToOffscreen('TERMINATE');
+            // Also close the offscreen document
+            await closeOffscreenDocument();
+            response = { success: true };
+          } catch (error) {
+            response = { success: false, error: error.message };
+          }
+          break;
+        }
+
+        case MessageTypes.GET_MODEL_DOWNLOAD_STATUS: {
+          try {
+            response = await JobTrackerDB.getModelsDownloadStatus();
+          } catch (error) {
+            response = {
+              embeddings: { downloadStatus: 'not_started' },
+              ner: { downloadStatus: 'not_started' }
+            };
           }
           break;
         }
