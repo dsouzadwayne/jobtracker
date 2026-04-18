@@ -1,0 +1,17 @@
+{
+  "name": "resume-maker-pdfme-build",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Build script for pdfme browser bundle",
+  "scripts": {
+    "build": "node build-pdfme.js"
+  },
+  "dependencies": {
+    "@pdfme/common": "^5.3.12",
+    "@pdfme/generator": "^5.3.12",
+    "@pdfme/schemas": "^5.3.12"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.2"
+  }
+}

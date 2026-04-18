@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JobTracker Dashboard</title>
+  <link rel="stylesheet" href="../common.css">
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+  <div class="dashboard">
+    <!-- Sidebar -->
+    <aside class="dashboard-sidebar" id="dashboard-sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+          </svg>
+          <span class="logo-text">JobTracker</span>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav" aria-label="Main navigation">
+        <a href="dashboard.html" class="nav-item active" aria-current="page">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+          <span>Applications</span>
+        </a>
+        <a href="contacts.html" class="nav-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="9" cy="7" r="4"></circle>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+          </svg>
+          <span>Contacts</span>
+        </a>
+        <a href="statistics.html" class="nav-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="18" y1="20" x2="18" y2="10"></line>
+            <line x1="12" y1="20" x2="12" y2="4"></line>
+            <line x1="6" y1="20" x2="6" y2="14"></line>
+          </svg>
+          <span>Statistics</span>
+        </a>
+        <a href="job-sites.html" class="nav-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="2" y1="12" x2="22" y2="12"></line>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+          </svg>
+          <span>Job Sites</span>
+        </a>
+        <a href="../resume-maker/index.html" class="nav-item">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+            <polyline points="10 9 9 9 8 9"></polyline>
+          </svg>
+          <span>Resume Maker</span>
+        </a>
+        <a href="profile.html" class="nav-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+          <span>Profile</span>
+        </a>
+        <a href="settings.html" class="nav-item">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          <span>Settings</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button class="theme-toggle" id="theme-toggle" title="Toggle theme" aria-label="Toggle dark/light theme">
+          <svg class="icon-light" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <svg class="icon-dark" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="dashboard-main">
+      <!-- Header -->
+      <header class="dashboard-header">
+        <div class="header-left">
+          <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="dashboard-sidebar">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <line x1="3" y1="12" x2="21" y2="12"></line>
+              <line x1="3" y1="6" x2="21" y2="6"></line>
+              <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+          </button>
+          <h1>Applications</h1>
+          <span class="app-count" id="app-count">0 applications</span>
+        </div>
+        <div class="header-right">
+          <div class="view-toggle" role="group" aria-label="View options">
+            <button id="view-cards" class="view-btn active" title="Card View" aria-label="Card view" aria-pressed="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <rect x="3" y="3" width="7" height="7"></rect>
+                <rect x="14" y="3" width="7" height="7"></rect>
+                <rect x="14" y="14" width="7" height="7"></rect>
+                <rect x="3" y="14" width="7" height="7"></rect>
+              </svg>
+            </button>
+            <button id="view-table" class="view-btn" title="Table View" aria-label="Table view" aria-pressed="false">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+          <button class="btn-secondary" id="export-btn" title="Export to CSV">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <span>Export CSV</span>
+          </button>
+          <button class="btn-primary" id="add-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span>Add Application</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Stats Cards -->
+      <section class="stats-section" id="stats-section" aria-label="Application statistics">
+        <dl class="stats-list">
+          <div class="stat-card">
+            <div class="stat-icon stat-icon-total" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+              </svg>
+            </div>
+            <div class="stat-content">
+              <dd class="stat-value" id="stat-total">0</dd>
+              <dt class="stat-label">Total Applications</dt>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon stat-icon-week" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="16" y1="2" x2="16" y2="6"></line>
+                <line x1="8" y1="2" x2="8" y2="6"></line>
+                <line x1="3" y1="10" x2="21" y2="10"></line>
+              </svg>
+            </div>
+            <div class="stat-content">
+              <dd class="stat-value" id="stat-week">0</dd>
+              <dt class="stat-label">This Week</dt>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon stat-icon-interview" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+            </div>
+            <div class="stat-content">
+              <dd class="stat-value" id="stat-interviews">0</dd>
+              <dt class="stat-label">Interviews</dt>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon stat-icon-offer" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            </div>
+            <div class="stat-content">
+              <dd class="stat-value" id="stat-offers">0</dd>
+              <dt class="stat-label">Offers</dt>
+            </div>
+          </div>
+        </dl>
+      </section>
+
+      <!-- Filters -->
+      <section class="filters-section" aria-label="Filter applications">
+        <div class="search-box">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input type="text" id="search-input" placeholder="Search company or position..." aria-label="Search applications by company or position">
+        </div>
+        <div class="filter-group">
+          <label for="filter-status" class="sr-only">Filter by status</label>
+          <select id="filter-status" aria-label="Filter by status">
+            <option value="">All Statuses</option>
+            <option value="saved">Saved</option>
+            <option value="applied">Applied</option>
+            <option value="screening">Screening</option>
+            <option value="interview">Interview</option>
+            <option value="offer">Offer</option>
+            <option value="rejected">Rejected</option>
+            <option value="withdrawn">Withdrawn</option>
+          </select>
+          <label for="filter-sort" class="sr-only">Sort applications</label>
+          <select id="filter-sort" aria-label="Sort applications">
+            <option value="date-desc">Newest First</option>
+            <option value="date-asc">Oldest First</option>
+            <option value="company">Company A-Z</option>
+            <option value="status">By Status</option>
+          </select>
+        </div>
+      </section>
+
+      <!-- CRM Enhancement: Tag Filter -->
+      <div class="tag-filter-container hidden" id="tag-filter-container">
+        <!-- Tag chips will be rendered by JS -->
+      </div>
+
+      <!-- Applications List -->
+      <section class="applications-section">
+        <div id="applications-list" class="applications-grid">
+          <!-- Applications will be loaded here (Card View) -->
+        </div>
+
+        <!-- Table View -->
+        <div id="applications-table" class="applications-table hidden">
+          <table role="table">
+            <caption class="sr-only">Job applications list with company, position, status, date, location, salary, and actions</caption>
+            <thead>
+              <tr>
+                <th scope="col">Company</th>
+                <th scope="col">Position</th>
+                <th scope="col">Status</th>
+                <th scope="col">Date Applied</th>
+                <th scope="col">Location</th>
+                <th scope="col">Salary</th>
+                <th scope="col">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="table-body">
+              <!-- Rows inserted by JS -->
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Empty State -->
+        <div id="empty-state" class="empty-state hidden" role="status" aria-live="polite">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+          </svg>
+          <h2>No applications yet</h2>
+          <p>Start tracking your job search by adding your first application</p>
+          <button id="empty-add-btn" class="btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            Add Your First Application
+          </button>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Details Panel (visible on large screens when app selected) -->
+    <aside class="dashboard-details hidden" id="details-panel" aria-labelledby="details-position">
+      <div class="details-header">
+        <h2 id="details-position">Position</h2>
+        <button class="close-details" id="close-details" aria-label="Close details panel">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="details-content" id="details-content">
+        <!-- Details will be loaded here -->
+      </div>
+    </aside>
+  </div>
+
+  <!-- Add/Edit Application Modal -->
+  <div id="app-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-content modal-lg">
+      <div class="modal-header">
+        <h3 id="modal-title">Add Application</h3>
+        <button class="close-btn" id="close-modal" aria-label="Close modal">&times;</button>
+      </div>
+      <form id="app-form">
+        <input type="hidden" id="app-id">
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="app-company">Company *</label>
+            <input type="text" id="app-company" required placeholder="e.g., Google">
+          </div>
+          <div class="form-group">
+            <label for="app-position">Position *</label>
+            <input type="text" id="app-position" required placeholder="e.g., Software Engineer">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="app-url">Job URL</label>
+          <input type="url" id="app-url" placeholder="https://...">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="app-status">Status</label>
+            <select id="app-status">
+              <option value="saved">Saved</option>
+              <option value="applied" selected>Applied</option>
+              <option value="screening">Screening</option>
+              <option value="interview">Interview</option>
+              <option value="offer">Offer</option>
+              <option value="rejected">Rejected</option>
+              <option value="withdrawn">Withdrawn</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="app-date">Date Applied</label>
+            <input type="date" id="app-date">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="app-location">Location</label>
+            <input type="text" id="app-location" placeholder="e.g., San Francisco, CA">
+          </div>
+          <div class="form-group">
+            <label for="app-salary">Salary Range</label>
+            <input type="text" id="app-salary" placeholder="e.g., $120k - $150k">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="app-type">Job Type</label>
+            <select id="app-type">
+              <option value="">Select...</option>
+              <option value="full-time">Full-time</option>
+              <option value="part-time">Part-time</option>
+              <option value="contract">Contract</option>
+              <option value="internship">Internship</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="app-remote">Remote</label>
+            <select id="app-remote">
+              <option value="">Select...</option>
+              <option value="onsite">On-site</option>
+              <option value="remote">Remote</option>
+              <option value="hybrid">Hybrid</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="app-description">Job Description</label>
+          <textarea id="app-description" rows="6" placeholder="Paste or auto-extracted job description..."></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="app-notes">Notes</label>
+          <textarea id="app-notes" rows="3" placeholder="Any notes about this application..."></textarea>
+        </div>
+
+        <!-- CRM Enhancement: Tags and Deadline -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="app-tags">Tags</label>
+            <input type="text" id="app-tags" placeholder="e.g., Dream Job, Remote, Startup (comma-separated)">
+            <small class="form-hint">Separate multiple tags with commas</small>
+          </div>
+          <div class="form-group">
+            <label for="app-deadline">Application Deadline</label>
+            <input type="date" id="app-deadline">
+          </div>
+        </div>
+
+        <!-- CRM Enhancement Phase 1: Priority and Referral -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="app-priority">Priority</label>
+            <select id="app-priority">
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="app-referred-by">Referred By</label>
+            <input type="text" id="app-referred-by" placeholder="e.g., John Doe, LinkedIn connection">
+          </div>
+        </div>
+
+        <!-- Resume Linking -->
+        <div class="form-group">
+          <label>Resume Used</label>
+          <div class="resume-selector" id="resume-selector">
+            <div class="resume-selector-current" id="resume-current">
+              <span class="resume-none">No resume linked</span>
+            </div>
+            <div class="resume-selector-actions">
+              <button type="button" class="btn-secondary btn-sm" id="select-resume-btn">
+                Select Resume
+              </button>
+              <button type="button" class="btn-secondary btn-sm" id="upload-resume-btn">
+                Upload PDF
+              </button>
+              <button type="button" class="btn-secondary btn-sm hidden" id="clear-resume-btn">
+                Clear
+              </button>
+              <input type="file" id="resume-file-upload" accept=".pdf" hidden>
+            </div>
+          </div>
+          <!-- Hidden inputs to store resume data -->
+          <input type="hidden" id="app-resume-type">
+          <input type="hidden" id="app-resume-id">
+          <input type="hidden" id="app-resume-name">
+        </div>
+
+        <!-- Last Contacted -->
+        <div class="form-group">
+          <label for="app-last-contacted">Last Contacted</label>
+          <input type="date" id="app-last-contacted">
+        </div>
+
+        <!-- CRM Enhancement Phase 1: Rejection Reason (shown when status is rejected) -->
+        <div class="form-group hidden" id="rejection-reason-group">
+          <label for="app-rejection-reason">Rejection Reason</label>
+          <select id="app-rejection-reason">
+            <option value="">Select reason...</option>
+            <option value="no_response">Never heard back</option>
+            <option value="rejected_resume">Rejected at resume screen</option>
+            <option value="rejected_phone">Rejected after phone screen</option>
+            <option value="rejected_interview">Rejected after interview</option>
+            <option value="position_filled">Position filled by another</option>
+            <option value="position_cancelled">Position cancelled/closed</option>
+            <option value="salary_mismatch">Salary expectations mismatch</option>
+            <option value="withdrew">I withdrew my application</option>
+            <option value="other">Other reason</option>
+          </select>
+        </div>
+
+        <!-- CRM Enhancement Phase 1: Company Notes -->
+        <div class="form-group">
+          <label for="app-company-notes">Company Notes</label>
+          <textarea id="app-company-notes" rows="2" placeholder="Notes about the company, culture, interview process..."></textarea>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn-cancel" id="cancel-btn">Cancel</button>
+          <button type="button" class="btn-danger hidden" id="delete-btn">Delete</button>
+          <button type="submit" class="btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Mobile Sidebar Overlay -->
+  <div class="sidebar-overlay hidden" id="sidebar-overlay"></div>
+
+  <!-- CRM Enhancement: Interview Modal -->
+  <div id="interview-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="interview-modal-title">
+    <div class="modal-content modal-md">
+      <div class="modal-header">
+        <h3 id="interview-modal-title">Schedule Interview</h3>
+        <button class="close-btn" id="close-interview-modal" aria-label="Close modal">&times;</button>
+      </div>
+      <form id="interview-form">
+        <input type="hidden" id="interview-id">
+        <input type="hidden" id="interview-app-id">
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="interview-round">Round</label>
+            <input type="number" id="interview-round" min="1" max="10" value="1">
+          </div>
+          <div class="form-group">
+            <label for="interview-type">Interview Type</label>
+            <select id="interview-type">
+              <option value="">Select type...</option>
+              <option value="Phone Screen">Phone Screen</option>
+              <option value="Technical">Technical</option>
+              <option value="Behavioral">Behavioral</option>
+              <option value="System Design">System Design</option>
+              <option value="Onsite">Onsite</option>
+              <option value="Final">Final</option>
+              <option value="HR">HR</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="interview-date">Date & Time *</label>
+            <input type="datetime-local" id="interview-date" required>
+          </div>
+          <div class="form-group">
+            <label for="interview-duration">Duration (mins)</label>
+            <input type="number" id="interview-duration" min="15" max="480" value="60" step="15">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="interview-location">Location / Meeting Link</label>
+          <input type="text" id="interview-location" placeholder="e.g., Zoom, Google Meet URL, or address">
+        </div>
+
+        <div class="form-group">
+          <label for="interview-notes">Notes</label>
+          <textarea id="interview-notes" rows="2" placeholder="Interviewer names, preparation notes, etc."></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="interview-outcome">Outcome</label>
+          <select id="interview-outcome">
+            <option value="Pending">Pending</option>
+            <option value="Passed">Passed</option>
+            <option value="Failed">Failed</option>
+            <option value="Cancelled">Cancelled</option>
+          </select>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn-cancel" id="cancel-interview-btn">Cancel</button>
+          <button type="submit" class="btn-primary">Save Interview</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- CRM Enhancement: Task Modal (Enhanced with Planify-inspired features) -->
+  <div id="task-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="task-modal-title">
+    <div class="modal-content modal-md">
+      <div class="modal-header">
+        <h3 id="task-modal-title">Add Task</h3>
+        <button class="close-btn" id="close-task-modal" aria-label="Close modal">&times;</button>
+      </div>
+      <form id="task-form">
+        <input type="hidden" id="task-id">
+        <input type="hidden" id="task-app-id">
+
+        <div class="form-group">
+          <label for="task-title">Task Title *</label>
+          <input type="text" id="task-title" required placeholder="e.g., Follow up on application">
+        </div>
+
+        <div class="form-group">
+          <label for="task-description">Description</label>
+          <textarea id="task-description" rows="2" placeholder="Additional details..."></textarea>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="task-type">Task Type</label>
+            <select id="task-type">
+              <option value="general">General</option>
+              <option value="follow_up">Follow-up</option>
+              <option value="interview_prep">Interview Prep</option>
+              <option value="application">Application</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="task-priority">Priority</label>
+            <select id="task-priority">
+              <option value="4">Low</option>
+              <option value="3" selected>Normal</option>
+              <option value="2">High</option>
+              <option value="1">Urgent</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="task-due-date">Due Date</label>
+            <input type="date" id="task-due-date">
+          </div>
+          <div class="form-group">
+            <label for="task-due-time">Due Time</label>
+            <input type="time" id="task-due-time">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="task-reminder-type">Reminder</label>
+          <select id="task-reminder-type">
+            <option value="">No reminder</option>
+            <option value="0">At due time</option>
+            <option value="-15">15 minutes before</option>
+            <option value="-30">30 minutes before</option>
+            <option value="-60">1 hour before</option>
+            <option value="-1440">1 day before</option>
+            <option value="custom">Custom date/time</option>
+          </select>
+        </div>
+
+        <div class="form-group hidden" id="task-custom-reminder-group">
+          <label for="task-reminder-date">Custom Reminder Time</label>
+          <input type="datetime-local" id="task-reminder-date">
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn-cancel" id="cancel-task-btn">Cancel</button>
+          <button type="submit" class="btn-primary">Save Task</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Resume Selection Modal -->
+  <div id="resume-select-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="resume-select-modal-title">
+    <div class="modal-content modal-md">
+      <div class="modal-header">
+        <h3 id="resume-select-modal-title">Select Resume</h3>
+        <button class="close-btn" id="close-resume-select-modal" aria-label="Close modal">&times;</button>
+      </div>
+      <div class="resume-select-tabs">
+        <button type="button" class="resume-tab active" data-resume-tab="generated">Generated Resumes</button>
+        <button type="button" class="resume-tab" data-resume-tab="uploaded">Uploaded PDFs</button>
+      </div>
+      <div class="resume-select-content">
+        <div id="resume-tab-generated" class="resume-tab-panel active">
+          <div id="generated-resumes-list" class="resume-list-items">
+            <!-- Generated resumes will be loaded here -->
+          </div>
+          <div id="generated-resumes-empty" class="resume-empty-state hidden">
+            <p>No generated resumes yet.</p>
+            <a href="../resume-maker/index.html" class="btn-link">Go to Resume Maker</a>
+          </div>
+        </div>
+        <div id="resume-tab-uploaded" class="resume-tab-panel hidden">
+          <div id="uploaded-resumes-list" class="resume-list-items">
+            <!-- Uploaded resumes will be loaded here -->
+          </div>
+          <div id="uploaded-resumes-empty" class="resume-empty-state hidden">
+            <p>No uploaded resumes yet.</p>
+            <p class="text-muted">Use the "Upload PDF" button in the application form to add one.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- XSS Sanitization (DOMPurify) - must load before scripts that use innerHTML -->
+  <script src="../lib/vendor/dompurify.min.js"></script>
+
+  <!-- HTML Entity Decoding (he) -->
+  <script src="../lib/vendor/he.min.js"></script>
+
+  <!-- Search library (Fuse.js) -->
+  <script src="../lib/vendor/fuse.min.js"></script>
+  <script src="../lib/search.js"></script>
+
+  <!-- Date formatting (Day.js) -->
+  <script src="../lib/vendor/dayjs.min.js"></script>
+  <script src="../lib/vendor/dayjs-relativetime.min.js"></script>
+  <script src="../lib/format-utils.js"></script>
+
+  <!-- Modular dashboard scripts -->
+  <script type="module" src="dashboard/index.js"></script>
+</body>
+</html>
