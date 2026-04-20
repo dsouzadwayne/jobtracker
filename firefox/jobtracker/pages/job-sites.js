@@ -425,7 +425,7 @@ async function renderAllSites() {
   const grid = document.getElementById('sites-grid');
   if (!grid) return;
 
-  grid.innerHTML = '';
+  grid.textContent = '';
 
   // 1. Supported sites (with feature tags)
   SUPPORTED_SITES.forEach(site => {

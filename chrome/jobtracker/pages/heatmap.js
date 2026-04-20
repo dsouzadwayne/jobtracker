@@ -46,7 +46,7 @@ const HeatmapRenderer = {
     }
 
     // Clear existing heatmap and remove any existing tooltip
-    container.innerHTML = '';
+    container.textContent = '';
     const existingGlobalTooltip = document.getElementById('heatmap-tooltip-global');
     if (existingGlobalTooltip) {
       existingGlobalTooltip.remove();

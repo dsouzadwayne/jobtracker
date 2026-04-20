@@ -228,7 +228,7 @@ export function renderResumeList(resumes = [], uploaded = [], searchQuery = '') 
 
   // Show/hide empty state
   if (totalCount === 0) {
-    list.innerHTML = '';
+    list.textContent = '';
     emptyState?.classList.remove('hidden');
     return;
   }

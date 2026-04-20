@@ -130,7 +130,7 @@ class ReadabilityExtractor {
       // but we can help by removing any event listeners or clearing innerHTML
       if (isOwnClone && documentClone.body) {
         // Clear the cloned document body to help GC
-        documentClone.body.innerHTML = '';
+        documentClone.body.textContent = '';
       }
 
       if (!article) {
@@ -164,7 +164,7 @@ class ReadabilityExtractor {
 
       // Clean up on error too
       if (isOwnClone && documentClone.body) {
-        documentClone.body.innerHTML = '';
+        documentClone.body.textContent = '';
       }
 
       return {

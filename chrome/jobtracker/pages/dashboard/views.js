@@ -94,8 +94,8 @@ export function render() {
   elements.appCount.textContent = `${filteredApplications.length} application${filteredApplications.length !== 1 ? 's' : ''}`;
 
   if (filteredApplications.length === 0) {
-    elements.list.innerHTML = '';
-    elements.tableBody.innerHTML = '';
+    elements.list.textContent = '';
+    elements.tableBody.textContent = '';
     elements.emptyState.classList.remove('hidden');
 
     // Check if filters are active to show appropriate message
@@ -124,7 +124,7 @@ export function render() {
   if (getCurrentView() === 'table') {
     renderTable();
   } else {
-    elements.list.innerHTML = '';
+    elements.list.textContent = '';
     filteredApplications.forEach(app => {
       elements.list.appendChild(createAppCard(app));
     });
@@ -293,7 +293,7 @@ export function createAppCard(app) {
 
 // Render table view
 export function renderTable() {
-  elements.tableBody.innerHTML = '';
+  elements.tableBody.textContent = '';
   const filteredApplications = getFilteredApplications();
   const selectedAppId = getSelectedAppId();
 

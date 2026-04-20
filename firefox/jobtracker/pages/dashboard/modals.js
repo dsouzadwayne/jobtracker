@@ -508,7 +508,7 @@ function renderResumeList(type, resumes) {
   if (!listEl || !emptyEl) return;
 
   if (!resumes || resumes.length === 0) {
-    listEl.innerHTML = '';
+    listEl.textContent = '';
     emptyEl.classList.remove('hidden');
     return;
   }

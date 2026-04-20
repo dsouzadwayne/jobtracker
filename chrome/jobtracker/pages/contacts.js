@@ -130,7 +130,7 @@ function render() {
   elements.contactsCount.textContent = `${filteredContacts.length} contact${filteredContacts.length !== 1 ? 's' : ''}`;
 
   if (filteredContacts.length === 0) {
-    elements.contactsList.innerHTML = '';
+    elements.contactsList.textContent = '';
     elements.emptyState.classList.remove('hidden');
     return;
   }

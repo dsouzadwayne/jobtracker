@@ -221,13 +221,13 @@ function render() {
   elements.appCount.textContent = `${filteredApplications.length} application${filteredApplications.length !== 1 ? 's' : ''}`;
 
   if (filteredApplications.length === 0) {
-    elements.list.innerHTML = '';
+    elements.list.textContent = '';
     elements.emptyState.classList.remove('hidden');
     return;
   }
 
   elements.emptyState.classList.add('hidden');
-  elements.list.innerHTML = '';
+  elements.list.textContent = '';
 
   filteredApplications.forEach(app => {
     elements.list.appendChild(createAppCard(app));

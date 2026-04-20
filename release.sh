@@ -39,7 +39,7 @@ echo "Version updated to $NEW_VERSION"
 rm -f "$BROWSER/jobtracker.zip" 2>/dev/null
 
 # Create new zip
-(cd "$BROWSER" && zip -r jobtracker.zip jobtracker)
+(cd "$BROWSER/jobtracker" && zip -r ../jobtracker.zip .)
 echo "Created $BROWSER/jobtracker.zip"
 
 # Git commit and push

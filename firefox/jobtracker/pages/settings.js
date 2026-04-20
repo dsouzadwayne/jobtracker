@@ -412,7 +412,7 @@ function renderCustomRules() {
 
   if (!list || !empty) return;
 
-  list.innerHTML = '';
+  list.textContent = '';
 
   if (rules.length === 0) {
     empty.classList.remove('hidden');

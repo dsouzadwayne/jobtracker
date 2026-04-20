@@ -453,7 +453,7 @@ function renderWorkHistory() {
   const empty = document.getElementById('work-empty');
   const work = profile?.workHistory || [];
 
-  list.innerHTML = '';
+  list.textContent = '';
 
   if (work.length === 0) {
     empty.classList.remove('hidden');
@@ -686,7 +686,7 @@ function renderEducation() {
   const empty = document.getElementById('edu-empty');
   const education = profile?.education || [];
 
-  list.innerHTML = '';
+  list.textContent = '';
 
   if (education.length === 0) {
     empty.classList.remove('hidden');
@@ -803,7 +803,7 @@ function renderSkills() {
     const list = document.getElementById(`skills-${category}-list`);
     const skills = profile?.skills?.[category] || [];
 
-    list.innerHTML = '';
+    list.textContent = '';
     skills.forEach(skill => {
       list.appendChild(createSkillTag(skill, category));
     });
@@ -825,7 +825,7 @@ function renderSoftSkillsRecommendations() {
     skill => !existingSoftSkills.includes(skill.toLowerCase())
   );
 
-  listContainer.innerHTML = '';
+  listContainer.textContent = '';
 
   if (availableRecommendations.length === 0) {
     // Hide recommendations if all are added
@@ -899,7 +899,7 @@ function renderQA() {
   const empty = document.getElementById('qa-empty');
   const qa = profile?.customQA || [];
 
-  list.innerHTML = '';
+  list.textContent = '';
 
   if (qa.length === 0) {
     empty.classList.remove('hidden');
@@ -1003,7 +1003,7 @@ function renderCoverLetters() {
   const empty = document.getElementById('cover-empty');
   const coverLetters = profile?.coverLetters || [];
 
-  list.innerHTML = '';
+  list.textContent = '';
 
   if (coverLetters.length === 0) {
     empty.classList.remove('hidden');

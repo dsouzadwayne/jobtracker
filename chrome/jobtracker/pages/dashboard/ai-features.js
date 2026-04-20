@@ -416,7 +416,7 @@ export async function extractSkills(text) {
 export async function renderTagSuggestions(container, text, onSelect) {
   // Check if AI is enabled
   if (!aiEnabled) {
-    container.innerHTML = '';  // Hide container if AI disabled
+    container.textContent = '';  // Hide container if AI disabled
     return;
   }
 
@@ -824,7 +824,7 @@ function renderCustomRules() {
 
   if (!list || !empty) return;
 
-  list.innerHTML = '';
+  list.textContent = '';
 
   if (rules.length === 0) {
     empty.classList.remove('hidden');

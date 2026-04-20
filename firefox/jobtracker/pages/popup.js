@@ -169,7 +169,7 @@ async function loadRecentApplications() {
 
     // Show only 5 most recent
     const recent = applications.slice(0, 5);
-    elements.recentList.innerHTML = '';
+    elements.recentList.textContent = '';
 
     recent.forEach(app => {
       const item = createApplicationItem(app);
