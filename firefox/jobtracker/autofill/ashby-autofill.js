@@ -16,17 +16,10 @@
     return hostname.includes('ashbyhq.com') || hostname.includes('ashbyprd.com');
   }
 
-  window.addEventListener('jobtracker:autofill', async (e) => {
-    console.log('JobTracker: Ashby autofill event received on', window.location.hostname);
-    const profile = e.detail?.profile;
-    if (!profile) {
-      console.log('JobTracker: No profile in event');
-      return;
-    }
-    if (!isAshbyDomain()) {
-      console.log('JobTracker: Hostname mismatch, skipping');
-      return;
-    }
+  window.addEventListener('jobtracker:autofill', async () => {
+    if (!isAshbyDomain()) return;
+    const profile = await browser.runtime.sendMessage({ type: 'GET_PROFILE_FOR_FILL' });
+    if (!profile) return;
 
     window.__jobTrackerAutofillHandled = true;
     await handleAshbyAutofill(profile);

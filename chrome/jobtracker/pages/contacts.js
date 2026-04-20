@@ -163,7 +163,7 @@ function createContactCard(contact) {
       </div>
       <div class="contact-actions">
         ${contact.email ? `<a href="mailto:${escapeHtml(contact.email)}" class="contact-action-btn" title="Send Email"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg></a>` : ''}
-        ${contact.linkedin ? `<a href="${escapeHtml(contact.linkedin)}" target="_blank" class="contact-action-btn" title="View LinkedIn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path><rect x="2" y="9" width="4" height="12"></rect><circle cx="4" cy="4" r="2"></circle></svg></a>` : ''}
+        ${contact.linkedin ? `<a href="${sanitizeUrl(contact.linkedin)}" target="_blank" class="contact-action-btn" title="View LinkedIn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path><rect x="2" y="9" width="4" height="12"></rect><circle cx="4" cy="4" r="2"></circle></svg></a>` : ''}
       </div>
     </div>
   `;
@@ -249,7 +249,7 @@ function openDetailPanel(contactId) {
             <rect x="2" y="9" width="4" height="12"></rect>
             <circle cx="4" cy="4" r="2"></circle>
           </svg>
-          <a href="${escapeHtml(contact.linkedin)}" target="_blank">LinkedIn Profile</a>
+          <a href="${sanitizeUrl(contact.linkedin)}" target="_blank">LinkedIn Profile</a>
         </div>
       ` : ''}
       ${contact.agency ? `
@@ -637,6 +637,15 @@ function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function sanitizeUrl(url) {
+  if (!url || !url.trim()) return '';
+  try {
+    const parsed = new URL(url);
+    if (!['http:', 'https:'].includes(parsed.protocol)) return '#invalid-url';
+  } catch { return '#invalid-url'; }
+  return escapeHtml(url);
 }
 
 function formatDate(dateStr) {

@@ -98,14 +98,15 @@
   }
 
   // Listen for autofill trigger (fallback when no platform handler picks it up)
-  window.addEventListener('jobtracker:autofill', async (e) => {
+  window.addEventListener('jobtracker:autofill', async () => {
     // Only handle if no other handler has picked it up
     await new Promise(r => setTimeout(r, 150));
     if (window.__jobTrackerAutofillHandled) return;
 
-    const profile = e.detail?.profile;
-    const customRules = e.detail?.customRules || [];
+    const profile = await chrome.runtime.sendMessage({ type: 'GET_PROFILE_FOR_FILL' });
     if (!profile) return;
+    const settings = await chrome.runtime.sendMessage({ type: 'GET_SETTINGS' });
+    const customRules = settings?.customFieldRules || [];
 
     window.__jobTrackerAutofillHandled = true;
     await handleGenericAutofill(profile, customRules);

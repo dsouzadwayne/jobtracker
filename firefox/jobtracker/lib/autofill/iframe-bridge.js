@@ -4,12 +4,39 @@
  * Uses postMessage for secure communication between parent and child frames
  */
 
+// Allowed job platform hostnames for cross-frame communication
+const ALLOWED_HOSTNAMES = [
+  'linkedin.com', 'indeed.com', 'glassdoor.com',
+  'greenhouse.io', 'lever.co', 'myworkdayjobs.com',
+  'icims.com', 'smartrecruiters.com', 'naukri.com',
+  'ashbyhq.com'
+];
+
+/**
+ * Check if an origin is trusted for cross-frame messaging.
+ * Trusts the current page origin and known job platform domains.
+ */
+function _isAllowedOrigin(origin) {
+  if (!origin || origin === 'null') return false;
+  // Same origin is always trusted
+  if (origin === window.location.origin) return true;
+  try {
+    const hostname = new URL(origin).hostname;
+    return ALLOWED_HOSTNAMES.some(
+      allowed => hostname === allowed || hostname.endsWith('.' + allowed)
+    );
+  } catch {
+    return false;
+  }
+}
+
 const JobTrackerIframeBridge = {
   _initialized: false,
   _messageHandlers: new Map(),
   _pendingRequests: new Map(),
   _requestId: 0,
   _boundMessageHandler: null,
+  _parentOrigin: null,
 
   // Message types
   MESSAGE_TYPES: {
@@ -37,6 +64,12 @@ const JobTrackerIframeBridge = {
     this._isIframe = window !== window.top;
 
     if (this._isIframe) {
+      // Derive parent origin from document.referrer for secure postMessage
+      try {
+        this._parentOrigin = new URL(document.referrer).origin;
+      } catch {
+        this._parentOrigin = null;
+      }
       // Child frame: notify parent we're ready
       this._notifyParentReady();
     }
@@ -82,6 +115,9 @@ const JobTrackerIframeBridge = {
     if (!event.data || typeof event.data !== 'object') return;
     if (!event.data.type || !event.data.type.startsWith('jobtracker:iframe:')) return;
 
+    // Security: Validate the message origin
+    if (!_isAllowedOrigin(event.origin)) return;
+
     const { type, payload, requestId } = event.data;
     const sourceOrigin = event.origin;
 
@@ -104,7 +140,7 @@ const JobTrackerIframeBridge = {
         break;
 
       case this.MESSAGE_TYPES.PING:
-        this._handlePing(event.source);
+        this._handlePing(event.source, sourceOrigin);
         break;
 
       case this.MESSAGE_TYPES.PONG:
@@ -220,12 +256,12 @@ const JobTrackerIframeBridge = {
    * Handle ping from parent (in iframe context)
    * @param {Window} source - Source window
    */
-  _handlePing(source) {
+  _handlePing(source, sourceOrigin) {
     this._postToWindow(source, this.MESSAGE_TYPES.PONG, {
       ready: true,
       url: window.location.href,
       hasInputs: this._countFillableInputs() > 0
-    });
+    }, null, sourceOrigin);
   },
 
   /**
@@ -399,13 +435,20 @@ const JobTrackerIframeBridge = {
       });
 
       try {
-        let targetOrigin = '*';
+        let targetOrigin = null;
         try {
           if (iframe.src) {
             targetOrigin = new URL(iframe.src).origin;
           }
         } catch (e) {
-          // iframe.src may not be parseable, fall back to '*'
+          // iframe.src may not be parseable
+        }
+        // Security: Skip iframes with unknown origin instead of using wildcard
+        if (!targetOrigin || targetOrigin === 'null') {
+          clearTimeout(timeout);
+          this._pendingRequests.delete(requestId);
+          resolve({ filledCount: 0, error: 'Unknown iframe origin' });
+          return;
         }
         iframe.contentWindow.postMessage({
           type: this.MESSAGE_TYPES.AUTOFILL_REQUEST,
@@ -466,10 +509,15 @@ const JobTrackerIframeBridge = {
 
     for (const iframe of iframes) {
       try {
+        let targetOrigin = null;
+        try {
+          if (iframe.src) targetOrigin = new URL(iframe.src).origin;
+        } catch (e) { /* unparseable src */ }
+        if (!targetOrigin || targetOrigin === 'null') continue;
         iframe.contentWindow.postMessage({
           type: this.MESSAGE_TYPES.PING,
           payload: {}
-        }, '*');
+        }, targetOrigin);
       } catch (e) {
         // Cross-origin or inaccessible
       }
@@ -491,12 +539,18 @@ const JobTrackerIframeBridge = {
    * @param {number} requestId - Optional request ID
    */
   _postToParent(type, payload, requestId = null) {
+    // Security: Use stored parent origin instead of wildcard
+    const targetOrigin = this._parentOrigin;
+    if (!targetOrigin) {
+      console.log('JobTracker: Cannot post to parent — unknown origin');
+      return;
+    }
     try {
       window.parent.postMessage({
         type,
         payload,
         requestId
-      }, '*');
+      }, targetOrigin);
     } catch (e) {
       console.log('JobTracker: Error posting to parent:', e.message);
     }
@@ -510,7 +564,12 @@ const JobTrackerIframeBridge = {
    * @param {number} requestId - Optional request ID
    * @param {string} targetOrigin - Target origin for postMessage (defaults to '*')
    */
-  _postToWindow(targetWindow, type, payload, requestId = null, targetOrigin = '*') {
+  _postToWindow(targetWindow, type, payload, requestId = null, targetOrigin) {
+    // Security: Require an explicit target origin — no wildcard default
+    if (!targetOrigin) {
+      console.log('JobTracker: Cannot post message — no target origin specified');
+      return;
+    }
     try {
       targetWindow.postMessage({
         type,

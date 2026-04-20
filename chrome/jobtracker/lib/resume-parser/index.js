@@ -117,11 +117,7 @@ const ResumeParser = {
         location: result.profile.location || ''
       },
       workHistory: (result.workExperiences || []).map(exp => {
-        console.log('[ResumeParser] Mapping work experience:', {
-          jobTitle: exp.jobTitle,
-          company: exp.company,
-          mappedTitle: exp.jobTitle
-        });
+        // Work experience entry mapped
         // Smart bullet point handling:
         // 1. Join all descriptions and strip existing bullet characters
         // 2. Split by action verbs to find logical bullet points

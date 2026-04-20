@@ -305,7 +305,11 @@ function createSiteCard(site, options = {}) {
   const { showFeatures = false, showCount = false, showDelete = false, isGeneric = false } = options;
 
   const card = document.createElement('a');
-  card.href = site.url;
+  // Security: Validate URL protocol before setting href
+  try {
+    const parsed = new URL(site.url);
+    card.href = ['http:', 'https:'].includes(parsed.protocol) ? site.url : '#invalid-url';
+  } catch { card.href = '#invalid-url'; }
   card.target = '_blank';
   card.rel = 'noopener noreferrer';
   card.className = `site-card${isGeneric ? ' site-card-generic' : ''}`;
@@ -492,9 +496,12 @@ async function addCustomSite(name, url) {
   let domain;
   try {
     const parsed = new URL(url);
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      throw new Error('Only http and https URLs are allowed');
+    }
     domain = parsed.hostname;
-  } catch {
-    throw new Error('Invalid URL format');
+  } catch (e) {
+    throw e.message?.includes('http') ? e : new Error('Invalid URL format');
   }
 
   sites.push({

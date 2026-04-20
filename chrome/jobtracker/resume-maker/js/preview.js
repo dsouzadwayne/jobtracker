@@ -4,7 +4,7 @@
  */
 
 import { getCurrentResume, getAnalysisResult, subscribe, getZoom, setZoom } from './state.js';
-import { escapeHtml, formatDateRange, parseDescription } from './utils.js';
+import { escapeHtml, sanitizeUrl, formatDateRange, parseDescription } from './utils.js';
 
 /**
  * Initialize preview
@@ -113,7 +113,7 @@ function renderHeader(profile) {
   if (profile.location) contactParts.push(`<span aria-label="Location">${escapeHtml(profile.location)}</span>`);
   if (profile.website) {
     const displayUrl = profile.website.replace(/^https?:\/\//, '');
-    contactParts.push(`<span aria-label="Website"><a href="${escapeHtml(profile.website)}" target="_blank" rel="noopener noreferrer">${escapeHtml(displayUrl)}</a></span>`);
+    contactParts.push(`<span aria-label="Website"><a href="${sanitizeUrl(profile.website)}" target="_blank" rel="noopener noreferrer">${escapeHtml(displayUrl)}</a></span>`);
   }
 
   return `

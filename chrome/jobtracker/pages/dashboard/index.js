@@ -242,7 +242,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div style="padding: 20px; font-family: system-ui, sans-serif;">
         <h1 style="color: #dc2626;">Dashboard Error</h1>
         <p>An error occurred while loading the dashboard.</p>
-        <p><strong>Error:</strong> ${error.message || 'Unknown error'}</p>
+        <p><strong>Error:</strong> ${escapeHtml(error.message || 'Unknown error')}</p>
         <p>Please try refreshing the page or clearing extension data.</p>
         <button onclick="location.reload()" style="padding: 10px 20px; cursor: pointer;">Reload</button>
       </div>

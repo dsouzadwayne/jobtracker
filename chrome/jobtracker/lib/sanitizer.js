@@ -82,6 +82,7 @@ function fallbackSanitize(dirty) {
     .replace(/javascript:/gi, '')
     .replace(/data:/gi, '')
     .replace(/vbscript:/gi, '')
+    .replace(/[\t\n\r\0]/g, ' ')
     .replace(/on\w+\s*=/gi, '');
 }
 
@@ -126,8 +127,13 @@ function sanitizeText(dirty) {
     return purify.sanitize(dirty, STRICT_CONFIG);
   }
 
-  // Fallback: strip all HTML tags
-  return dirty.replace(/<[^>]*>/g, '');
+  // Fallback: use DOMParser for reliable tag stripping
+  try {
+    const doc = new DOMParser().parseFromString(dirty, 'text/html');
+    return doc.body.textContent || '';
+  } catch {
+    return dirty.replace(/<[^>]*>/g, '');
+  }
 }
 
 /**

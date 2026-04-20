@@ -16,9 +16,10 @@
     return NAUKRI_HOSTNAMES.includes(window.location.hostname);
   }
 
-  window.addEventListener('jobtracker:autofill', async (e) => {
-    const profile = e.detail?.profile;
-    if (!profile || !isNaukriDomain()) return;
+  window.addEventListener('jobtracker:autofill', async () => {
+    if (!isNaukriDomain()) return;
+    const profile = await browser.runtime.sendMessage({ type: 'GET_PROFILE_FOR_FILL' });
+    if (!profile) return;
 
     window.__jobTrackerAutofillHandled = true;
     await handleNaukriAutofill(profile);

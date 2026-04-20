@@ -13,6 +13,18 @@ export function escapeHtml(text) {
 }
 
 /**
+ * Sanitize URL for safe use in href attributes — blocks javascript: and data: protocols
+ */
+export function sanitizeUrl(url) {
+  if (!url || !url.trim()) return '';
+  try {
+    const parsed = new URL(url);
+    if (!['http:', 'https:'].includes(parsed.protocol)) return '#invalid-url';
+  } catch { return '#invalid-url'; }
+  return escapeHtml(url);
+}
+
+/**
  * Sanitize HTML using DOMPurify (if available)
  * Allows safe HTML while removing dangerous elements
  */

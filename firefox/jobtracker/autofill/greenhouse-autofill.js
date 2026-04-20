@@ -15,9 +15,10 @@
     return hostname === 'greenhouse.io' || hostname.endsWith('.greenhouse.io');
   }
 
-  window.addEventListener('jobtracker:autofill', async (e) => {
-    const profile = e.detail?.profile;
-    if (!profile || !isGreenhouseDomain()) return;
+  window.addEventListener('jobtracker:autofill', async () => {
+    if (!isGreenhouseDomain()) return;
+    const profile = await browser.runtime.sendMessage({ type: 'GET_PROFILE_FOR_FILL' });
+    if (!profile) return;
 
     window.__jobTrackerAutofillHandled = true;
     await handleGreenhouseAutofill(profile);

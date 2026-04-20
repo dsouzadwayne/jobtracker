@@ -15,9 +15,10 @@
     return hostname === 'smartrecruiters.com' || hostname.endsWith('.smartrecruiters.com');
   }
 
-  window.addEventListener('jobtracker:autofill', async (e) => {
-    const profile = e.detail?.profile;
-    if (!profile || !isSmartRecruitersDomain()) return;
+  window.addEventListener('jobtracker:autofill', async () => {
+    if (!isSmartRecruitersDomain()) return;
+    const profile = await chrome.runtime.sendMessage({ type: 'GET_PROFILE_FOR_FILL' });
+    if (!profile) return;
 
     window.__jobTrackerAutofillHandled = true;
     await handleSmartRecruitersAutofill(profile);
@@ -125,12 +126,12 @@
       try {
         const currentValue = JSON.parse(component.getAttribute('value') || '{}');
         currentCountry = currentValue.country;
-        console.log('JobTracker: Phone field country:', currentCountry);
+        // Phone field country detected
       } catch (e) {}
 
       // Strip country code
       const localNumber = stripCountryCode(value, currentCountry);
-      console.log('JobTracker: Phone:', value, '->', localNumber);
+      // Phone number processed for autofill
 
       let filled = false;
 

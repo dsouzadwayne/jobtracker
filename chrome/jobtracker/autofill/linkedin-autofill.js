@@ -16,9 +16,10 @@
     return LINKEDIN_HOSTNAMES.includes(window.location.hostname);
   }
 
-  window.addEventListener('jobtracker:autofill', async (e) => {
-    const profile = e.detail?.profile;
-    if (!profile || !isLinkedInDomain()) return;
+  window.addEventListener('jobtracker:autofill', async () => {
+    if (!isLinkedInDomain()) return;
+    const profile = await chrome.runtime.sendMessage({ type: 'GET_PROFILE_FOR_FILL' });
+    if (!profile) return;
 
     window.__jobTrackerAutofillHandled = true;
     await handleLinkedInAutofill(profile);

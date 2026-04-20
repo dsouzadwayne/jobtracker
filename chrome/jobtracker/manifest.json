@@ -424,26 +424,15 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "lib/*.js",
-        "lib/autofill/*",
-        "lib/vendor/*",
+        "icons/*",
+        "lib/ai-worker.js",
+        "lib/vendor/readability.js",
+        "lib/vendor/pdf.worker.min.js",
+        "lib/vendor/compromise.min.js",
+        "lib/vendor/compromise-*.min.js",
         "lib/vendor/onnxruntime-web/*",
-        "lib/resume-parser/*",
-        "lib/resume-parser/extractors/*",
-        "lib/nlp/*",
-        "lib/content/*",
         "lib/extraction/*.js",
         "lib/extraction/strategies/*.js",
-        "icons/*",
-        "common.css",
-        "pages/dashboard.html",
-        "pages/dashboard.js",
-        "pages/dashboard.css",
-        "resume-maker/*",
-        "resume-maker/index.html",
-        "resume-maker/css/*",
-        "resume-maker/js/*",
-        "resume-maker/lib/*",
         "offscreen/*"
       ],
       "matches": ["<all_urls>"]

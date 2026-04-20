@@ -513,11 +513,11 @@ async function handleTrackJob() {
           // Only fill in blank fields
           if (!extracted.company && aiResult.data.company) {
             extracted.company = aiResult.data.company;
-            console.log('[Popup] AI filled company:', extracted.company);
+            console.log('[Popup] AI filled company field');
           }
           if (!extracted.position && aiResult.data.position) {
             extracted.position = aiResult.data.position;
-            console.log('[Popup] AI filled position:', extracted.position);
+            console.log('[Popup] AI filled position field');
           }
           if (!extracted.location && aiResult.data.location) {
             extracted.location = aiResult.data.location;
@@ -545,7 +545,7 @@ async function handleTrackJob() {
       }
     }
 
-    console.log('[Popup] Final extracted data:', extracted);
+    console.log('[Popup] Extraction complete, saving application');
 
     // Step 4: Save the application
     const application = {

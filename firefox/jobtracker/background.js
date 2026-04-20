@@ -714,6 +714,22 @@ browser.commands.onCommand.addListener(async (command) => {
   }
 });
 
+// Security: Only allow destructive operations from trusted extension pages
+function isTrustedSender(sender) {
+  // Extension popup (no tab) from our own extension
+  if (!sender.tab && sender.id === browser.runtime.id) return true;
+  // Extension pages opened in tabs (dashboard, settings, etc.)
+  if (sender.url && sender.url.startsWith(`moz-extension://${browser.runtime.id}/`)) return true;
+  return false;
+}
+
+// Destructive message types that require a trusted sender
+const PRIVILEGED_MESSAGE_TYPES = new Set([
+  'CLEAR_ALL_DATA', 'CLEAR_PROFILE', 'CLEAR_APPLICATIONS',
+  'DELETE_APPLICATION', 'IMPORT_DATA', 'SAVE_PROFILE',
+  'DELETE_UPLOADED_RESUME', 'CLEAR_MODELS_METADATA'
+]);
+
 // Handle messages from content scripts and popup
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Validate message is an object before destructuring to prevent crashes
@@ -740,6 +756,13 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!validation.valid) {
     console.log('JobTracker: Message validation failed:', validation.error);
     sendResponse({ error: validation.error });
+    return true;
+  }
+
+  // Security: Block destructive operations from untrusted senders (e.g., content scripts on arbitrary pages)
+  if (PRIVILEGED_MESSAGE_TYPES.has(type) && !isTrustedSender(sender)) {
+    console.log('JobTracker: Blocked privileged operation from untrusted sender:', type);
+    sendResponse({ error: 'Permission denied: this operation requires a trusted context' });
     return true;
   }
 

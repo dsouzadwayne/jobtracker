@@ -16,17 +16,10 @@
     return hostname === 'jobs.lever.co' || hostname.endsWith('.lever.co');
   }
 
-  window.addEventListener('jobtracker:autofill', async (e) => {
-    console.log('JobTracker: Lever autofill event received on', window.location.hostname);
-    const profile = e.detail?.profile;
-    if (!profile) {
-      console.log('JobTracker: No profile in event');
-      return;
-    }
-    if (!isLeverDomain()) {
-      console.log('JobTracker: Hostname mismatch, skipping');
-      return;
-    }
+  window.addEventListener('jobtracker:autofill', async () => {
+    if (!isLeverDomain()) return;
+    const profile = await browser.runtime.sendMessage({ type: 'GET_PROFILE_FOR_FILL' });
+    if (!profile) return;
 
     window.__jobTrackerAutofillHandled = true;
     await handleLeverAutofill(profile);

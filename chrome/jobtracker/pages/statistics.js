@@ -673,9 +673,9 @@ function generateRejectionInsights(apps, rejected, sortedReasons) {
     `;
   } else {
     insightsContainer.innerHTML = insights.map(insight => `
-      <div class="rejection-insight rejection-insight-${insight.type}">
+      <div class="rejection-insight rejection-insight-${escapeHtml(insight.type)}">
         <span class="rejection-insight-icon">${insight.icon}</span>
-        <span class="rejection-insight-message">${insight.message}</span>
+        <span class="rejection-insight-message">${escapeHtml(insight.message)}</span>
       </div>
     `).join('');
   }
@@ -974,7 +974,7 @@ async function loadTasks() {
       const isOverdue = task.dueDate && new Date(task.dueDate) < new Date();
 
       return `
-        <div class="task-item ${priorityClass} ${isOverdue ? 'task-overdue' : ''}" data-id="${task.id}">
+        <div class="task-item ${priorityClass} ${isOverdue ? 'task-overdue' : ''}" data-id="${escapeHtml(task.id)}">
           <button class="task-checkbox" title="Mark complete">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10"></circle>

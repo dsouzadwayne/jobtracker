@@ -111,10 +111,8 @@
       }, { once: true });
 
       // Dispatch event for platform-specific handlers to listen
-      // Include both profile and customRules for advanced matching
-      window.dispatchEvent(new CustomEvent('jobtracker:autofill', {
-        detail: { profile, customRules }
-      }));
+      // Security: Do not include profile data in event detail to prevent page script access
+      window.dispatchEvent(new CustomEvent('jobtracker:autofill'));
 
       // If no platform handler picks it up within 500ms, use generic autofill
       setTimeout(() => {
@@ -277,13 +275,11 @@
     }
   }
 
-  // Export for other scripts
+  // Export for other scripts (utility functions only — no PII exposure)
   window.JobTrackerContent = {
     fillInput,
     findInputByPatterns,
-    showNotification,
-    getProfile: () => profile,
-    getSettings: () => settings
+    showNotification
   };
 
   // Initialize when DOM is ready

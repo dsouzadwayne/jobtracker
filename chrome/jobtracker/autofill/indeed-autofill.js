@@ -16,9 +16,10 @@
     return INDEED_HOSTNAME_PATTERN.test(window.location.hostname);
   }
 
-  window.addEventListener('jobtracker:autofill', async (e) => {
-    const profile = e.detail?.profile;
-    if (!profile || !isIndeedDomain()) return;
+  window.addEventListener('jobtracker:autofill', async () => {
+    if (!isIndeedDomain()) return;
+    const profile = await chrome.runtime.sendMessage({ type: 'GET_PROFILE_FOR_FILL' });
+    if (!profile) return;
 
     window.__jobTrackerAutofillHandled = true;
     await handleIndeedAutofill(profile);

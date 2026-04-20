@@ -18,10 +18,10 @@
            hostname === 'workday.com';
   }
 
-  window.addEventListener('jobtracker:autofill', async (e) => {
-    const profile = e.detail?.profile;
-    if (!profile) return;
+  window.addEventListener('jobtracker:autofill', async () => {
     if (!isWorkdayDomain()) return;
+    const profile = await chrome.runtime.sendMessage({ type: 'GET_PROFILE_FOR_FILL' });
+    if (!profile) return;
 
     window.__jobTrackerAutofillHandled = true;
     await handleWorkdayAutofill(profile);
