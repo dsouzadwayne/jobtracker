@@ -38,6 +38,9 @@ const MODEL_SIZES = {
 // Get the extension's base URL for WASM paths
 const EXTENSION_URL = self.location.href.replace(/\/lib\/ai-worker\.js$/, '');
 
+// Pending fetch proxy requests (for env.fetch proxy through background script)
+const pendingFetches = new Map();
+
 // Suppress noisy Transformers.js warnings about content-length and dtype
 const shouldSuppress = (args) => {
   const msg = args[0];
@@ -82,6 +85,38 @@ async function loadTransformers() {
 
     // Suppress ONNX Runtime warnings (like "Unknown CPU vendor")
     env.backends.onnx.logLevel = 'error';
+
+    // Use custom fetch that proxies remote requests through the background script.
+    // Extension Workers may not have cross-origin fetch permissions, but the
+    // background script does. env.fetch is the official Transformers.js API for this.
+    const nativeFetch = self.fetch.bind(self);
+    env.fetch = async (url, options = {}) => {
+      const urlStr = typeof url === 'string' ? url : url?.url || '';
+      // Local extension resources fetch normally
+      if (!urlStr || urlStr.startsWith('moz-extension://') || urlStr.startsWith('chrome-extension://') ||
+          urlStr.startsWith('blob:') || urlStr.startsWith('data:') || urlStr.startsWith('/')) {
+        return nativeFetch(url, options);
+      }
+      // Remote URLs: proxy through background script which has full host_permissions
+      console.log('[AI Worker] Proxying fetch via background:', urlStr.substring(0, 80));
+      return new Promise((resolve, reject) => {
+        const fetchId = `fetch_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        const timeoutId = setTimeout(() => {
+          pendingFetches.delete(fetchId);
+          reject(new Error(`Fetch proxy timeout for ${urlStr}`));
+        }, 300000);
+        pendingFetches.set(fetchId, {
+          resolve: (v) => { clearTimeout(timeoutId); resolve(v); },
+          reject: (e) => { clearTimeout(timeoutId); reject(e); }
+        });
+        self.postMessage({
+          type: 'FETCH_PROXY', fetchId, url: urlStr,
+          init: { method: options.method || 'GET',
+            headers: options.headers instanceof Headers
+              ? Object.fromEntries(options.headers.entries()) : (options.headers || {}) }
+        });
+      });
+    };
 
     transformersAvailable = true;
     console.log('[AI Worker] Transformers.js loaded');
@@ -897,6 +932,26 @@ self.onmessage = async (event) => {
           existingData: payload.existingData || {}
         });
         break;
+
+      case 'FETCH_RESPONSE': {
+        // Handle proxied fetch response from background script.
+        // Read directly from event.data since this message has a different shape than task messages.
+        const data = event.data;
+        const pending = pendingFetches.get(data.fetchId);
+        if (pending) {
+          pendingFetches.delete(data.fetchId);
+          if (data.error) {
+            pending.reject(new Error(data.error));
+          } else {
+            pending.resolve(new Response(data.body, {
+              status: data.status,
+              statusText: data.statusText,
+              headers: new Headers(data.headers || {})
+            }));
+          }
+        }
+        return; // Don't send SUCCESS/ERROR for proxy responses
+      }
 
       default:
         throw new Error(`Unknown message type: ${type}`);

@@ -19,6 +19,11 @@
     "*://*/*"
   ],
 
+  "optional_host_permissions": [
+    "https://huggingface.co/*",
+    "https://*.hf.co/*"
+  ],
+
   "background": {
     "service_worker": "background.js",
     "type": "module"

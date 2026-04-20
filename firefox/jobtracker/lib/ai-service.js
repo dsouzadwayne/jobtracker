@@ -124,6 +124,30 @@ class AIService {
   handleMessage(event) {
     const { type, requestId, result, error, payload } = event.data;
 
+    // Handle fetch proxy requests from Worker.
+    // Extension Workers may not have cross-origin fetch permissions.
+    // The background script performs the fetch and sends the response back.
+    if (type === 'FETCH_PROXY') {
+      const { fetchId, url, init } = event.data;
+      fetch(url, init)
+        .then(async (response) => {
+          const body = await response.arrayBuffer();
+          const headers = {};
+          response.headers.forEach((value, key) => { headers[key] = value; });
+          this.worker.postMessage({
+            type: 'FETCH_RESPONSE', fetchId, body,
+            status: response.status, statusText: response.statusText, headers
+          }, [body]);
+        })
+        .catch((fetchError) => {
+          console.error('[AI Service] Proxy fetch failed:', fetchError.message, url?.substring(0, 60));
+          this.worker.postMessage({
+            type: 'FETCH_RESPONSE', fetchId, error: fetchError.message
+          });
+        });
+      return;
+    }
+
     // Handle progress updates - dispatch custom events for global listeners
     if (type === 'MODEL_LOADING_PROGRESS') {
       // Bug #1 fix: Always invoke the callback if set (for background.js progress forwarding)

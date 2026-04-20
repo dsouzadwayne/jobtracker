@@ -18,6 +18,49 @@ const modelChannel = new BroadcastChannel('jobtracker-models');
 let modelDownloadInProgress = false;
 
 /**
+ * Recover from stale "downloading" state after event page restart or crash.
+ * If models are stuck in "downloading" but no download is actually running,
+ * mark them as failed so the user can retry.
+ */
+async function recoverStaleDownloads() {
+  try {
+    const modelsStatus = await JobTrackerDB.getModelsDownloadStatus();
+    const models = ['embeddings', 'ner'];
+    let recovered = false;
+
+    for (const model of models) {
+      if (modelsStatus?.[model]?.downloadStatus === 'downloading' && !modelDownloadInProgress) {
+        // Check staleness: if started more than 15 minutes ago, definitely stale
+        const startedAt = new Date(modelsStatus[model].startedAt).getTime();
+        const isStale = !startedAt || isNaN(startedAt) || (Date.now() - startedAt > 15 * 60 * 1000);
+
+        if (isStale) {
+          console.log(`JobTracker: Recovering stale download state for ${model}`);
+          await JobTrackerDB.setModelMetadata(model, {
+            downloadStatus: 'failed',
+            failedAt: new Date().toISOString(),
+            error: 'Download interrupted (browser or event page restarted)'
+          });
+          recovered = true;
+        }
+      }
+    }
+
+    if (recovered) {
+      browser.alarms.clear('model-download-keepalive');
+      try {
+        modelChannel.postMessage({ type: 'interrupted' });
+      } catch (e) { /* ignore */ }
+    }
+  } catch (error) {
+    console.log('JobTracker: Stale download recovery error:', error.message);
+  }
+}
+
+// Run recovery on event page startup
+recoverStaleDownloads();
+
+/**
  * Safely post message to BroadcastChannel with error handling
  * BroadcastChannel may be unavailable in some contexts (e.g., service worker termination)
  * @param {Object} message - Message to broadcast
@@ -587,6 +630,10 @@ function validatePayload(type, payload) {
 browser.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === BADGE_CLEAR_ALARM) {
     browser.action.setBadgeText({ text: '' });
+  } else if (alarm.name === 'model-download-keepalive') {
+    // Keep event page alive during model downloads
+    // Handling the alarm resets Firefox's idle timer for the event page
+    console.log('JobTracker: Model download keepalive ping');
   }
 });
 
@@ -1345,7 +1392,8 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
           // Keep event page alive during long model downloads
           // Firefox may suspend event pages after inactivity, killing the Worker
           const keepAliveAlarm = 'model-download-keepalive';
-          browser.alarms.create(keepAliveAlarm, { periodInMinutes: 0.4 });
+          // Firefox MV3 clamps minimum alarm period to 1 minute
+          browser.alarms.create(keepAliveAlarm, { periodInMinutes: 1 });
 
           try {
             // Mark models as downloading in database
@@ -1360,7 +1408,7 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
               });
             }
 
-            // Download models directly (Firefox event pages support Web Workers)
+            // Download models via Worker (Transformers.js handles fetching and caching)
             aiService.setProgressCallback((progress) => {
               try {
                 modelChannel.postMessage({ type: 'progress', ...progress });
@@ -1433,6 +1481,39 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
           try {
             // Terminate the AI worker directly
             aiService.terminate();
+
+            // Reset download flag (don't rely on START's finally block)
+            modelDownloadInProgress = false;
+
+            // Clear keepalive alarm
+            browser.alarms.clear('model-download-keepalive');
+
+            // Update DB: mark downloading models as cancelled
+            try {
+              const modelsStatus = await JobTrackerDB.getModelsDownloadStatus();
+              if (modelsStatus?.embeddings?.downloadStatus === 'downloading') {
+                await JobTrackerDB.setModelMetadata('embeddings', {
+                  downloadStatus: 'cancelled',
+                  cancelledAt: new Date().toISOString()
+                });
+              }
+              if (modelsStatus?.ner?.downloadStatus === 'downloading') {
+                await JobTrackerDB.setModelMetadata('ner', {
+                  downloadStatus: 'cancelled',
+                  cancelledAt: new Date().toISOString()
+                });
+              }
+            } catch (dbError) {
+              console.log('JobTracker: Failed to update model metadata on stop:', dbError.message);
+            }
+
+            // Notify settings page via BroadcastChannel
+            try {
+              modelChannel.postMessage({ type: 'cancelled' });
+            } catch (e) {
+              console.log('JobTracker: Model cancel broadcast error:', e.message);
+            }
+
             response = { success: true };
           } catch (error) {
             response = { success: false, error: error.message };

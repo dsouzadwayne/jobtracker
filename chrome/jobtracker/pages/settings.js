@@ -961,6 +961,25 @@ function setupEventListeners() {
         return;
       }
 
+      // Check if host permissions are granted (required for HuggingFace model downloads)
+      try {
+        const hasPermission = await chrome.permissions.contains({
+          origins: ['https://huggingface.co/*']
+        });
+
+        if (!hasPermission) {
+          const granted = await chrome.permissions.request({
+            origins: ['https://huggingface.co/*', 'https://*.hf.co/*']
+          });
+          if (!granted) {
+            showNotification('Permission required to download AI models from Hugging Face. Please grant access and try again.', 'error');
+            return;
+          }
+        }
+      } catch (permError) {
+        console.log('Permission check error:', permError);
+      }
+
       preloadBtn.disabled = true;
       preloadBtn.textContent = 'Downloading...';
 

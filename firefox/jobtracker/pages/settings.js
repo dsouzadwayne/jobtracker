@@ -657,9 +657,52 @@ function updateModelStatusBadge(modelName, status) {
       badge.textContent = 'Failed';
       badge.classList.add('failed');
       break;
+    case 'cancelled':
+      badge.textContent = 'Cancelled';
+      badge.classList.add('failed');
+      break;
     default:
       badge.textContent = 'Not Downloaded';
       badge.classList.add('not-downloaded');
+  }
+}
+
+// Clear IndexedDB databases created by Transformers.js / ONNX Runtime
+async function clearTransformersIndexedDB() {
+  try {
+    const databases = await indexedDB.databases();
+    for (const db of databases) {
+      if (db.name && (
+        db.name.includes('transformers') ||
+        db.name.includes('onnx') ||
+        db.name.includes('ort')
+      )) {
+        indexedDB.deleteDatabase(db.name);
+      }
+    }
+  } catch (e) {
+    // Fallback: delete known database names directly
+    const knownDBs = ['transformers-cache', 'ortwasmcache'];
+    for (const name of knownDBs) {
+      try { indexedDB.deleteDatabase(name); } catch (e2) { /* ignore */ }
+    }
+  }
+}
+
+// Reset preload button to its default download state
+function resetPreloadButton() {
+  const preloadBtn = document.getElementById('preload-models-btn');
+  if (preloadBtn) {
+    preloadBtn.disabled = false;
+    preloadBtn.innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="7 10 12 15 17 10"></polyline>
+        <line x1="12" y1="15" x2="12" y2="3"></line>
+      </svg>
+      Download All Models (132 MB)
+    `;
+    preloadBtn.classList.remove('downloaded');
   }
 }
 
@@ -763,6 +806,7 @@ async function clearModelsCache() {
   try {
     await browser.runtime.sendMessage({ type: SettingsMessageTypes.CLEAR_MODELS_METADATA });
 
+    // Clear Cache API caches (Transformers.js HTTP response cache)
     if ('caches' in window) {
       const cacheNames = await caches.keys();
       for (const name of cacheNames) {
@@ -771,6 +815,9 @@ async function clearModelsCache() {
         }
       }
     }
+
+    // Clear IndexedDB databases created by Transformers.js / ONNX Runtime
+    await clearTransformersIndexedDB();
 
     updateModelStatusBadge('embeddings', 'not_downloaded');
     updateModelStatusBadge('ner', 'not_downloaded');
@@ -789,6 +836,7 @@ async function clearAllData() {
   try {
     await browser.runtime.sendMessage({ type: SettingsMessageTypes.CLEAR_ALL_DATA });
 
+    // Clear Cache API caches
     if ('caches' in window) {
       const cacheNames = await caches.keys();
       for (const name of cacheNames) {
@@ -797,6 +845,9 @@ async function clearAllData() {
         }
       }
     }
+
+    // Clear IndexedDB databases created by Transformers.js / ONNX Runtime
+    await clearTransformersIndexedDB();
 
     showNotification('All data cleared', 'success');
     setTimeout(() => window.location.reload(), 1000);
@@ -961,6 +1012,27 @@ function setupEventListeners() {
         return;
       }
 
+      // Check if host permissions are granted (required for HuggingFace model downloads)
+      // In Firefox MV3, host_permissions are not automatically granted — user must approve
+      try {
+        const hasPermission = await browser.permissions.contains({
+          origins: ['https://huggingface.co/*']
+        });
+
+        if (!hasPermission) {
+          const granted = await browser.permissions.request({
+            origins: ['https://huggingface.co/*', 'https://*.hf.co/*']
+          });
+          if (!granted) {
+            showNotification('Permission required to download AI models from Hugging Face. Please grant access and try again.', 'error');
+            return;
+          }
+        }
+      } catch (permError) {
+        console.log('Permission check error:', permError);
+        // Continue anyway — permission might already be granted via host_permissions
+      }
+
       preloadBtn.disabled = true;
       preloadBtn.textContent = 'Downloading...';
 
@@ -1053,19 +1125,17 @@ function setupModelDownloadListeners() {
       updateModelStatusBadge('ner', 'failed');
 
       // Re-enable preload button
-      const preloadBtn = document.getElementById('preload-models-btn');
-      if (preloadBtn) {
-        preloadBtn.disabled = false;
-        preloadBtn.innerHTML = `
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
-          Download All Models (132 MB)
-        `;
-        preloadBtn.classList.remove('downloaded');
-      }
+      resetPreloadButton();
+    } else if (type === 'cancelled') {
+      showNotification('Model download cancelled', 'info');
+      updateModelStatusBadge('embeddings', 'cancelled');
+      updateModelStatusBadge('ner', 'cancelled');
+      resetPreloadButton();
+    } else if (type === 'interrupted') {
+      showNotification('Model download was interrupted. Click to retry.', 'warning');
+      updateModelStatusBadge('embeddings', 'failed');
+      updateModelStatusBadge('ner', 'failed');
+      resetPreloadButton();
     }
   };
 
@@ -1108,6 +1178,7 @@ function setupModelDownloadListeners() {
 }
 
 // Bug #6 fix: Check if a download is already in progress when the page loads
+// Sending a message to background also triggers recoverStaleDownloads() on event page wake
 async function checkCurrentDownloadStatus() {
   try {
     const modelsStatus = await browser.runtime.sendMessage({ type: SettingsMessageTypes.GET_MODEL_DOWNLOAD_STATUS });
@@ -1130,6 +1201,18 @@ async function checkCurrentDownloadStatus() {
       if (nerDownloading) {
         updateModelStatusBadge('ner', 'downloading');
       }
+    }
+
+    // Handle failed/cancelled/interrupted states — ensure button is re-enabled
+    const embeddingsStatus = modelsStatus?.embeddings?.downloadStatus;
+    const nerStatus = modelsStatus?.ner?.downloadStatus;
+    const needsRetry = ['failed', 'cancelled'].includes(embeddingsStatus) ||
+                       ['failed', 'cancelled'].includes(nerStatus);
+
+    if (needsRetry) {
+      updateModelStatusBadge('embeddings', embeddingsStatus || 'not_started');
+      updateModelStatusBadge('ner', nerStatus || 'not_started');
+      resetPreloadButton();
     }
   } catch (error) {
     console.log('Error checking download status:', error);
