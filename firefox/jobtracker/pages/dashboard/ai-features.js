@@ -110,7 +110,7 @@ function showModelDownloadToast(modelName, size) {
   const toast = document.createElement('div');
   toast.className = 'model-download-toast';
   toast.id = `model-toast-${modelName}`;
-  toast.innerHTML = `
+  setHTML(toast, `
     <div class="toast-header">
       <span class="icon">&#11015;</span>
       <span class="title">Downloading ${modelName === 'embeddings' ? 'Embeddings' : 'NER'} Model</span>
@@ -123,7 +123,7 @@ function showModelDownloadToast(modelName, size) {
       <span class="progress-text">0%</span>
       <span class="status-text">Preparing download...</span>
     </div>
-  `;
+  `);
   document.body.appendChild(toast);
 
   // Clear from tracking set after toast is added to DOM
@@ -421,25 +421,25 @@ export async function renderTagSuggestions(container, text, onSelect) {
   }
 
   if (!text || text.length < 50) {
-    container.innerHTML = '<span class="text-muted">Add more text for suggestions</span>';
+    setHTML(container, '<span class="text-muted">Add more text for suggestions</span>');
     return;
   }
 
-  container.innerHTML = '<span class="text-muted">Analyzing...</span>';
+  setHTML(container, '<span class="text-muted">Analyzing...</span>');
 
   try {
     const tags = await getSmartTags(text);
 
     if (tags.length === 0) {
-      container.innerHTML = '<span class="text-muted">No suggestions</span>';
+      setHTML(container, '<span class="text-muted">No suggestions</span>');
       return;
     }
 
-    container.innerHTML = tags.map(tag => `
+    setHTML(container, tags.map(tag => `
       <button type="button" class="suggested-tag" data-tag="${escapeHtml(tag)}">
         + ${escapeHtml(tag)}
       </button>
-    `).join('');
+    `).join(''));
 
     // Add click handlers
     container.querySelectorAll('.suggested-tag').forEach(btn => {
@@ -450,7 +450,7 @@ export async function renderTagSuggestions(container, text, onSelect) {
       });
     });
   } catch (error) {
-    container.innerHTML = '<span class="text-muted">Suggestions unavailable</span>';
+    setHTML(container, '<span class="text-muted">Suggestions unavailable</span>');
   }
 }
 
@@ -461,7 +461,7 @@ export async function renderTagSuggestions(container, text, onSelect) {
  */
 export function renderSkillMatch(container, matchResult) {
   if (!matchResult) {
-    container.innerHTML = '<p class="text-muted">Unable to analyze match</p>';
+    setHTML(container, '<p class="text-muted">Unable to analyze match</p>');
     return;
   }
 
@@ -472,7 +472,7 @@ export function renderSkillMatch(container, matchResult) {
   if (matchPercentage >= 70) matchColor = 'var(--color-success)';
   else if (matchPercentage >= 40) matchColor = 'var(--color-warning)';
 
-  container.innerHTML = `
+  setHTML(container, `
     <div class="skill-match-result">
       <div class="match-score" style="--match-color: ${matchColor}">
         <div class="match-percentage">${matchPercentage}%</div>
@@ -512,7 +512,7 @@ export function renderSkillMatch(container, matchResult) {
         ` : ''}
       </div>
     </div>
-  `;
+  `);
 }
 
 /**
@@ -635,22 +635,22 @@ export async function loadStorageSizes() {
       const allDownloaded = modelsStatus?.embeddings?.downloadStatus === 'downloaded' &&
                             modelsStatus?.ner?.downloadStatus === 'downloaded';
       if (allDownloaded) {
-        preloadBtn.innerHTML = `
+        setHTML(preloadBtn, `
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="20 6 9 17 4 12"></polyline>
           </svg>
           Models Downloaded
-        `;
+        `);
         preloadBtn.classList.add('downloaded');
       } else {
-        preloadBtn.innerHTML = `
+        setHTML(preloadBtn, `
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
           Download All Models (132 MB)
-        `;
+        `);
         preloadBtn.classList.remove('downloaded');
       }
     }
@@ -843,7 +843,7 @@ function renderCustomRules() {
 function createRuleCard(rule) {
   const card = document.createElement('div');
   card.className = 'entry-card';
-  card.innerHTML = `
+  setHTML(card, `
     <div class="entry-info">
       <div class="entry-title">${escapeHtml(rule.name)}</div>
       <div class="entry-subtitle"><code>${escapeHtml(rule.pattern)}</code> → ${escapeHtml(rule.profilePath)}</div>
@@ -863,7 +863,7 @@ function createRuleCard(rule) {
         </svg>
       </button>
     </div>
-  `;
+  `);
 
   card.querySelector('.edit').addEventListener('click', () => openRuleModal(rule));
   card.querySelector('.delete').addEventListener('click', () => deleteRule(rule.id));
@@ -1135,22 +1135,22 @@ export function setupSettingsListeners() {
                               modelsStatus?.ner?.downloadStatus === 'downloaded';
 
         if (allDownloaded) {
-          preloadBtn.innerHTML = `
+          setHTML(preloadBtn, `
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="20 6 9 17 4 12"></polyline>
             </svg>
             Models Downloaded
-          `;
+          `);
           preloadBtn.classList.add('downloaded');
         } else {
-          preloadBtn.innerHTML = `
+          setHTML(preloadBtn, `
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
               <polyline points="7 10 12 15 17 10"></polyline>
               <line x1="12" y1="15" x2="12" y2="3"></line>
             </svg>
             Download All Models (132 MB)
-          `;
+          `);
           preloadBtn.classList.remove('downloaded');
         }
       }

@@ -26,7 +26,7 @@ export function decodeHtmlEntities(str) {
     } else {
       // Fallback to textarea method if he not loaded
       const textarea = document.createElement('textarea');
-      textarea.innerHTML = result;
+      setHTML(textarea, result);
       result = textarea.value;
     }
     iterations++;
@@ -200,10 +200,10 @@ export function showNotification(message, type = 'info') {
   notification.className = `notification-toast notification-${type}`;
   notification.setAttribute('role', 'alert');
   notification.setAttribute('aria-live', 'assertive');
-  notification.innerHTML = `
+  setHTML(notification, `
     <span>${escapeHtml(message)}</span>
     <button class="notification-close" aria-label="Dismiss">&times;</button>
-  `;
+  `);
 
   document.body.appendChild(notification);
 

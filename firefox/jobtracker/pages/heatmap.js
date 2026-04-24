@@ -109,7 +109,7 @@ const HeatmapRenderer = {
 
     if (!HeatmapClass || typeof HeatmapClass !== 'function') {
       console.log('ActivityHeatmap library not loaded. ActivityHeatmap =', ActivityHeatmap);
-      container.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 2rem;">Heatmap library not loaded</p>';
+      setHTML(container, '<p style="color: var(--text-muted); text-align: center; padding: 2rem;">Heatmap library not loaded</p>');
       return;
     }
 
@@ -282,9 +282,9 @@ const HeatmapRenderer = {
               });
               const count = parseInt(value, 10);
               const safeDate = escapeHtml(formattedDate);
-              tooltip.innerHTML = count === 0
+              setHTML(tooltip, count === 0
                 ? `No applications on ${safeDate}`
-                : `<strong>${count}</strong> application${count !== 1 ? 's' : ''} on ${safeDate}`;
+                : `<strong>${count}</strong> application${count !== 1 ? 's' : ''} on ${safeDate}`);
               tooltip.style.display = 'block';
             }
           }, { signal: abortSignal });
@@ -356,7 +356,7 @@ const HeatmapRenderer = {
     } catch (error) {
       console.log('Error rendering activity heatmap:', error);
       // Fallback: show simple message
-      container.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 2rem;">Unable to load heatmap</p>';
+      setHTML(container, '<p style="color: var(--text-muted); text-align: center; padding: 2rem;">Unable to load heatmap</p>');
     }
   },
 

@@ -20,6 +20,7 @@
   let isTrackingJob = false; // Guard against double-click in handleIApplied
   let linkedInObservers = []; // Track MutationObservers for cleanup
   let buttonAbortController = null; // AbortController for document-level listeners
+  let formObserver = null; // Track form detection observer for cleanup
 
   // Default settings for graceful degradation when background script fails
   const DEFAULT_SETTINGS = {
@@ -169,7 +170,7 @@
     floatingButton = document.createElement('div');
     floatingButton.id = 'jobtracker-floating-btn';
     floatingButton.className = 'jobtracker-floating-btn';
-    floatingButton.innerHTML = `
+    setHTML(floatingButton, `
       <div class="jobtracker-btn-group">
         <button class="jobtracker-btn-applied" title="Track this job">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -214,7 +215,7 @@
           Hide Button
         </button>
       </div>
-    `;
+    `);
 
     document.body.appendChild(floatingButton);
 
@@ -283,72 +284,77 @@
     isTrackingJob = true;
 
     try {
-    // Try standard extraction first
-    let jobInfo = extractJobInfo();
+      // Try standard extraction first
+      let jobInfo = extractJobInfo();
 
-    // If on unsupported site and extraction failed, try AI extraction
-    if (jobInfo.platform === 'other' && (!jobInfo.company || !jobInfo.position)) {
-      // Check if AI extractor is available
-      if (typeof window.__jobTrackerAIExtract === 'function') {
-        try {
-          const aiJobInfo = await window.__jobTrackerAIExtract();
-          if (aiJobInfo) {
-            // Merge AI results with existing (AI results fill in gaps)
-            for (const [key, value] of Object.entries(aiJobInfo)) {
-              if (value && !jobInfo[key]) {
-                jobInfo[key] = value;
+      // If on unsupported site and extraction failed, try AI extraction
+      if (jobInfo.platform === 'other' && (!jobInfo.company || !jobInfo.position)) {
+        // Check if AI extractor is available
+        if (typeof window.__jobTrackerAIExtract === 'function') {
+          try {
+            const aiJobInfo = await window.__jobTrackerAIExtract();
+            if (aiJobInfo) {
+              // Merge AI results with existing (AI results fill in gaps)
+              for (const [key, value] of Object.entries(aiJobInfo)) {
+                if (value && !jobInfo[key]) {
+                  jobInfo[key] = value;
+                }
               }
             }
+          } catch (error) {
+            console.log('JobTracker: AI extraction failed:', error);
           }
-        } catch (error) {
-          console.log('JobTracker: AI extraction failed:', error);
         }
       }
-    }
 
-    // If extraction still failed, show quick add modal
-    if (!jobInfo.company && !jobInfo.position) {
-      const result = await showQuickAddModal(jobInfo);
-      if (!result) return; // User cancelled
-      Object.assign(jobInfo, result);
-    }
-
-    const response = await safeSendMessage({
-      type: 'ADD_APPLICATION',
-      payload: {
-        ...jobInfo,
-        status: 'applied',
-        dateApplied: new Date().toISOString(),
-        source: 'manual-button'
+      // If extraction still failed, show quick add modal
+      if (!jobInfo.company && !jobInfo.position) {
+        const result = await showQuickAddModal(jobInfo);
+        if (!result) return; // User cancelled
+        Object.assign(jobInfo, result);
       }
-    }, null);
 
-    if (!response) {
-      if (window.JobTrackerContent) {
-        window.JobTrackerContent.showNotification('Failed to save application. Extension may be reloading.', 'error');
-      }
-      return;
-    }
+      const response = await safeSendMessage({
+        type: 'ADD_APPLICATION',
+        payload: {
+          ...jobInfo,
+          status: 'applied',
+          dateApplied: new Date().toISOString(),
+          source: 'manual-button'
+        }
+      }, null);
 
-    // Check for duplicate
-    if (response?.duplicate) {
-      if (window.JobTrackerContent) {
-        window.JobTrackerContent.showNotification(
-          `Already tracked: ${response.existing?.position || 'This job'} at ${response.existing?.company || 'this company'}`,
-          'warning'
-        );
+      if (!response) {
+        if (window.JobTrackerContent) {
+          window.JobTrackerContent.showNotification('Failed to save application. Extension may be reloading.', 'error');
+        }
+        return;
       }
-      // Still update button to show it's tracked
+
+      // Check for duplicate
+      if (response?.duplicate) {
+        if (window.JobTrackerContent) {
+          window.JobTrackerContent.showNotification(
+            `Already tracked: ${response.existing?.position || 'This job'} at ${response.existing?.company || 'this company'}`,
+            'warning'
+          );
+        }
+        // Still update button to show it's tracked
+        setAppliedState();
+        return;
+      }
+
+      // Update button to show applied state
       setAppliedState();
-      return;
-    }
 
-    // Update button to show applied state
-    setAppliedState();
-
-    if (window.JobTrackerContent) {
-      window.JobTrackerContent.showNotification('Application tracked!', 'success');
-    }
+      if (window.JobTrackerContent) {
+        window.JobTrackerContent.showNotification('Application tracked!', 'success');
+      }
+    } catch (error) {
+      console.error('JobTracker: Error tracking application:', error);
+      if (window.JobTrackerContent) {
+        window.JobTrackerContent.showNotification('Failed to track application. Please try again.', 'error');
+      }
     } finally {
       isTrackingJob = false;
     }
@@ -360,12 +366,12 @@
     const appliedBtn = floatingButton?.querySelector('.jobtracker-btn-applied');
     if (appliedBtn) {
       appliedBtn.classList.add('applied');
-      appliedBtn.innerHTML = `
+      setHTML(appliedBtn, `
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <polyline points="20 6 9 17 4 12"></polyline>
         </svg>
         <span>Tracked</span>
-      `;
+      `);
     }
   }
 
@@ -375,13 +381,13 @@
     const appliedBtn = floatingButton?.querySelector('.jobtracker-btn-applied');
     if (appliedBtn) {
       appliedBtn.classList.remove('applied');
-      appliedBtn.innerHTML = `
+      setHTML(appliedBtn, `
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="12" y1="5" x2="12" y2="19"></line>
           <line x1="5" y1="12" x2="19" y2="12"></line>
         </svg>
         <span>Track</span>
-      `;
+      `);
     }
   }
 
@@ -468,7 +474,7 @@
 
       quickAddModal = document.createElement('div');
       quickAddModal.className = 'jobtracker-quick-add-overlay';
-      quickAddModal.innerHTML = `
+      setHTML(quickAddModal, `
         <div class="jobtracker-quick-add-modal">
           <div class="jobtracker-quick-add-header">
             <h3>Track Application</h3>
@@ -529,7 +535,7 @@
             <button class="jobtracker-quick-add-save">Save Application</button>
           </div>
         </div>
-      `;
+      `);
 
       document.body.appendChild(quickAddModal);
 
@@ -555,8 +561,8 @@
       const saveData = () => {
         const company = companyInput.value.trim();
         const position = positionInput.value.trim();
-        const location = quickAddModal.querySelector('#jt-location')?.value.trim() || '';
-        const salary = quickAddModal.querySelector('#jt-salary')?.value.trim() || '';
+        const location = quickAddModal.querySelector('#jt-location')?.value?.trim() || '';
+        const salary = quickAddModal.querySelector('#jt-salary')?.value?.trim() || '';
         const jobType = quickAddModal.querySelector('#jt-jobtype')?.value || '';
         const remote = quickAddModal.querySelector('#jt-remote')?.value || '';
         const jobDescription = descriptionInput.value.trim();
@@ -974,6 +980,12 @@
     linkedInObservers.forEach(o => o.disconnect());
     linkedInObservers = [];
 
+    // Disconnect form observer
+    if (formObserver) {
+      formObserver.disconnect();
+      formObserver = null;
+    }
+
     // Abort document-level listeners
     if (buttonAbortController) {
       buttonAbortController.abort();
@@ -1050,15 +1062,20 @@
 
   // Watch for dynamic form changes
   function observeFormChanges() {
-    const observer = new MutationObserver(() => {
+    if (formObserver) {
+      formObserver.disconnect();
+    }
+
+    formObserver = new MutationObserver(() => {
       if (!isFormDetected && shouldShowButton()) {
         createFloatingButton();
         isFormDetected = true;
-        observer.disconnect();
+        formObserver.disconnect();
+        formObserver = null;
       }
     });
 
-    observer.observe(document.body, {
+    formObserver.observe(document.body, {
       childList: true,
       subtree: true
     });
@@ -1118,20 +1135,23 @@
 
     // Watch for URL changes (for SPA navigation)
     let lastUrl = window.location.href;
-    const urlObserver = new MutationObserver(() => {
+    const onUrlChange = () => {
       if (window.location.href !== lastUrl) {
         lastUrl = window.location.href;
         currentJobId = null; // Reset to force re-check
         setTimeout(() => updateButtonForCurrentJob(), 100);
       }
-    });
+    };
 
-    linkedInObservers.push(urlObserver);
+    // Listen for native navigation events
+    if (buttonAbortController) {
+      window.addEventListener('popstate', onUrlChange, { signal: buttonAbortController.signal });
+      window.addEventListener('hashchange', onUrlChange, { signal: buttonAbortController.signal });
+    }
 
-    urlObserver.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
+    // Lightweight poll for pushState/replaceState changes (LinkedIn SPA)
+    const urlPollInterval = setInterval(onUrlChange, 500);
+    linkedInObservers.push({ disconnect: () => clearInterval(urlPollInterval) });
   }
 
   // Track extraction corrections for improving future extractions

@@ -11,10 +11,10 @@ function showNotification(message, type = 'info') {
 
   const notification = document.createElement('div');
   notification.className = `stats-notification stats-notification-${type}`;
-  notification.innerHTML = `
+  setHTML(notification, `
     <span>${escapeHtml(message)}</span>
     <button class="notification-close">&times;</button>
-  `;
+  `);
 
   // Add styles if not already present
   if (!document.getElementById('stats-notification-styles')) {
@@ -431,7 +431,7 @@ function initCharts(apps) {
       const interviewRate = funnelData['Screening'] > 0 ? ((funnelData['Interview'] / funnelData['Screening']) * 100).toFixed(0) : 0;
       const offerRate = funnelData['Interview'] > 0 ? ((funnelData['Offer'] / funnelData['Interview']) * 100).toFixed(0) : 0;
 
-      conversions.innerHTML = `
+      setHTML(conversions, `
         <div class="conversion-item">
           <div class="conversion-rate">${screeningRate}%</div>
           <div class="conversion-label">to Screening</div>
@@ -444,7 +444,7 @@ function initCharts(apps) {
           <div class="conversion-rate">${offerRate}%</div>
           <div class="conversion-label">to Offer</div>
         </div>
-      `;
+      `);
     }
   }
 
@@ -517,12 +517,12 @@ function initRejectionChart(apps) {
   const chartCard = document.getElementById('rejection-chart-card');
   if (rejected.length === 0) {
     if (chartCard) {
-      chartCard.innerHTML = `
+      setHTML(chartCard, `
         <h3 class="chart-title">Rejection Analysis</h3>
         <div class="chart-empty-state">
           <p>No rejected applications to analyze yet</p>
         </div>
-      `;
+      `);
     }
     return;
   }
@@ -666,18 +666,18 @@ function generateRejectionInsights(apps, rejected, sortedReasons) {
 
   // Render insights
   if (insights.length === 0) {
-    insightsContainer.innerHTML = `
+    setHTML(insightsContainer, `
       <div class="rejection-insight-empty">
         <p>Add rejection reasons to your applications to see insights</p>
       </div>
-    `;
+    `);
   } else {
-    insightsContainer.innerHTML = insights.map(insight => `
+    setHTML(insightsContainer, insights.map(insight => `
       <div class="rejection-insight rejection-insight-${escapeHtml(insight.type)}">
         <span class="rejection-insight-icon">${insight.icon}</span>
         <span class="rejection-insight-message">${escapeHtml(insight.message)}</span>
       </div>
-    `).join('');
+    `).join(''));
   }
 }
 
@@ -689,7 +689,7 @@ function initHeatmap(apps) {
   // Check if HeatmapRenderer is available (loaded from heatmap.js)
   if (typeof window.HeatmapRenderer === 'undefined') {
     console.log('HeatmapRenderer not available');
-    container.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 2rem;">Heatmap library not loaded</p>';
+    setHTML(container, '<p style="color: var(--text-muted); text-align: center; padding: 2rem;">Heatmap library not loaded</p>');
     return;
   }
 
@@ -714,12 +714,12 @@ function updateGoalDisplay() {
   const hasMonthly = goals.monthly?.enabled && goals.monthly?.target;
 
   if (!hasWeekly && !hasMonthly) {
-    container.innerHTML = `
+    setHTML(container, `
       <div class="goal-empty-state">
         <p>Set weekly or monthly goals to track your progress</p>
         <button class="btn-secondary btn-sm" id="goal-setup-btn">Set Goals</button>
       </div>
-    `;
+    `);
     document.getElementById('goal-setup-btn')?.addEventListener('click', openGoalModal);
     return;
   }
@@ -748,7 +748,7 @@ function updateGoalDisplay() {
   const circumference = 2 * Math.PI * 54;
   const offset = circumference - (percentage / 100) * circumference;
 
-  container.innerHTML = `
+  setHTML(container, `
     <div class="goal-type-selector">
       <button class="goal-type-btn ${hasWeekly ? 'active' : ''}" data-type="weekly" ${!hasWeekly ? 'disabled' : ''}>Weekly</button>
       <button class="goal-type-btn ${!hasWeekly && hasMonthly ? 'active' : ''}" data-type="monthly" ${!hasMonthly ? 'disabled' : ''}>Monthly</button>
@@ -781,7 +781,7 @@ function updateGoalDisplay() {
         </div>
       </div>
     </div>
-  `;
+  `);
 }
 
 // Goal modal
@@ -910,11 +910,11 @@ async function loadUpcomingInterviews() {
       .slice(0, 5);
 
     if (upcoming.length === 0) {
-      container.innerHTML = '<div class="widget-empty"><p>No upcoming interviews scheduled</p></div>';
+      setHTML(container, '<div class="widget-empty"><p>No upcoming interviews scheduled</p></div>');
       return;
     }
 
-    container.innerHTML = upcoming.map(interview => {
+    setHTML(container, upcoming.map(interview => {
       const date = new Date(interview.scheduledDate);
       const app = applications.find(a => a.id === interview.applicationId);
 
@@ -931,10 +931,10 @@ async function loadUpcomingInterviews() {
           <span class="interview-round">Round ${parseInt(interview.round) || 1}</span>
         </div>
       `;
-    }).join('');
+    }).join(''));
   } catch (error) {
     console.log('Error loading interviews:', error);
-    container.innerHTML = '<div class="widget-empty"><p>Could not load interviews</p></div>';
+    setHTML(container, '<div class="widget-empty"><p>Could not load interviews</p></div>');
   }
 }
 
@@ -964,11 +964,11 @@ async function loadTasks() {
       .slice(0, 5);
 
     if (pending.length === 0) {
-      container.innerHTML = '<div class="widget-empty"><p>No pending tasks</p></div>';
+      setHTML(container, '<div class="widget-empty"><p>No pending tasks</p></div>');
       return;
     }
 
-    container.innerHTML = pending.map(task => {
+    setHTML(container, pending.map(task => {
       const app = applications.find(a => a.id === task.applicationId);
       const priorityClass = task.priority <= 1 ? 'priority-high' : task.priority <= 2 ? 'priority-medium' : 'priority-low';
       const isOverdue = task.dueDate && new Date(task.dueDate) < new Date();
@@ -987,7 +987,7 @@ async function loadTasks() {
           ${task.dueDate ? `<span class="task-due ${isOverdue ? 'overdue' : ''}">${formatDueDate(task.dueDate)}</span>` : ''}
         </div>
       `;
-    }).join('');
+    }).join(''));
 
     // Add click handlers for completing tasks
     container.querySelectorAll('.task-checkbox').forEach(btn => {
@@ -1000,7 +1000,7 @@ async function loadTasks() {
           if (success) {
             taskItem.remove();
             if (container.children.length === 0) {
-              container.innerHTML = '<div class="widget-empty"><p>No pending tasks</p></div>';
+              setHTML(container, '<div class="widget-empty"><p>No pending tasks</p></div>');
             }
           }
         }
@@ -1008,7 +1008,7 @@ async function loadTasks() {
     });
   } catch (error) {
     console.log('Error loading tasks:', error);
-    container.innerHTML = '<div class="widget-empty"><p>Could not load tasks</p></div>';
+    setHTML(container, '<div class="widget-empty"><p>Could not load tasks</p></div>');
   }
 }
 

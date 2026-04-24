@@ -239,7 +239,7 @@ export function renderResumeList(resumes = [], uploaded = [], searchQuery = '') 
   const generatedHtml = filteredGenerated.map(resume => renderResumeCard(resume)).join('');
   const uploadedHtml = filteredUploaded.map(resume => renderUploadedResumeCard(resume)).join('');
 
-  list.innerHTML = generatedHtml + uploadedHtml;
+  setHTML(list, generatedHtml + uploadedHtml);
 
   // Add event listeners for generated resume cards
   list.querySelectorAll('.resume-card[data-type="generated"]').forEach(card => {

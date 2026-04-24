@@ -217,7 +217,7 @@ export function createAppCard(app) {
   const priorityBadge = getPriorityBadge(app);
   const activityBadge = getDaysSinceActivityBadge(app);
 
-  card.innerHTML = `
+  setHTML(card, `
     <div class="app-card-header">
       <div class="app-icon">${initial}</div>
       <div class="app-info">
@@ -264,7 +264,7 @@ export function createAppCard(app) {
         </svg>
       </button>
     </div>
-  `;
+  `);
 
   // Event listeners
   card.addEventListener('click', (e) => {
@@ -315,7 +315,7 @@ export function renderTable() {
     const tablePriorityBadge = getPriorityBadge(app);
     const tableActivityBadge = getDaysSinceActivityBadge(app);
 
-    row.innerHTML = `
+    setHTML(row, `
       <td>
         <div class="table-company">
           <span class="table-icon">${tableInitial}</span>
@@ -351,7 +351,7 @@ export function renderTable() {
         </button>
         </div>
       </td>
-    `;
+    `);
 
     // Event listeners
     row.addEventListener('click', (e) => {

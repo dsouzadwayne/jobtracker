@@ -144,9 +144,9 @@ function setSubmitState(submitting) {
   const submitBtn = elements.appForm?.querySelector('button[type="submit"]');
   if (submitBtn) {
     submitBtn.disabled = submitting;
-    submitBtn.innerHTML = submitting
+    setHTML(submitBtn, submitting
       ? '<span class="spinner"></span> Saving...'
-      : 'Save';
+      : 'Save');
   }
 }
 
@@ -284,10 +284,10 @@ export async function handleSubmit(e) {
     deadlineAlert: true,
     // CRM Enhancement Phase 1: New fields
     priority: document.getElementById('app-priority')?.value || 'medium',
-    referredBy: document.getElementById('app-referred-by')?.value.trim() || '',
+    referredBy: document.getElementById('app-referred-by')?.value?.trim() || '',
     lastContacted: lastContactedValue ? new Date(lastContactedValue).toISOString() : null,
     rejectionReason: status === 'rejected' ? (document.getElementById('app-rejection-reason')?.value || null) : null,
-    companyNotes: document.getElementById('app-company-notes')?.value.trim() || '',
+    companyNotes: document.getElementById('app-company-notes')?.value?.trim() || '',
     // Resume linking - structured format
     resume: currentResumeData.type ? {
       type: currentResumeData.type,
@@ -423,7 +423,7 @@ export function setResumeLink(type, id, name) {
 
   if (type && id && name) {
     const typeLabel = type === 'generated' ? 'Generated' : 'Uploaded';
-    resumeCurrent.innerHTML = `
+    setHTML(resumeCurrent, `
       <div class="resume-linked">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
@@ -432,10 +432,10 @@ export function setResumeLink(type, id, name) {
         <span class="resume-linked-name">${escapeHtml(name)}</span>
         <span class="resume-linked-type">${typeLabel}</span>
       </div>
-    `;
+    `);
     clearBtn?.classList.remove('hidden');
   } else {
-    resumeCurrent.innerHTML = '<span class="resume-none">No resume linked</span>';
+    setHTML(resumeCurrent, '<span class="resume-none">No resume linked</span>');
     clearBtn?.classList.add('hidden');
   }
 
@@ -457,7 +457,7 @@ export function clearResumeLink() {
   const resumeCurrent = document.getElementById('resume-current');
   const clearBtn = document.getElementById('clear-resume-btn');
 
-  resumeCurrent.innerHTML = '<span class="resume-none">No resume linked</span>';
+  setHTML(resumeCurrent, '<span class="resume-none">No resume linked</span>');
   clearBtn?.classList.add('hidden');
 }
 
@@ -515,7 +515,7 @@ function renderResumeList(type, resumes) {
 
   emptyEl.classList.add('hidden');
 
-  listEl.innerHTML = resumes.map(resume => {
+  setHTML(listEl, resumes.map(resume => {
     const name = resume.name || 'Untitled Resume';
     const subtitle = type === 'generated'
       ? (resume.subtitle || 'No job description')
@@ -537,7 +537,7 @@ function renderResumeList(type, resumes) {
         <div class="resume-list-item-meta">${dateStr}</div>
       </div>
     `;
-  }).join('');
+  }).join(''));
 
   // Add click handlers
   listEl.querySelectorAll('.resume-list-item').forEach(item => {

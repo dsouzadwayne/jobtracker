@@ -238,7 +238,7 @@
 
     const overlay = document.createElement('div');
     overlay.className = 'jt-cover-picker-overlay';
-    overlay.innerHTML = `
+    setHTML(overlay, `
       <div class="jt-cover-picker">
         <div class="jt-cover-picker-header">
           <h3 class="jt-cover-picker-title">Select Cover Letter</h3>
@@ -269,7 +269,7 @@
           <button class="jt-cover-picker-skip">Skip</button>
         </div>
       </div>
-    `;
+    `);
 
     return overlay;
   }

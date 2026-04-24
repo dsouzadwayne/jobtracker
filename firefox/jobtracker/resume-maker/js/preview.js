@@ -72,11 +72,11 @@ export function renderPreview() {
   const analysis = getAnalysisResult();
 
   if (!resume) {
-    preview.innerHTML = `
+    setHTML(preview, `
       <div class="preview-empty">
         <p>Start filling out your resume details to see a preview here.</p>
       </div>
-    `;
+    `);
     return;
   }
 
@@ -97,7 +97,7 @@ export function renderPreview() {
     </div>
   `;
 
-  preview.innerHTML = content;
+  setHTML(preview, content);
   updateZoom();
 }
 

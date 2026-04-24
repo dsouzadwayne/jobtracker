@@ -200,7 +200,7 @@ function createApplicationItem(app) {
   const dateStr = formatRelativeDate(app.dateApplied || app.meta?.createdAt || new Date().toISOString());
   const statusClass = `status-${sanitizeStatus(app.status)}`;
 
-  item.innerHTML = `
+  setHTML(item, `
     <div class="app-icon">${initial}</div>
     <div class="app-details">
       <div class="app-company">${escapeHtml(app.company || 'Unknown Company')}</div>
@@ -210,7 +210,7 @@ function createApplicationItem(app) {
         <span class="app-date">${escapeHtml(dateStr)}</span>
       </div>
     </div>
-  `;
+  `);
 
   item.addEventListener('click', () => {
     browser.tabs.create({ url: browser.runtime.getURL(`pages/dashboard.html?id=${app.id}`) });
@@ -571,24 +571,24 @@ async function handleTrackJob() {
     // Check for duplicate
     if (addResult?.duplicate) {
       // Already tracked - show as success anyway
-      btnText.innerHTML = `
+      setHTML(btnText, `
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="20 6 9 17 4 12"></polyline>
         </svg>
         Already Tracked
-      `;
+      `);
       btnText.classList.remove('hidden');
       btnLoading.classList.add('hidden');
 
       setTimeout(() => {
-        btnText.innerHTML = `
+        setHTML(btnText, `
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
             <path d="M2 17l10 5 10-5"></path>
             <path d="M2 12l10 5 10-5"></path>
           </svg>
           Track This Job
-        `;
+        `);
         btn.disabled = false;
         isTrackingJob = false;
       }, 2000);
@@ -601,25 +601,25 @@ async function handleTrackJob() {
       await loadRecentApplications();
 
       // Show success feedback
-      btnText.innerHTML = `
+      setHTML(btnText, `
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="20 6 9 17 4 12"></polyline>
         </svg>
         Tracked!
-      `;
+      `);
       btnText.classList.remove('hidden');
       btnLoading.classList.add('hidden');
 
       // Reset after 2 seconds
       setTimeout(() => {
-        btnText.innerHTML = `
+        setHTML(btnText, `
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
             <path d="M2 17l10 5 10-5"></path>
             <path d="M2 12l10 5 10-5"></path>
           </svg>
           Track This Job
-        `;
+        `);
         btn.disabled = false;
         isTrackingJob = false;
       }, 2000);

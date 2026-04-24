@@ -248,7 +248,7 @@
     notification.className = `jobtracker-notification jobtracker-notification-${type}`;
     const iconSpan = document.createElement('span');
     iconSpan.className = 'jobtracker-notification-icon';
-    iconSpan.innerHTML = getNotificationIcon(type);
+    setHTML(iconSpan, getNotificationIcon(type));
 
     const messageSpan = document.createElement('span');
     messageSpan.className = 'jobtracker-notification-message';

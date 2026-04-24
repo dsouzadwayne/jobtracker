@@ -205,7 +205,7 @@ function renderProfilePreview(data) {
 
   // Safely extract personal data with full null checks
   if (!data) {
-    container.innerHTML = '<p class="text-muted text-sm">No data available</p>';
+    setHTML(container, '<p class="text-muted text-sm">No data available</p>');
     return;
   }
 
@@ -228,9 +228,9 @@ function renderProfilePreview(data) {
     items.push(`<strong>LinkedIn:</strong> ${escapeHtml(personal.linkedIn)}`);
   }
 
-  container.innerHTML = items.length > 0
+  setHTML(container, items.length > 0
     ? items.map(item => `<div class="preview-item">${item}</div>`).join('')
-    : '<p class="text-muted text-sm">No profile information extracted</p>';
+    : '<p class="text-muted text-sm">No profile information extracted</p>');
 }
 
 /**
@@ -241,24 +241,24 @@ function renderExperiencePreview(data) {
   if (!container) return;
 
   if (!data) {
-    container.innerHTML = '<p class="text-muted text-sm">No data available</p>';
+    setHTML(container, '<p class="text-muted text-sm">No data available</p>');
     return;
   }
 
   const workHistory = data.normalized?.workHistory || data.extracted?.workHistory || [];
 
   if (workHistory.length === 0) {
-    container.innerHTML = '<p class="text-muted text-sm">No work experience extracted</p>';
+    setHTML(container, '<p class="text-muted text-sm">No work experience extracted</p>');
     return;
   }
 
-  container.innerHTML = workHistory.map(exp => `
+  setHTML(container, workHistory.map(exp => `
     <div class="preview-item">
       <strong>${escapeHtml(exp.title || 'Untitled')}</strong>
       ${exp.company ? ` at ${escapeHtml(exp.company)}` : ''}
       ${exp.startDate ? `<span class="text-muted"> (${escapeHtml(exp.startDate)}${exp.endDate ? ` - ${escapeHtml(exp.endDate)}` : exp.current ? ' - Present' : ''})</span>` : ''}
     </div>
-  `).join('');
+  `).join(''));
 }
 
 /**
@@ -269,24 +269,24 @@ function renderEducationPreview(data) {
   if (!container) return;
 
   if (!data) {
-    container.innerHTML = '<p class="text-muted text-sm">No data available</p>';
+    setHTML(container, '<p class="text-muted text-sm">No data available</p>');
     return;
   }
 
   const education = data.normalized?.education || data.extracted?.education || [];
 
   if (education.length === 0) {
-    container.innerHTML = '<p class="text-muted text-sm">No education extracted</p>';
+    setHTML(container, '<p class="text-muted text-sm">No education extracted</p>');
     return;
   }
 
-  container.innerHTML = education.map(edu => `
+  setHTML(container, education.map(edu => `
     <div class="preview-item">
       <strong>${escapeHtml(edu.degree || 'Untitled')}</strong>
       ${edu.school ? ` - ${escapeHtml(edu.school)}` : ''}
       ${edu.endDate ? `<span class="text-muted"> (${escapeHtml(edu.endDate)})</span>` : ''}
     </div>
-  `).join('');
+  `).join(''));
 }
 
 /**
@@ -297,7 +297,7 @@ function renderSkillsPreview(data) {
   if (!container) return;
 
   if (!data) {
-    container.innerHTML = '<p class="text-muted text-sm">No data available</p>';
+    setHTML(container, '<p class="text-muted text-sm">No data available</p>');
     return;
   }
 
@@ -310,16 +310,16 @@ function renderSkillsPreview(data) {
   ];
 
   if (allSkills.length === 0) {
-    container.innerHTML = '<p class="text-muted text-sm">No skills extracted</p>';
+    setHTML(container, '<p class="text-muted text-sm">No skills extracted</p>');
     return;
   }
 
-  container.innerHTML = `
+  setHTML(container, `
     <div class="skill-tags-preview">
       ${allSkills.slice(0, 20).map(skill => `<span class="skill-tag-small">${escapeHtml(skill)}</span>`).join('')}
       ${allSkills.length > 20 ? `<span class="text-muted">+${allSkills.length - 20} more</span>` : ''}
     </div>
-  `;
+  `);
 }
 
 // ==================== APPLY PARSED DATA ====================

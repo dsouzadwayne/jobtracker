@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "JobTracker",
-  "version": "0.0.3",
+  "version": "0.0.1",
   "description": "Track job applications and autofill forms. 100% local, privacy-first, open source.",
   "author": "Dwayne",
   "homepage_url": "https://github.com/dsouzadwayne/jobtracker",
@@ -9,7 +9,10 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "jobtracker@dsouzadwayne",
-      "strict_min_version": "128.0"
+      "strict_min_version": "128.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
     }
   },
 
@@ -55,6 +58,7 @@
       "js": [
         "lib/vendor/browser-polyfill.min.js",
         "lib/vendor/dompurify.min.js",
+        "lib/set-html.js",
         "lib/storage.js",
         "lib/utils.js",
         "lib/format-utils.js",

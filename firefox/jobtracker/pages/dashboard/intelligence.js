@@ -71,22 +71,22 @@ function renderInsights(insights) {
   if (!elements.insightsList) return;
 
   if (!insights || insights.length === 0) {
-    elements.insightsList.innerHTML = `
+    setHTML(elements.insightsList, `
       <div class="insights-empty">
         <p>Add more applications to see insights</p>
       </div>
-    `;
+    `);
     return;
   }
 
-  elements.insightsList.innerHTML = insights.map(insight => `
+  setHTML(elements.insightsList, insights.map(insight => `
     <div class="insight-item insight-${insight.type}">
       <div class="insight-icon">
         ${getInsightIcon(insight.icon)}
       </div>
       <div class="insight-message">${escapeHtml(insight.message)}</div>
     </div>
-  `).join('');
+  `).join(''));
 }
 
 // Get SVG icon for insight type
@@ -106,15 +106,15 @@ function renderRecommendations(recommendations) {
   if (!elements.recommendationsList) return;
 
   if (!recommendations || recommendations.length === 0) {
-    elements.recommendationsList.innerHTML = `
+    setHTML(elements.recommendationsList, `
       <div class="recommendations-empty">
         <p>Great job! No recommendations at this time.</p>
       </div>
-    `;
+    `);
     return;
   }
 
-  elements.recommendationsList.innerHTML = recommendations.map(rec => `
+  setHTML(elements.recommendationsList, recommendations.map(rec => `
     <div class="recommendation-item rec-${rec.type}">
       <div class="recommendation-header">
         <div class="recommendation-icon">
@@ -133,7 +133,7 @@ function renderRecommendations(recommendations) {
         </div>
       ` : ''}
     </div>
-  `).join('');
+  `).join(''));
 
   // Add event listeners for action buttons
   elements.recommendationsList.querySelectorAll('.recommendation-action-btn').forEach(btn => {
@@ -178,12 +178,12 @@ function renderGoalProgress(progress) {
   const hasMonthlyGoal = progress.monthly.enabled && progress.monthly.target > 0;
 
   if (!hasWeeklyGoal && !hasMonthlyGoal) {
-    elements.goalProgressContainer.innerHTML = `
+    setHTML(elements.goalProgressContainer, `
       <div class="goal-empty-state">
         <p>Set weekly or monthly goals to track your progress</p>
         <button class="btn-secondary btn-sm" id="goal-setup-btn-inner">Set Goals</button>
       </div>
-    `;
+    `);
     document.getElementById('goal-setup-btn-inner')?.addEventListener('click', openGoalModal);
     return;
   }
@@ -199,7 +199,7 @@ function renderGoalProgress(progress) {
   const circumference = 2 * Math.PI * 42;
   const offset = circumference - (activeGoal.percentage / 100) * circumference;
 
-  elements.goalProgressContainer.innerHTML = `
+  setHTML(elements.goalProgressContainer, `
     ${(hasWeeklyGoal && hasMonthlyGoal) ? `
       <div class="goal-type-selector">
         <button class="goal-type-btn ${currentGoalType === 'weekly' ? 'active' : ''}" data-type="weekly">Weekly</button>
@@ -234,7 +234,7 @@ function renderGoalProgress(progress) {
         </div>
       </div>
     </div>
-  `;
+  `);
 
   // Add event listeners for goal type toggle
   elements.goalProgressContainer.querySelectorAll('.goal-type-btn').forEach(btn => {

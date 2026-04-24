@@ -176,12 +176,12 @@ export async function exportToPdf() {
   const originalContent = exportBtn ? exportBtn.innerHTML : '';
   if (exportBtn) {
     exportBtn.disabled = true;
-    exportBtn.innerHTML = `
+    setHTML(exportBtn, `
       <svg class="spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
       </svg>
       Generating...
-    `;
+    `);
   }
 
   try {
@@ -230,7 +230,7 @@ export async function exportToPdf() {
     // Restore button state
     if (exportBtn && originalContent) {
       exportBtn.disabled = false;
-      exportBtn.innerHTML = originalContent;
+      setHTML(exportBtn, originalContent);
     }
   }
 }

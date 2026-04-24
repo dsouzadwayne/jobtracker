@@ -267,7 +267,7 @@ export async function showDetailsPanel(app) {
     </div>
   `;
 
-  elements.detailsContent.innerHTML = `
+  setHTML(elements.detailsContent, `
     <div class="details-company">
       <span class="company-initial">${detailsInitial}</span>
       <div>
@@ -351,7 +351,7 @@ export async function showDetailsPanel(app) {
       <button class="btn-secondary details-edit-btn">Edit</button>
       <button class="btn-danger details-delete-btn">Delete</button>
     </div>
-  `;
+  `);
 
   // Add event listeners for details panel buttons
   elements.detailsContent.querySelector('.details-edit-btn').addEventListener('click', () => openModalCallback?.(app));

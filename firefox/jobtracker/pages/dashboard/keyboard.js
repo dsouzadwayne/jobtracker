@@ -132,7 +132,7 @@ function showKeyboardShortcutsHelp() {
   helpModal.setAttribute('role', 'dialog');
   helpModal.setAttribute('aria-modal', 'true');
   helpModal.setAttribute('aria-labelledby', 'keyboard-help-title');
-  helpModal.innerHTML = `
+  setHTML(helpModal, `
     <div class="modal-content" style="max-width: 400px;">
       <div class="modal-header">
         <h3 id="keyboard-help-title">Keyboard Shortcuts</h3>
@@ -167,7 +167,7 @@ function showKeyboardShortcutsHelp() {
         </dl>
       </div>
     </div>
-  `;
+  `);
 
   document.body.appendChild(helpModal);
 

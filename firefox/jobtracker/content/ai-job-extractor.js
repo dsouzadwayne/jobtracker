@@ -578,12 +578,12 @@
     if (!indicator) {
       indicator = document.createElement('div');
       indicator.id = 'jobtracker-ai-indicator';
-      indicator.innerHTML = `
+      setHTML(indicator, `
         <div class="jobtracker-ai-indicator-content">
           <div class="jobtracker-ai-spinner"></div>
           <span>Analyzing with ML...</span>
         </div>
-      `;
+      `);
       indicator.style.cssText = `
         position: fixed;
         bottom: 80px;

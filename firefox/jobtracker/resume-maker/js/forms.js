@@ -490,7 +490,7 @@ export function openItemModal(section, itemId = null) {
 
   // Generate form fields
   const fields = SECTION_FIELDS[section] || [];
-  fieldsContainer.innerHTML = fields.map(field => generateFieldHtml(field, existingData[field.name])).join('');
+  setHTML(fieldsContainer, fields.map(field => generateFieldHtml(field, existingData[field.name])).join(''));
 
   // Handle "current" checkbox for experience
   if (section === 'experience') {
@@ -698,12 +698,12 @@ export function renderSection(section) {
   const items = resume?.[section]?.items || [];
 
   if (items.length === 0) {
-    list.innerHTML = '<p class="text-muted text-sm">No items added yet.</p>';
+    setHTML(list, '<p class="text-muted text-sm">No items added yet.</p>');
     updateItemCount(section, 0);
     return;
   }
 
-  list.innerHTML = items.map(item => renderItemCard(section, item)).join('');
+  setHTML(list, items.map(item => renderItemCard(section, item)).join(''));
 
   updateItemCount(section, items.length);
 }
@@ -813,12 +813,12 @@ export function renderSkills() {
   const skills = resume?.skills?.items || [];
 
   if (skills.length === 0) {
-    container.innerHTML = '<p class="text-muted text-sm">No skills added yet.</p>';
+    setHTML(container, '<p class="text-muted text-sm">No skills added yet.</p>');
     updateItemCount('skills', 0);
     return;
   }
 
-  container.innerHTML = skills.map(skill => `
+  setHTML(container, skills.map(skill => `
     <span class="skill-tag">
       ${escapeHtml(skill)}
       <button type="button" class="remove-skill" data-skill="${escapeHtml(skill)}" title="Remove skill">
@@ -828,7 +828,7 @@ export function renderSkills() {
         </svg>
       </button>
     </span>
-  `).join('');
+  `).join(''));
 
   updateItemCount('skills', skills.length);
 }

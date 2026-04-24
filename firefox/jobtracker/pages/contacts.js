@@ -87,7 +87,7 @@ function populateApplicationDropdown() {
     !['rejected', 'withdrawn'].includes(app.status)
   );
 
-  select.innerHTML = '<option value="">No specific application</option>';
+  setHTML(select, '<option value="">No specific application</option>');
   activeApps.forEach(app => {
     const option = document.createElement('option');
     option.value = app.id;
@@ -136,7 +136,7 @@ function render() {
   }
 
   elements.emptyState.classList.add('hidden');
-  elements.contactsList.innerHTML = filteredContacts.map(contact => createContactCard(contact)).join('');
+  setHTML(elements.contactsList, filteredContacts.map(contact => createContactCard(contact)).join(''));
 }
 
 function createContactCard(contact) {
@@ -216,7 +216,7 @@ function openDetailPanel(contactId) {
     (app.contacts || []).includes(contactId)
   );
 
-  elements.panelContent.innerHTML = `
+  setHTML(elements.panelContent, `
     <div class="panel-profile">
       <div class="panel-avatar">${(contact.name || 'U')[0].toUpperCase()}</div>
       <h2 class="panel-name">${escapeHtml(contact.name || 'Unknown')}</h2>
@@ -330,7 +330,7 @@ function openDetailPanel(contactId) {
         <div class="panel-empty">No communications logged yet</div>
       `}
     </div>
-  `;
+  `);
 
   // Use onclick to avoid duplicate listeners when panel is reopened
   const panelAddCommBtn = document.getElementById('panel-add-comm-btn');

@@ -420,23 +420,23 @@ function displayAnalysisResults(result) {
 
   if (matchingSkillsEl) {
     const skills = result.tailoring.matchingSkills || [];
-    matchingSkillsEl.innerHTML = skills.length > 0
+    setHTML(matchingSkillsEl, skills.length > 0
       ? skills.map(s => `<span class="skill-tag matched">${escapeHtml(s)}</span>`).join('')
-      : '<span class="text-muted">No matching skills found</span>';
+      : '<span class="text-muted">No matching skills found</span>');
   }
 
   if (highlightSkillsEl) {
     const skills = result.tailoring.highlightSkills || [];
-    highlightSkillsEl.innerHTML = skills.length > 0
+    setHTML(highlightSkillsEl, skills.length > 0
       ? skills.map(s => `<span class="skill-tag highlight">${escapeHtml(s)}</span>`).join('')
-      : '<span class="text-muted">No skills to highlight</span>';
+      : '<span class="text-muted">No skills to highlight</span>');
   }
 
   if (missingSkillsEl) {
     const skills = result.tailoring.missingSkills || [];
-    missingSkillsEl.innerHTML = skills.length > 0
+    setHTML(missingSkillsEl, skills.length > 0
       ? skills.map(s => `<span class="skill-tag missing">${escapeHtml(s)}</span>`).join('')
-      : '<span class="text-muted">Great! You have all the required skills</span>';
+      : '<span class="text-muted">Great! You have all the required skills</span>');
   }
 }
 

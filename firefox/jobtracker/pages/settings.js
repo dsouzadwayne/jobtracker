@@ -428,7 +428,7 @@ function renderCustomRules() {
 function createRuleCard(rule) {
   const card = document.createElement('div');
   card.className = 'entry-card';
-  card.innerHTML = `
+  setHTML(card, `
     <div class="entry-info">
       <div class="entry-title">${escapeHtml(rule.name)}</div>
       <div class="entry-subtitle"><code>${escapeHtml(rule.pattern)}</code> -> ${escapeHtml(rule.profilePath)}</div>
@@ -448,7 +448,7 @@ function createRuleCard(rule) {
         </svg>
       </button>
     </div>
-  `;
+  `);
 
   card.querySelector('.edit').addEventListener('click', () => openRuleModal(rule));
   card.querySelector('.delete').addEventListener('click', () => deleteRule(rule.id));
@@ -594,22 +594,22 @@ async function loadStorageSizes() {
       const allDownloaded = modelsStatus?.embeddings?.downloadStatus === 'downloaded' &&
                             modelsStatus?.ner?.downloadStatus === 'downloaded';
       if (allDownloaded) {
-        preloadBtn.innerHTML = `
+        setHTML(preloadBtn, `
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="20 6 9 17 4 12"></polyline>
           </svg>
           Models Downloaded
-        `;
+        `);
         preloadBtn.classList.add('downloaded');
       } else {
-        preloadBtn.innerHTML = `
+        setHTML(preloadBtn, `
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
           Download All Models (132 MB)
-        `;
+        `);
         preloadBtn.classList.remove('downloaded');
       }
     }
@@ -694,14 +694,14 @@ function resetPreloadButton() {
   const preloadBtn = document.getElementById('preload-models-btn');
   if (preloadBtn) {
     preloadBtn.disabled = false;
-    preloadBtn.innerHTML = `
+    setHTML(preloadBtn, `
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
         <polyline points="7 10 12 15 17 10"></polyline>
         <line x1="12" y1="15" x2="12" y2="3"></line>
       </svg>
       Download All Models (132 MB)
-    `;
+    `);
     preloadBtn.classList.remove('downloaded');
   }
 }
@@ -1105,12 +1105,12 @@ function setupModelDownloadListeners() {
       const preloadBtn = document.getElementById('preload-models-btn');
       if (preloadBtn) {
         preloadBtn.disabled = false;
-        preloadBtn.innerHTML = `
+        setHTML(preloadBtn, `
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="20 6 9 17 4 12"></polyline>
           </svg>
           Models Downloaded
-        `;
+        `);
         preloadBtn.classList.add('downloaded');
       }
 

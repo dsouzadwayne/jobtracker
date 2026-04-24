@@ -249,7 +249,7 @@ function createAppCard(app) {
   const statusClass = `status-${sanitizeStatus(app.status)}`;
   const isExpanded = expandedCardId === app.id;
 
-  card.innerHTML = `
+  setHTML(card, `
     <div class="app-card-header">
       <div class="app-card-main">
         <div class="app-icon">${initial}</div>
@@ -303,7 +303,7 @@ function createAppCard(app) {
       </div>
     </div>
     ${isExpanded ? createExpandedDetails(app) : ''}
-  `;
+  `);
 
   // Event listeners
   card.addEventListener('click', (e) => {
@@ -709,7 +709,7 @@ function decodeHtmlEntities(str) {
   }
   // Fallback to textarea method if he not loaded
   const textarea = document.createElement('textarea');
-  textarea.innerHTML = str;
+  textarea.textContent = str;
   return textarea.value;
 }
 

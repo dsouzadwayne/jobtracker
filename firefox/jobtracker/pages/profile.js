@@ -504,7 +504,7 @@ function createCompanyGroup(companyKey, positions) {
   // Calculate total duration at company
   const dateRange = getCompanyDateRange(positions);
 
-  group.innerHTML = `
+  setHTML(group, `
     <div class="company-group-header" data-expanded="true">
       <div class="company-info">
         <div class="company-name">${escapeHtml(companyName)}</div>
@@ -528,7 +528,7 @@ function createCompanyGroup(companyKey, positions) {
     <div class="company-positions">
       <!-- Positions will be appended here -->
     </div>
-  `;
+  `);
 
   const positionsContainer = group.querySelector('.company-positions');
   positions.forEach(position => {
@@ -583,7 +583,7 @@ function createPositionCard(entry) {
   card.className = 'position-card';
   const dateRangeStr = escapeHtml(formatDateRange(entry.startDate, entry.endDate, entry.current));
 
-  card.innerHTML = `
+  setHTML(card, `
     <div class="position-header">
       <div class="position-info">
         <div class="position-title">${escapeHtml(entry.title)}</div>
@@ -605,7 +605,7 @@ function createPositionCard(entry) {
       </div>
     </div>
     ${entry.description ? `<div class="position-description">${formatBulletText(entry.description)}</div>` : ''}
-  `;
+  `);
 
   card.querySelector('.edit').addEventListener('click', () => openWorkModal(entry));
   card.querySelector('.delete').addEventListener('click', () => deleteWork(entry.id));
@@ -704,7 +704,7 @@ function createEduCard(entry) {
   card.className = 'entry-card';
   const degreeField = [entry.degree, entry.field].filter(Boolean).join(' in ');
   const eduDateRangeStr = escapeHtml(formatDateRange(entry.startDate, entry.endDate));
-  card.innerHTML = `
+  setHTML(card, `
     <div class="entry-header">
       <div class="entry-info">
         <div class="entry-title">${escapeHtml(entry.school)}</div>
@@ -726,7 +726,7 @@ function createEduCard(entry) {
         </button>
       </div>
     </div>
-  `;
+  `);
 
   card.querySelector('.edit').addEventListener('click', () => openEduModal(entry));
   card.querySelector('.delete').addEventListener('click', () => deleteEdu(entry.id));
@@ -839,13 +839,13 @@ function renderSoftSkillsRecommendations() {
     const chip = document.createElement('button');
     chip.type = 'button';
     chip.className = 'recommendation-chip';
-    chip.innerHTML = `
+    setHTML(chip, `
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <line x1="12" y1="5" x2="12" y2="19"></line>
         <line x1="5" y1="12" x2="19" y2="12"></line>
       </svg>
       ${escapeHtml(skill)}
-    `;
+    `);
     chip.addEventListener('click', () => {
       addSkill('soft', skill);
     });
@@ -856,7 +856,7 @@ function renderSoftSkillsRecommendations() {
 function createSkillTag(skill, category) {
   const tag = document.createElement('span');
   tag.className = 'tag';
-  tag.innerHTML = `
+  setHTML(tag, `
     ${escapeHtml(skill)}
     <button class="tag-remove" title="Remove">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -864,7 +864,7 @@ function createSkillTag(skill, category) {
         <line x1="6" y1="6" x2="18" y2="18"></line>
       </svg>
     </button>
-  `;
+  `);
 
   tag.querySelector('.tag-remove').addEventListener('click', () => removeSkill(category, skill));
 
@@ -915,7 +915,7 @@ function renderQA() {
 function createQACard(entry) {
   const card = document.createElement('div');
   card.className = 'entry-card';
-  card.innerHTML = `
+  setHTML(card, `
     <div class="entry-header">
       <div class="entry-info">
         <div class="entry-title">${escapeHtml(entry.question)}</div>
@@ -936,7 +936,7 @@ function createQACard(entry) {
       </div>
     </div>
     <div class="entry-description">${formatBulletText(entry.answer)}</div>
-  `;
+  `);
 
   card.querySelector('.edit').addEventListener('click', () => openQAModal(entry));
   card.querySelector('.delete').addEventListener('click', () => deleteQA(entry.id));
@@ -1025,7 +1025,7 @@ function createCoverCard(entry) {
 
   const preview = entry.content.substring(0, 150) + (entry.content.length > 150 ? '...' : '');
 
-  card.innerHTML = `
+  setHTML(card, `
     <div class="entry-header">
       <div class="entry-info">
         <div class="entry-title">
@@ -1056,7 +1056,7 @@ function createCoverCard(entry) {
         </button>
       </div>
     </div>
-  `;
+  `);
 
   const setDefaultBtn = card.querySelector('.set-default');
   if (setDefaultBtn) {
@@ -1222,12 +1222,12 @@ async function handleResumeUpload(e) {
     console.error('Error parsing resume:', error);
     loading.classList.add('hidden');
     content.style.display = 'block';
-    content.innerHTML = `
+    setHTML(content, `
       <div class="preview-empty">
         <p><strong>Error parsing resume</strong></p>
         <p>${escapeHtml(error.message)}</p>
       </div>
-    `;
+    `);
   }
 
   // Reset file input
@@ -1302,7 +1302,7 @@ function renderPersonalPreview() {
     `;
   }
 
-  panel.innerHTML = html || '<div class="preview-empty"><p>No personal information found in resume</p></div>';
+  setHTML(panel, html || '<div class="preview-empty"><p>No personal information found in resume</p></div>');
 }
 
 function renderWorkPreview() {
@@ -1310,7 +1310,7 @@ function renderWorkPreview() {
   const work = resumeComparison.workHistory;
 
   if (!work.extracted || work.extracted.length === 0) {
-    panel.innerHTML = '<div class="preview-empty"><p>No work history found in resume</p></div>';
+    setHTML(panel, '<div class="preview-empty"><p>No work history found in resume</p></div>');
     return;
   }
 
@@ -1337,7 +1337,7 @@ function renderWorkPreview() {
     `;
   });
 
-  panel.innerHTML = html;
+  setHTML(panel, html);
 }
 
 function renderEducationPreview() {
@@ -1345,7 +1345,7 @@ function renderEducationPreview() {
   const education = resumeComparison.education;
 
   if (!education.extracted || education.extracted.length === 0) {
-    panel.innerHTML = '<div class="preview-empty"><p>No education found in resume</p></div>';
+    setHTML(panel, '<div class="preview-empty"><p>No education found in resume</p></div>');
     return;
   }
 
@@ -1371,7 +1371,7 @@ function renderEducationPreview() {
     `;
   });
 
-  panel.innerHTML = html;
+  setHTML(panel, html);
 }
 
 function renderSkillsPreview() {
@@ -1422,7 +1422,7 @@ function renderSkillsPreview() {
     html += '</div></div>';
   }
 
-  panel.innerHTML = html || '<div class="preview-empty"><p>No skills found in resume</p></div>';
+  setHTML(panel, html || '<div class="preview-empty"><p>No skills found in resume</p></div>');
 }
 
 function getStatusClass(status) {

@@ -319,13 +319,13 @@ function createSiteCard(site, options = {}) {
   logo.className = 'site-logo';
   if (isGeneric) {
     logo.style.background = 'linear-gradient(135deg, var(--text-muted), var(--text-secondary))';
-    logo.innerHTML = `
+    setHTML(logo, `
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="12" cy="12" r="10"></circle>
         <line x1="2" y1="12" x2="22" y2="12"></line>
         <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
       </svg>
-    `;
+    `);
   } else {
     logo.style.background = site.gradient || generateGradient(site.domain || site.name);
     logo.textContent = site.abbrev || generateAbbrev(site.name);
@@ -387,13 +387,13 @@ function createSiteCard(site, options = {}) {
   // External link icon
   const externalIcon = document.createElement('div');
   externalIcon.className = 'external-link-icon';
-  externalIcon.innerHTML = `
+  setHTML(externalIcon, `
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
       <polyline points="15 3 21 3 21 9"></polyline>
       <line x1="10" y1="14" x2="21" y2="3"></line>
     </svg>
-  `;
+  `);
   card.appendChild(externalIcon);
 
   // Delete button (for custom sites)
@@ -401,12 +401,12 @@ function createSiteCard(site, options = {}) {
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'site-delete-btn';
     deleteBtn.setAttribute('aria-label', `Delete ${site.name}`);
-    deleteBtn.innerHTML = `
+    setHTML(deleteBtn, `
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <polyline points="3 6 5 6 21 6"></polyline>
         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
       </svg>
-    `;
+    `);
     deleteBtn.addEventListener('click', async (e) => {
       e.preventDefault();
       e.stopPropagation();

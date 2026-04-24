@@ -52,7 +52,7 @@ export function renderTagFilter() {
   }
 
   elements.tagFilterContainer.classList.remove('hidden');
-  elements.tagFilterContainer.innerHTML = `
+  setHTML(elements.tagFilterContainer, `
     <div class="tag-filter-label">Tags:</div>
     <div class="tag-filter-chips">
       ${allTags.map(tag => `
@@ -61,7 +61,7 @@ export function renderTagFilter() {
         </button>
       `).join('')}
     </div>
-  `;
+  `);
 
   // Add click listeners
   elements.tagFilterContainer.querySelectorAll('.tag-chip').forEach(chip => {
@@ -116,15 +116,15 @@ export function renderUpcomingInterviews() {
   const applications = getApplications();
 
   if (upcomingInterviews.length === 0) {
-    elements.upcomingInterviewsList.innerHTML = `
+    setHTML(elements.upcomingInterviewsList, `
       <div class="widget-empty">
         <p>No upcoming interviews scheduled</p>
       </div>
-    `;
+    `);
     return;
   }
 
-  elements.upcomingInterviewsList.innerHTML = upcomingInterviews.map(interview => {
+  setHTML(elements.upcomingInterviewsList, upcomingInterviews.map(interview => {
     const app = applications.find(a => a.id === interview.applicationId);
     const dateStr = formatDate(interview.scheduledDate);
     const timeStr = formatTime(interview.scheduledDate);
@@ -142,7 +142,7 @@ export function renderUpcomingInterviews() {
         <span class="interview-round">Round ${interview.round || 1}</span>
       </div>
     `;
-  }).join('');
+  }).join(''));
 }
 
 // Open interview modal
@@ -299,16 +299,16 @@ export function renderUpcomingTasks() {
   const applications = getApplications();
 
   if (upcomingTasks.length === 0) {
-    elements.tasksList.innerHTML = `
+    setHTML(elements.tasksList, `
       <div class="widget-empty">
         <p>No pending tasks</p>
       </div>
-    `;
+    `);
     return;
   }
 
   const now = new Date();
-  elements.tasksList.innerHTML = upcomingTasks.map(task => {
+  setHTML(elements.tasksList, upcomingTasks.map(task => {
     const app = applications.find(a => a.id === task.applicationId);
     const dueDate = task.dueDate ? new Date(task.dueDate) : null;
     const isOverdue = dueDate && dueDate < now;
@@ -336,7 +336,7 @@ export function renderUpcomingTasks() {
         ${dueDate ? `<span class="task-due ${isOverdue ? 'overdue' : ''}">${formatDate(task.dueDate)}</span>` : ''}
       </div>
     `;
-  }).join('');
+  }).join(''));
 
   // Add complete handlers
   elements.tasksList.querySelectorAll('.task-checkbox').forEach(btn => {
