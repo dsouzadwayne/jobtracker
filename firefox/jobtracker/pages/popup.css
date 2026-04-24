@@ -430,6 +430,21 @@
   }
 }
 
+/* Firefox for Android opens popups as full-screen pages */
+@media (min-height: 500px) and (max-width: 499px) {
+  body {
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    background: var(--bg-secondary);
+  }
+
+  .popup-container {
+    max-width: 100%;
+    background: var(--bg-primary);
+  }
+}
+
 /* Standalone webpage view (when accessed directly via URL, not as popup) */
 @media (min-width: 500px) {
   body {

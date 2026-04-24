@@ -629,7 +629,7 @@ function validatePayload(type, payload) {
 // Handle alarm events
 browser.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === BADGE_CLEAR_ALARM) {
-    browser.action.setBadgeText({ text: '' });
+    try { browser.action.setBadgeText({ text: '' }); } catch {}
   } else if (alarm.name === 'model-download-keepalive') {
     // Keep event page alive during model downloads
     // Handling the alarm resets Firefox's idle timer for the event page
@@ -670,11 +670,13 @@ browser.runtime.onInstalled.addListener(async (details) => {
         }
       });
       // Show badge to alert user
-      browser.action.setBadgeText({ text: '!' });
-      browser.action.setBadgeBackgroundColor({ color: '#EF4444' }); // Red color for error
-      browser.action.setTitle({
-        title: 'JobTracker: Migration error occurred. Click to see details.'
-      });
+      try {
+        browser.action.setBadgeText({ text: '!' });
+        browser.action.setBadgeBackgroundColor({ color: '#EF4444' });
+        browser.action.setTitle({
+          title: 'JobTracker: Migration error occurred. Click to see details.'
+        });
+      } catch {}
     }
   }
 });
@@ -847,8 +849,10 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
             // Notify user if enabled
             if (settings.detection.notifyOnDetection) {
-              browser.action.setBadgeText({ text: '!' });
-              browser.action.setBadgeBackgroundColor({ color: '#10B981' });
+              try {
+                browser.action.setBadgeText({ text: '!' });
+                browser.action.setBadgeBackgroundColor({ color: '#10B981' });
+              } catch {}
               // Use browser.alarms instead of setTimeout for service worker compatibility
               browser.alarms.create(BADGE_CLEAR_ALARM, { delayInMinutes: 5 / 60 }); // 5 seconds
             }

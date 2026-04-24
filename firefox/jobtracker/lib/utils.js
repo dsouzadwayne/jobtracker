@@ -167,7 +167,7 @@ const JobTrackerUtils = {
     if (!element) return;
 
     if (typeof DOMPurify !== 'undefined') {
-      element.innerHTML = DOMPurify.sanitize(html, {
+      const clean = DOMPurify.sanitize(html, {
         ALLOWED_TAGS: [
           'b', 'i', 'em', 'strong', 'u', 's',
           'p', 'br', 'hr',
@@ -184,6 +184,10 @@ const JobTrackerUtils = {
         ],
         ALLOW_DATA_ATTR: false
       });
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      range.deleteContents();
+      element.append(range.createContextualFragment(clean));
     } else {
       // Fallback: use textContent for safety when DOMPurify is unavailable
       // This strips all HTML but ensures no XSS vulnerabilities
@@ -326,7 +330,10 @@ const JobTrackerUtils = {
       } else if (key === 'textContent') {
         element.textContent = value;
       } else if (key === 'innerHTML') {
-        element.innerHTML = this.sanitizeHTML(value);
+        const clean = this.sanitizeHTML(value);
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        element.append(range.createContextualFragment(clean));
       } else if (key.startsWith('on')) {
         element.addEventListener(key.substring(2).toLowerCase(), value);
       } else if (key === 'style' && typeof value === 'object') {
