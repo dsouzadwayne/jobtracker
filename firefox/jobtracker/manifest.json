@@ -11,7 +11,7 @@
       "id": "jobtracker@dsouzadwayne",
       "strict_min_version": "128.0",
       "data_collection_permissions": {
-        "is_exempt": true
+        "required": ["none"]
       }
     },
     "gecko_android": {
