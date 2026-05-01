@@ -720,8 +720,11 @@ browser.commands.onCommand.addListener(async (command) => {
 function isTrustedSender(sender) {
   // Extension popup (no tab) from our own extension
   if (!sender.tab && sender.id === browser.runtime.id) return true;
-  // Extension pages opened in tabs (dashboard, settings, etc.)
-  if (sender.url && sender.url.startsWith(`moz-extension://${browser.runtime.id}/`)) return true;
+  // Extension pages opened in tabs (dashboard, settings, applications, etc.).
+  // In Firefox the URL uses a per-install UUID, not runtime.id, so derive the
+  // prefix from runtime.getURL() instead of building it manually.
+  const extensionUrlPrefix = browser.runtime.getURL('');
+  if (sender.url && sender.url.startsWith(extensionUrlPrefix)) return true;
   return false;
 }
 
