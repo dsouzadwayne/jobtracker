@@ -22,7 +22,8 @@ const SettingsMessageTypes = {
   IMPORT_DATA: 'IMPORT_DATA',
   START_MODEL_DOWNLOAD: 'START_MODEL_DOWNLOAD',
   STOP_MODEL_DOWNLOAD: 'STOP_MODEL_DOWNLOAD',
-  GET_MODEL_DOWNLOAD_STATUS: 'GET_MODEL_DOWNLOAD_STATUS'
+  GET_MODEL_DOWNLOAD_STATUS: 'GET_MODEL_DOWNLOAD_STATUS',
+  RUN_WEEKLY_DIGEST_NOW: 'RUN_WEEKLY_DIGEST_NOW'
 };
 
 // Theme Manager
@@ -141,6 +142,9 @@ function populateSettings() {
     delaySlider.value = settings?.autofill?.delay || 0;
     if (delayValue) delayValue.textContent = formatDelay(delaySlider.value);
   }
+
+  // Nudges settings
+  populateNudgeSettings();
 
   // AI settings
   const aiEnabled = document.getElementById('setting-ai-enabled');
@@ -331,6 +335,73 @@ function updateAISubOptionsVisibility() {
 function formatDelay(ms) {
   const seconds = parseInt(ms) / 1000;
   return seconds === 0 ? '0s' : `${seconds}s`;
+}
+
+// ==================== Nudges (Today panel) ====================
+
+function populateNudgeSettings() {
+  const n = settings?.nudges || {};
+  const enabled = document.getElementById('setting-nudges-enabled');
+  const notify = document.getElementById('setting-nudges-notifications');
+  const followup = document.getElementById('setting-nudges-followup');
+  const followupVal = document.getElementById('nudges-followup-value');
+  const inactivity = document.getElementById('setting-nudges-inactivity');
+  const inactivityVal = document.getElementById('nudges-inactivity-value');
+  const maxItems = document.getElementById('setting-nudges-max');
+  const maxItemsVal = document.getElementById('nudges-max-value');
+  const digestEnabled = document.getElementById('setting-digest-enabled');
+  const digestDay = document.getElementById('setting-digest-day');
+  const digestHour = document.getElementById('setting-digest-hour');
+
+  if (enabled) enabled.checked = n.enabled !== false;
+  if (notify) notify.checked = n.notificationsEnabled !== false;
+  if (followup) {
+    followup.value = n.followUpThresholdDays ?? 7;
+    if (followupVal) followupVal.textContent = `${followup.value} day${followup.value === '1' ? '' : 's'}`;
+  }
+  if (inactivity) {
+    inactivity.value = n.inactivityThresholdDays ?? 3;
+    if (inactivityVal) inactivityVal.textContent = `${inactivity.value} day${inactivity.value === '1' ? '' : 's'}`;
+  }
+  if (maxItems) {
+    maxItems.value = n.maxItemsShown ?? 7;
+    if (maxItemsVal) maxItemsVal.textContent = maxItems.value;
+  }
+  if (digestEnabled) digestEnabled.checked = n.weeklyDigestEnabled !== false;
+  if (digestDay) digestDay.value = String(Number.isInteger(n.weeklyDigestDay) ? n.weeklyDigestDay : 0);
+  if (digestHour) digestHour.value = String(Number.isInteger(n.weeklyDigestHour) ? n.weeklyDigestHour : 18);
+}
+
+async function saveNudgeSettings() {
+  settings.nudges = settings.nudges || {};
+  settings.nudges.enabled = document.getElementById('setting-nudges-enabled')?.checked !== false;
+  settings.nudges.notificationsEnabled = document.getElementById('setting-nudges-notifications')?.checked !== false;
+  settings.nudges.followUpThresholdDays = parseInt(document.getElementById('setting-nudges-followup')?.value) || 7;
+  settings.nudges.inactivityThresholdDays = parseInt(document.getElementById('setting-nudges-inactivity')?.value) || 3;
+  settings.nudges.maxItemsShown = parseInt(document.getElementById('setting-nudges-max')?.value) || 7;
+  settings.nudges.weeklyDigestEnabled = document.getElementById('setting-digest-enabled')?.checked !== false;
+  settings.nudges.weeklyDigestDay = parseInt(document.getElementById('setting-digest-day')?.value);
+  if (isNaN(settings.nudges.weeklyDigestDay)) settings.nudges.weeklyDigestDay = 0;
+  settings.nudges.weeklyDigestHour = parseInt(document.getElementById('setting-digest-hour')?.value);
+  if (isNaN(settings.nudges.weeklyDigestHour)) settings.nudges.weeklyDigestHour = 18;
+
+  await chrome.runtime.sendMessage({ type: SettingsMessageTypes.SAVE_SETTINGS, payload: settings });
+  showNotification('Nudge settings saved', 'success');
+}
+
+async function sendDigestNow() {
+  try {
+    const result = await chrome.runtime.sendMessage({ type: SettingsMessageTypes.RUN_WEEKLY_DIGEST_NOW });
+    if (result && result.lines) {
+      showNotification('Digest sent', 'success');
+    } else if (result === null) {
+      showNotification('Weekly digest is disabled. Enable it first.', 'warning');
+    } else {
+      showNotification('Digest fired', 'success');
+    }
+  } catch (err) {
+    showNotification('Failed to send digest: ' + (err?.message || 'unknown error'), 'error');
+  }
 }
 
 // Save autofill settings
@@ -844,6 +915,45 @@ function setupEventListeners() {
     });
     delaySlider.addEventListener('change', saveAutofillSettings);
   }
+
+  // Nudges settings
+  const nudgesEnabled = document.getElementById('setting-nudges-enabled');
+  const nudgesNotify = document.getElementById('setting-nudges-notifications');
+  const nudgesFollowup = document.getElementById('setting-nudges-followup');
+  const nudgesFollowupVal = document.getElementById('nudges-followup-value');
+  const nudgesInactivity = document.getElementById('setting-nudges-inactivity');
+  const nudgesInactivityVal = document.getElementById('nudges-inactivity-value');
+  const nudgesMax = document.getElementById('setting-nudges-max');
+  const nudgesMaxVal = document.getElementById('nudges-max-value');
+  const digestEnabled = document.getElementById('setting-digest-enabled');
+  const digestDay = document.getElementById('setting-digest-day');
+  const digestHour = document.getElementById('setting-digest-hour');
+  const sendDigestBtn = document.getElementById('send-digest-now-btn');
+
+  if (nudgesEnabled) nudgesEnabled.addEventListener('change', saveNudgeSettings);
+  if (nudgesNotify) nudgesNotify.addEventListener('change', saveNudgeSettings);
+  if (nudgesFollowup) {
+    nudgesFollowup.addEventListener('input', (e) => {
+      if (nudgesFollowupVal) nudgesFollowupVal.textContent = `${e.target.value} day${e.target.value === '1' ? '' : 's'}`;
+    });
+    nudgesFollowup.addEventListener('change', saveNudgeSettings);
+  }
+  if (nudgesInactivity) {
+    nudgesInactivity.addEventListener('input', (e) => {
+      if (nudgesInactivityVal) nudgesInactivityVal.textContent = `${e.target.value} day${e.target.value === '1' ? '' : 's'}`;
+    });
+    nudgesInactivity.addEventListener('change', saveNudgeSettings);
+  }
+  if (nudgesMax) {
+    nudgesMax.addEventListener('input', (e) => {
+      if (nudgesMaxVal) nudgesMaxVal.textContent = e.target.value;
+    });
+    nudgesMax.addEventListener('change', saveNudgeSettings);
+  }
+  if (digestEnabled) digestEnabled.addEventListener('change', saveNudgeSettings);
+  if (digestDay) digestDay.addEventListener('change', saveNudgeSettings);
+  if (digestHour) digestHour.addEventListener('change', saveNudgeSettings);
+  if (sendDigestBtn) sendDigestBtn.addEventListener('click', sendDigestNow);
 
   // Custom rules
   document.getElementById('add-rule-btn')?.addEventListener('click', () => openRuleModal());

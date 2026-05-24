@@ -56,7 +56,7 @@ const COMMUNICATION_TYPES = ['email', 'call', 'linkedin', 'meeting', 'other'];
 
 const JobTrackerDB = {
   DB_NAME: 'JobTrackerDB',
-  DB_VERSION: 7,
+  DB_VERSION: 8,
   db: null,
   loadingPromise: null,
 
@@ -75,7 +75,8 @@ const JobTrackerDB = {
     COMMUNICATIONS: 'communications',
     BASE_RESUME: 'baseResume',
     GENERATED_RESUMES: 'generatedResumes',
-    UPLOADED_RESUMES: 'uploadedResumes'
+    UPLOADED_RESUMES: 'uploadedResumes',
+    NUDGE_STATE: 'nudge_state'
   },
 
   /**
@@ -228,6 +229,13 @@ const JobTrackerDB = {
         if (!db.objectStoreNames.contains(this.STORES.UPLOADED_RESUMES)) {
           const uploadedResumeStore = db.createObjectStore(this.STORES.UPLOADED_RESUMES, { keyPath: 'id' });
           uploadedResumeStore.createIndex('uploadedAt', 'uploadedAt', { unique: false });
+        }
+
+        // Nudge state store (v8) - dismiss/snooze/notified tracking for Today panel
+        if (!db.objectStoreNames.contains(this.STORES.NUDGE_STATE)) {
+          const nudgeStore = db.createObjectStore(this.STORES.NUDGE_STATE, { keyPath: 'id' });
+          nudgeStore.createIndex('updatedAt', 'updatedAt', { unique: false });
+          nudgeStore.createIndex('until', 'until', { unique: false });
         }
 
         console.log('JobTracker: Database schema created/upgraded');
@@ -1635,6 +1643,16 @@ const JobTrackerDB = {
         monthly: { target: 0, enabled: false },
         updatedAt: null
       },
+      nudges: {
+        enabled: true,
+        followUpThresholdDays: 7,
+        inactivityThresholdDays: 3,
+        weeklyDigestEnabled: true,
+        weeklyDigestDay: 0,        // 0 = Sunday
+        weeklyDigestHour: 18,      // local time
+        notificationsEnabled: true,
+        maxItemsShown: 7
+      },
       ai: {
         enabled: false,           // Disabled by default - user must opt-in
         autoSuggestTags: true,    // When AI enabled, auto-suggest tags
@@ -1943,36 +1961,22 @@ const JobTrackerDB = {
         await this.saveProfile(data.profile);
       }
 
-      if (data.applications) {
-        // Clear existing applications
+      // Atomic replace: clear + add all new applications in a single
+      // transaction so any failure (bad record, SW termination, browser crash)
+      // auto-aborts and rolls back, leaving existing applications intact.
+      // An empty array is treated as no-op rather than wiping all data.
+      if (data.applications && data.applications.length > 0) {
         await new Promise((resolve, reject) => {
           const transaction = this.db.transaction([this.STORES.APPLICATIONS], 'readwrite');
           const store = transaction.objectStore(this.STORES.APPLICATIONS);
-          const request = store.clear();
-          request.onsuccess = () => resolve();
-          request.onerror = () => reject(request.error);
-        });
-
-        // Add new applications (continue on individual errors)
-        const importErrors = [];
-        for (const app of data.applications) {
-          try {
-            await new Promise((resolve, reject) => {
-              const transaction = this.db.transaction([this.STORES.APPLICATIONS], 'readwrite');
-              const store = transaction.objectStore(this.STORES.APPLICATIONS);
-              const request = store.add(app);
-              request.onsuccess = () => resolve();
-              request.onerror = () => reject(request.error);
-            });
-          } catch (err) {
-            // Log but continue with remaining applications
-            console.log('JobTracker: Failed to import application:', app?.id || 'unknown', err?.message || err);
-            importErrors.push({ id: app?.id, error: err?.message || 'Unknown error' });
+          transaction.oncomplete = () => resolve();
+          transaction.onerror = () => reject(transaction.error || new Error('Import transaction failed'));
+          transaction.onabort = () => reject(transaction.error || new Error('Import transaction aborted'));
+          store.clear();
+          for (const app of data.applications) {
+            store.add(app);
           }
-        }
-        if (importErrors.length > 0) {
-          console.log(`JobTracker: ${importErrors.length} application(s) failed to import`);
-        }
+        });
       }
 
       if (data.settings) {
@@ -3006,6 +3010,96 @@ const JobTrackerDB = {
     });
 
     return counts;
+  },
+
+  // ==================== NUDGE STATE (Today Panel) ====================
+
+  /**
+   * Get all nudge states (dismissed / snoozed / notified).
+   * @returns {Promise<Array>}
+   */
+  async getNudgeStates() {
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = this.db.transaction([this.STORES.NUDGE_STATE], 'readonly');
+      const store = tx.objectStore(this.STORES.NUDGE_STATE);
+      const request = store.getAll();
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () => reject(request.error);
+    });
+  },
+
+  /**
+   * Persist a nudge state. Pass either a plain state string or an object
+   * carrying { state, until, lastNotifiedAt }.
+   * @param {string} id
+   * @param {string|Object} stateOrPayload
+   * @param {string|null} [until]
+   */
+  async setNudgeState(id, stateOrPayload, until = null) {
+    await this.init();
+    const now = new Date().toISOString();
+    const payload = typeof stateOrPayload === 'string'
+      ? { state: stateOrPayload, until }
+      : (stateOrPayload || {});
+    const record = {
+      id,
+      state: payload.state || 'dismissed',
+      until: payload.until || null,
+      lastNotifiedAt: payload.lastNotifiedAt || null,
+      updatedAt: now
+    };
+    return this.executeWriteOperation(
+      this.STORES.NUDGE_STATE,
+      (store, transaction, setError) => {
+        const request = store.put(record);
+        request.onerror = () => setError(request.error);
+      },
+      { success: true, record }
+    );
+  },
+
+  /**
+   * Delete entries whose `until` is in the past and have no notification
+   * cooldown still in effect, plus any record older than 60 days. The
+   * second condition catches dismissed records whose date-bucketed nudge
+   * IDs can no longer recur, preventing unbounded growth.
+   */
+  async pruneExpiredNudgeStates() {
+    const states = await this.getNudgeStates();
+    const now = Date.now();
+    const SIXTY_DAYS_MS = 60 * 24 * 60 * 60 * 1000;
+    const expired = states.filter(s => {
+      // 1) Snooze (with `until`) expired AND notification cooldown not active
+      if (s.until) {
+        const untilTime = new Date(s.until).getTime();
+        if (!isNaN(untilTime) && untilTime <= now) {
+          if (s.lastNotifiedAt) {
+            const last = new Date(s.lastNotifiedAt).getTime();
+            if (!isNaN(last) && (now - last) < 48 * 60 * 60 * 1000) return false;
+          }
+          return true;
+        }
+      }
+      // 2) Very old record — its date-bucketed nudge ID will never recur
+      if (s.updatedAt) {
+        const age = now - new Date(s.updatedAt).getTime();
+        if (!isNaN(age) && age > SIXTY_DAYS_MS) return true;
+      }
+      return false;
+    });
+    if (!expired.length) return { pruned: 0 };
+    await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = this.db.transaction([this.STORES.NUDGE_STATE], 'readwrite');
+      const store = tx.objectStore(this.STORES.NUDGE_STATE);
+      for (const s of expired) {
+        store.delete(s.id);
+      }
+      tx.oncomplete = () => resolve({ pruned: expired.length });
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
   }
 };
 

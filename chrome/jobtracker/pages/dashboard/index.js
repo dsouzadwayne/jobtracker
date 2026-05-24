@@ -47,6 +47,11 @@ import {
   setIntelligenceCallbacks
 } from './intelligence.js';
 
+// Import Today / Nudges panel
+import {
+  setupTodayPanel, loadTodayPanel, setTodayCallbacks
+} from './today.js';
+
 // Import CRM
 import {
   loadTags, renderTagFilter, setupCRMFeatures,
@@ -129,6 +134,8 @@ applicationChannel.onmessage = async (event) => {
       await loadApplications();
       await loadTags();
       await updateStats();
+      // Today panel reflects apps/tasks/interviews — always refresh
+      await loadTodayPanel();
       // Refresh intelligence panel and CRM widgets if on stats page
       if (state.currentPage === 'stats') {
         await loadIntelligencePanel();
@@ -140,6 +147,8 @@ applicationChannel.onmessage = async (event) => {
       const { showNotification } = await import('./utils.js');
       showNotification('Failed to sync data. Please refresh.', 'error');
     }
+  } else if (event.data.type === 'NUDGES_CHANGED') {
+    try { await loadTodayPanel(); } catch {}
   }
 };
 
@@ -231,6 +240,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupNavigation();
     initDateRangeFilter();
     setupIntelligencePanel();
+    setTodayCallbacks({ selectApp, openModal, switchPage });
+    setupTodayPanel();
+    try { await loadTodayPanel(); } catch (err) { console.log('[Dashboard] loadTodayPanel failed:', err); }
     setupCRMFeatures();
     checkUrlParams();
 

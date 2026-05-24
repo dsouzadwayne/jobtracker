@@ -7,6 +7,8 @@
 // Import the database module (ES module)
 import { JobTrackerDB } from './lib/database.js';
 import { JobTrackerIntelligence } from './lib/intelligence/index.js';
+import { generateNudges } from './lib/intelligence/nudges.js';
+import { runScheduledNudgeCheck, runWeeklyDigest } from './lib/intelligence/nudge-scheduler.js';
 // Firefox event pages support Web Workers directly, so we can import aiService here
 import { aiService } from './lib/ai-service.js';
 
@@ -170,7 +172,12 @@ const MessageTypes = {
   // Background Model Downloads
   START_MODEL_DOWNLOAD: 'START_MODEL_DOWNLOAD',
   STOP_MODEL_DOWNLOAD: 'STOP_MODEL_DOWNLOAD',
-  GET_MODEL_DOWNLOAD_STATUS: 'GET_MODEL_DOWNLOAD_STATUS'
+  GET_MODEL_DOWNLOAD_STATUS: 'GET_MODEL_DOWNLOAD_STATUS',
+
+  // Nudges / Today panel
+  GET_NUDGES: 'GET_NUDGES',
+  SET_NUDGE_STATE: 'SET_NUDGE_STATE',
+  RUN_WEEKLY_DIGEST_NOW: 'RUN_WEEKLY_DIGEST_NOW'
 };
 
 // Alarm name for badge clear
@@ -591,6 +598,20 @@ function validatePayload(type, payload) {
     case MessageTypes.START_MODEL_DOWNLOAD:
     case MessageTypes.STOP_MODEL_DOWNLOAD:
     case MessageTypes.GET_MODEL_DOWNLOAD_STATUS:
+    case MessageTypes.GET_NUDGES:
+    case MessageTypes.RUN_WEEKLY_DIGEST_NOW:
+      break;
+
+    case MessageTypes.SET_NUDGE_STATE:
+      if (!payload || typeof payload !== 'object') {
+        return { valid: false, error: 'Nudge state payload must be an object' };
+      }
+      if (!payload.id || typeof payload.id !== 'string') {
+        return { valid: false, error: 'Nudge state requires id' };
+      }
+      if (!payload.state || !['dismissed', 'snoozed', 'completed', 'notified'].includes(payload.state)) {
+        return { valid: false, error: 'Nudge state must be dismissed|snoozed|completed|notified' };
+      }
       break;
 
     case MessageTypes.UPLOAD_RESUME:
@@ -626,14 +647,79 @@ function validatePayload(type, payload) {
   return { valid: true };
 }
 
+// Alarm names for nudge engine
+const NUDGE_CHECK_ALARM = 'jobtracker-nudge-check';
+const WEEKLY_DIGEST_ALARM = 'jobtracker-weekly-digest';
+
+/**
+ * Compute the next weekly-digest fire time (epoch ms) given local
+ * day-of-week (0=Sun..6=Sat) and hour (0..23). Always in the future.
+ */
+function nextWeeklyDigestTime(day, hour) {
+  const now = new Date();
+  const target = new Date(now);
+  target.setHours(hour, 0, 0, 0);
+  const diff = (day - now.getDay() + 7) % 7;
+  target.setDate(target.getDate() + diff);
+  if (target.getTime() <= now.getTime()) {
+    target.setDate(target.getDate() + 7);
+  }
+  return target.getTime();
+}
+
+/**
+ * Idempotently register nudge alarms based on current settings.
+ */
+async function registerNudgeAlarms() {
+  try {
+    const settings = await JobTrackerDB.getSettings();
+    const nudges = settings?.nudges || {};
+
+    if (nudges.enabled !== false) {
+      browser.alarms.create(NUDGE_CHECK_ALARM, {
+        delayInMinutes: 1,
+        periodInMinutes: 4 * 60
+      });
+    } else {
+      browser.alarms.clear(NUDGE_CHECK_ALARM);
+    }
+
+    if (nudges.weeklyDigestEnabled !== false) {
+      const when = nextWeeklyDigestTime(
+        Number.isInteger(nudges.weeklyDigestDay) ? nudges.weeklyDigestDay : 0,
+        Number.isInteger(nudges.weeklyDigestHour) ? nudges.weeklyDigestHour : 18
+      );
+      browser.alarms.create(WEEKLY_DIGEST_ALARM, {
+        when,
+        periodInMinutes: 7 * 24 * 60
+      });
+    } else {
+      browser.alarms.clear(WEEKLY_DIGEST_ALARM);
+    }
+  } catch (err) {
+    console.log('JobTracker: failed to register nudge alarms', err?.message || err);
+  }
+}
+
 // Handle alarm events
-browser.alarms.onAlarm.addListener((alarm) => {
+browser.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === BADGE_CLEAR_ALARM) {
     try { browser.action.setBadgeText({ text: '' }); } catch {}
-  } else if (alarm.name === 'model-download-keepalive') {
-    // Keep event page alive during model downloads
-    // Handling the alarm resets Firefox's idle timer for the event page
+    return;
+  }
+  if (alarm.name === 'model-download-keepalive') {
     console.log('JobTracker: Model download keepalive ping');
+    return;
+  }
+  if (alarm.name === NUDGE_CHECK_ALARM) {
+    try { await runScheduledNudgeCheck(); }
+    catch (err) { console.log('JobTracker: nudge check failed', err?.message || err); }
+    return;
+  }
+  if (alarm.name === WEEKLY_DIGEST_ALARM) {
+    try { await runWeeklyDigest(); }
+    catch (err) { console.log('JobTracker: weekly digest failed', err?.message || err); }
+    return;
   }
 });
 
@@ -651,6 +737,7 @@ browser.runtime.onInstalled.addListener(async (details) => {
     if (!settings.id) {
       await JobTrackerDB.saveSettings(JobTrackerDB.getDefaultSettings());
     }
+    await registerNudgeAlarms();
   } else if (details.reason === 'update') {
     console.log('JobTracker: Extension updated to version', browser.runtime.getManifest().version);
     // Run migration from Chrome storage to IndexedDB
@@ -659,6 +746,7 @@ browser.runtime.onInstalled.addListener(async (details) => {
       if (migrationResult?.migrated) {
         console.log('JobTracker: Migration completed successfully');
       }
+      await registerNudgeAlarms();
     } catch (error) {
       console.error('JobTracker: Migration failed!', error);
       // Store migration error for user notification
@@ -689,6 +777,7 @@ browser.runtime.onInstalled.addListener(async (details) => {
     if (migrationResult?.migrated) {
       console.log('JobTracker: Startup migration completed successfully');
     }
+    await registerNudgeAlarms();
   } catch (error) {
     console.error('JobTracker: Startup migration check failed', error);
     // Store error for user notification without blocking extension startup
@@ -705,6 +794,16 @@ browser.runtime.onInstalled.addListener(async (details) => {
     }
   }
 })();
+
+// Re-register nudge alarms on browser startup
+browser.runtime.onStartup.addListener(async () => {
+  try {
+    await JobTrackerDB.init();
+    await registerNudgeAlarms();
+  } catch (err) {
+    console.log('JobTracker: onStartup alarm registration failed', err?.message || err);
+  }
+});
 
 // Handle keyboard shortcuts
 browser.commands.onCommand.addListener(async (command) => {
@@ -728,11 +827,43 @@ function isTrustedSender(sender) {
   return false;
 }
 
+// Hostnames where autofill content scripts are intended to run. Profile-read
+// messages from content-script senders are only honored on these origins.
+const AUTOFILL_ALLOWED_HOSTNAMES = [
+  'linkedin.com', 'indeed.com', 'glassdoor.com', 'glassdoor.co.uk',
+  'greenhouse.io', 'lever.co', 'lever.com', 'myworkdayjobs.com', 'workday.com',
+  'icims.com', 'smartrecruiters.com', 'naukri.com',
+  'ashbyhq.com', 'ashbyprd.com'
+];
+
+// Trusted for profile reads: extension pages, OR a content-script sender on a
+// known job platform. Blocks profile exfiltration via the iframe bridge from
+// arbitrary websites (the <all_urls> content script reaches every page).
+function isAutofillTrustedSender(sender) {
+  if (isTrustedSender(sender)) return true;
+  if (!sender.url) return false;
+  let hostname;
+  try {
+    hostname = new URL(sender.url).hostname;
+  } catch {
+    return false;
+  }
+  return AUTOFILL_ALLOWED_HOSTNAMES.some(
+    allowed => hostname === allowed || hostname.endsWith('.' + allowed)
+  );
+}
+
 // Destructive message types that require a trusted sender
 const PRIVILEGED_MESSAGE_TYPES = new Set([
   'CLEAR_ALL_DATA', 'CLEAR_PROFILE', 'CLEAR_APPLICATIONS',
   'DELETE_APPLICATION', 'IMPORT_DATA', 'SAVE_PROFILE',
   'DELETE_UPLOADED_RESUME', 'CLEAR_MODELS_METADATA'
+]);
+
+// Profile-read message types — gated to extension pages or known job platforms
+// to prevent drive-by exfiltration of autofill PII.
+const PROFILE_READ_MESSAGE_TYPES = new Set([
+  'GET_PROFILE', 'GET_PROFILE_FOR_FILL'
 ]);
 
 // Handle messages from content scripts and popup
@@ -768,6 +899,14 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (PRIVILEGED_MESSAGE_TYPES.has(type) && !isTrustedSender(sender)) {
     console.log('JobTracker: Blocked privileged operation from untrusted sender:', type);
     sendResponse({ error: 'Permission denied: this operation requires a trusted context' });
+    return true;
+  }
+
+  // Security: Block profile reads from content scripts on non-job-platform pages.
+  // Closes a profile-exfiltration channel via the iframe-bridge postMessage handler.
+  if (PROFILE_READ_MESSAGE_TYPES.has(type) && !isAutofillTrustedSender(sender)) {
+    console.log('JobTracker: Blocked profile read from untrusted sender:', type, sender.url);
+    sendResponse({ error: 'Permission denied: profile reads require a trusted context' });
     return true;
   }
 
@@ -871,6 +1010,10 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         case MessageTypes.SAVE_SETTINGS: {
           await JobTrackerDB.saveSettings(payload);
+          // Re-register nudge alarms in case schedule changed
+          await registerNudgeAlarms();
+          // Refresh any open dashboard's Today panel — nudge prefs may have changed
+          safeBroadcast({ type: 'NUDGES_CHANGED' });
           response = { success: true };
           break;
         }
@@ -928,6 +1071,41 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         case MessageTypes.SAVE_GOALS: {
           response = await JobTrackerDB.saveGoals(payload);
+          break;
+        }
+
+        // ==================== NUDGES (Today panel) ====================
+        case MessageTypes.GET_NUDGES: {
+          const [apps, ivs, tks, settings, states] = await Promise.all([
+            JobTrackerDB.getAllApplications(),
+            JobTrackerDB.getAllInterviews(),
+            JobTrackerDB.getAllTasks(),
+            JobTrackerDB.getSettings(),
+            JobTrackerDB.getNudgeStates()
+          ]);
+          const acknowledgements = new Map(
+            states.map(s => [s.id, { state: s.state, until: s.until, lastNotifiedAt: s.lastNotifiedAt }])
+          );
+          response = generateNudges({
+            applications: apps,
+            interviews: ivs,
+            tasks: tks,
+            settings,
+            acknowledgements,
+            now: new Date()
+          });
+          break;
+        }
+
+        case MessageTypes.SET_NUDGE_STATE: {
+          const { id, state, until } = payload;
+          response = await JobTrackerDB.setNudgeState(id, { state, until: until || null });
+          safeBroadcast({ type: 'NUDGES_CHANGED' });
+          break;
+        }
+
+        case MessageTypes.RUN_WEEKLY_DIGEST_NOW: {
+          response = await runWeeklyDigest();
           break;
         }
 

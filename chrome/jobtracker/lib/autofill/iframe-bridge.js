@@ -14,20 +14,31 @@ const ALLOWED_HOSTNAMES = [
 
 /**
  * Check if an origin is trusted for cross-frame messaging.
- * Trusts the current page origin and known job platform domains.
+ * Only trusts known job platform domains. Same-origin is trusted ONLY when
+ * the current page itself is a known job platform — otherwise any web page
+ * could postMessage itself to exfiltrate profile data via this bridge.
  */
 function _isAllowedOrigin(origin) {
   if (!origin || origin === 'null') return false;
-  // Same origin is always trusted
-  if (origin === window.location.origin) return true;
+  let hostname;
   try {
-    const hostname = new URL(origin).hostname;
-    return ALLOWED_HOSTNAMES.some(
-      allowed => hostname === allowed || hostname.endsWith('.' + allowed)
-    );
+    hostname = new URL(origin).hostname;
   } catch {
     return false;
   }
+  const isJobPlatform = ALLOWED_HOSTNAMES.some(
+    allowed => hostname === allowed || hostname.endsWith('.' + allowed)
+  );
+  if (isJobPlatform) return true;
+  // Allow same-origin only when this page is a job platform (e.g. an iframe
+  // on linkedin.com posting to its parent on linkedin.com).
+  if (origin === window.location.origin) {
+    const currentHost = window.location.hostname;
+    return ALLOWED_HOSTNAMES.some(
+      allowed => currentHost === allowed || currentHost.endsWith('.' + allowed)
+    );
+  }
+  return false;
 }
 
 const JobTrackerIframeBridge = {

@@ -208,6 +208,110 @@
           </div>
         </div>
 
+        <!-- Nudges (Today panel) -->
+        <div class="settings-group" id="nudges">
+          <h2>Nudges</h2>
+          <p class="settings-description">Control the Today panel and reminder notifications.</p>
+
+          <div class="settings-card">
+            <div class="setting-row">
+              <div class="setting-info">
+                <h4>Show Today Panel</h4>
+                <p>Surface upcoming interviews, deadlines, follow-ups on the dashboard.</p>
+              </div>
+              <label class="toggle">
+                <input type="checkbox" id="setting-nudges-enabled">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="setting-row">
+              <div class="setting-info">
+                <h4>Send Browser Notifications</h4>
+                <p>Notify for interview tomorrow, deadline today, and overdue tasks.</p>
+              </div>
+              <label class="toggle">
+                <input type="checkbox" id="setting-nudges-notifications">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="setting-row">
+              <div class="setting-info">
+                <h4>Follow-up Threshold</h4>
+                <p>Days without activity before suggesting a follow-up.</p>
+              </div>
+              <div class="delay-control">
+                <input type="range" id="setting-nudges-followup" min="1" max="21" step="1" value="7">
+                <span id="nudges-followup-value">7 days</span>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-info">
+                <h4>Inactivity Threshold</h4>
+                <p>Days since your last application before nudging.</p>
+              </div>
+              <div class="delay-control">
+                <input type="range" id="setting-nudges-inactivity" min="1" max="14" step="1" value="3">
+                <span id="nudges-inactivity-value">3 days</span>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-info">
+                <h4>Max items shown</h4>
+                <p>Maximum nudges visible in the Today panel.</p>
+              </div>
+              <div class="delay-control">
+                <input type="range" id="setting-nudges-max" min="3" max="15" step="1" value="7">
+                <span id="nudges-max-value">7</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-card">
+            <div class="setting-row">
+              <div class="setting-info">
+                <h4>Weekly Digest</h4>
+                <p>A summary of the week (applied, interviews, ghosted, goal status).</p>
+              </div>
+              <label class="toggle">
+                <input type="checkbox" id="setting-digest-enabled">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div class="setting-row">
+              <div class="setting-info">
+                <h4>Digest day &amp; time</h4>
+                <p>When the digest fires each week.</p>
+              </div>
+              <div class="delay-control" style="gap: 8px;">
+                <select id="setting-digest-day">
+                  <option value="0">Sunday</option>
+                  <option value="1">Monday</option>
+                  <option value="2">Tuesday</option>
+                  <option value="3">Wednesday</option>
+                  <option value="4">Thursday</option>
+                  <option value="5">Friday</option>
+                  <option value="6">Saturday</option>
+                </select>
+                <select id="setting-digest-hour">
+                  <option value="6">6:00 AM</option>
+                  <option value="9">9:00 AM</option>
+                  <option value="12">12:00 PM</option>
+                  <option value="15">3:00 PM</option>
+                  <option value="18">6:00 PM</option>
+                  <option value="20">8:00 PM</option>
+                </select>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-info">
+                <h4>Test the digest</h4>
+                <p>Fire a sample digest notification right now.</p>
+              </div>
+              <button type="button" class="btn-secondary" id="send-digest-now-btn">Send digest now</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Custom Field Rules -->
         <div class="settings-group">
           <h2>Custom Field Rules</h2>

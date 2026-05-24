@@ -45,7 +45,11 @@ export const MessageTypes = {
   UPLOAD_RESUME: 'UPLOAD_RESUME',
   DELETE_UPLOADED_RESUME: 'DELETE_UPLOADED_RESUME',
   GET_ALL_RESUMES_FOR_LINKING: 'GET_ALL_RESUMES_FOR_LINKING',
-  GET_RESUME_USAGE_COUNTS: 'GET_RESUME_USAGE_COUNTS'
+  GET_RESUME_USAGE_COUNTS: 'GET_RESUME_USAGE_COUNTS',
+  // Nudges / Today panel
+  GET_NUDGES: 'GET_NUDGES',
+  SET_NUDGE_STATE: 'SET_NUDGE_STATE',
+  RUN_WEEKLY_DIGEST_NOW: 'RUN_WEEKLY_DIGEST_NOW'
 };
 
 // Status colors matching existing CSS
@@ -238,7 +242,12 @@ export function initElements() {
     selectResumeBtn: document.getElementById('select-resume-btn'),
     uploadResumeBtn: document.getElementById('upload-resume-btn'),
     clearResumeBtn: document.getElementById('clear-resume-btn'),
-    resumeFileUpload: document.getElementById('resume-file-upload')
+    resumeFileUpload: document.getElementById('resume-file-upload'),
+
+    // Today / Nudges panel
+    todayPanel: document.getElementById('today-panel'),
+    todayList: document.getElementById('today-list'),
+    todayCountBadge: document.getElementById('today-count-badge')
   };
 
   return elements;
